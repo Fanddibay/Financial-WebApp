@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply antialiased;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60;
+  }
+
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white/70 p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-soft;
+  }
+}
+
+@layer utilities {
+  /* Smooth scrolling for modals and scrollable containers */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Better touch target sizes on mobile */
+  @media (max-width: 640px) {
+    button, a, input, select, textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+}
