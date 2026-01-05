@@ -294,7 +294,7 @@ async function handleInstall() {
     </BaseCard>
 
     <!-- PWA Install -->
-    <BaseCard v-if="isInstallable || isInstalled">
+    <BaseCard>
       <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
         Instal Aplikasi
       </h3>
@@ -346,6 +346,27 @@ async function handleInstall() {
           <font-awesome-icon :icon="['fas', 'download']" class="mr-2" />
           {{ isInstalling ? 'Menginstal...' : 'Instal Aplikasi' }}
         </BaseButton>
+
+        <div v-else-if="!isInstalled && !isInstallable"
+          class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+          <div class="flex items-start gap-3">
+            <font-awesome-icon :icon="['fas', 'circle-info']" class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <p class="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                Cara Instal Manual (Android Chrome)
+              </p>
+              <ol class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5 list-decimal list-inside">
+                <li>Buka menu Chrome (3 titik di kanan atas)</li>
+                <li>Pilih "Add to Home screen" atau "Install app"</li>
+                <li>Klik "Install" atau "Add"</li>
+                <li>Aplikasi akan muncul di layar utama</li>
+              </ol>
+              <p class="text-xs text-blue-700 dark:text-blue-400 mt-2">
+                Jika opsi tidak muncul, pastikan Anda mengunjungi situs melalui HTTPS dan service worker sudah aktif.
+              </p>
+            </div>
+          </div>
+        </div>
 
         <div v-else-if="isInstalled"
           class="rounded-lg bg-green-50 p-4 dark:bg-green-900/20 border border-green-200 dark:border-green-800">

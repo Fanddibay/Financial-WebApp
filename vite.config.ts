@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico'],
       manifest: {
         name: 'Financial Tracker',
         short_name: 'Finance',
@@ -20,16 +20,25 @@ export default defineConfig({
         theme_color: '#42b883',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/',
+        scope: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png',
+            src: 'favicon.ico',
+            sizes: '64x64 32x32 24x24 16x16',
+            type: 'image/x-icon',
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'favicon.ico',
+            sizes: '192x192',
+            type: 'image/x-icon',
+            purpose: 'any maskable',
+          },
+          {
+            src: 'favicon.ico',
             sizes: '512x512',
-            type: 'image/png',
+            type: 'image/x-icon',
+            purpose: 'any maskable',
           },
         ],
       },

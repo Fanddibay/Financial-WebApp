@@ -94,6 +94,18 @@ export function usePWAInstall() {
     // Listen for app installed event
     window.addEventListener('appinstalled', handleAppInstalled)
 
+    // Debug: Log installability status
+    console.log('PWA Install Status:', {
+      isInstallable: isInstallable.value,
+      isInstalled: isInstalled.value,
+      userAgent: navigator.userAgent,
+    })
+
+    // Check if browser supports PWA installation
+    if ('serviceWorker' in navigator) {
+      console.log('Service Worker supported')
+    }
+
     // Re-check periodically (in case user installs via browser menu)
     checkInterval = setInterval(() => {
       if (!isInstalled.value) {
