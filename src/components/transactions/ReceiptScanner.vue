@@ -35,7 +35,7 @@ async function loadTesseract() {
       // Import tesseract.js - this will be bundled and cached by service worker
       const tesseractModule = await import('tesseract.js')
       Tesseract = tesseractModule.default
-      
+
       // Pre-warm tesseract worker to cache assets on first load
       // This ensures worker files are cached for offline use
       if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {

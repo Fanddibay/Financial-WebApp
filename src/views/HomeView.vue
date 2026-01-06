@@ -27,6 +27,19 @@ const selectedType = ref<'income' | 'expense' | 'all'>('all')
 const showTotals = ref(true)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
+const hiddenCategories = ref<Set<string>>(new Set())
+
+// Chart colors matching ExpenseChart component
+const colors = [
+  '#10b981', // green-500
+  '#3b82f6', // blue-500
+  '#f59e0b', // amber-500
+  '#ef4444', // red-500
+  '#8b5cf6', // violet-500
+  '#ec4899', // pink-500
+  '#06b6d4', // cyan-500
+  '#84cc16', // lime-500
+]
 
 // Transaction notification
 const newTransaction = ref<TransactionFormData | null>(null)
@@ -38,7 +51,8 @@ const typeOptions = [
   { value: 'expense', label: 'Expense' },
 ]
 
-const filteredTransactionsByCategory = computed(() => {
+// All categories (for display in breakdown)
+const allCategories = computed(() => {
   if (selectedType.value === 'income') {
     return incomeTransactionsByCategory.value
   } else if (selectedType.value === 'expense') {
@@ -59,24 +73,49 @@ const filteredTransactionsByCategory = computed(() => {
   }
 })
 
-const incomeTotal = computed(() => {
-  return incomeTransactionsByCategory.value.reduce((sum, item) => sum + item.total, 0)
-})
-
-const expenseTotal = computed(() => {
-  return transactionsByCategory.value.reduce((sum, item) => sum + item.total, 0)
+// Filtered categories (for chart display)
+const filteredTransactionsByCategory = computed(() => {
+  // Filter out hidden categories
+  return allCategories.value.filter(item => !hiddenCategories.value.has(item.category))
 })
 
 const totalAmount = computed(() => {
+  // Calculate total from visible categories only
+  const visibleTotal = filteredTransactionsByCategory.value.reduce((sum, item) => sum + item.total, 0)
+
   if (selectedType.value === 'income') {
-    return incomeTotal.value
+    return visibleTotal
   } else if (selectedType.value === 'expense') {
-    return expenseTotal.value
+    return visibleTotal
   } else {
-    // Calculate balance (income - expense)
-    return incomeTotal.value - expenseTotal.value
+    // For 'all', we need to recalculate balance considering hidden categories
+    const visibleIncome = filteredTransactionsByCategory.value
+      .filter(item => item.category.includes('(Income)'))
+      .reduce((sum, item) => sum + item.total, 0)
+    const visibleExpense = filteredTransactionsByCategory.value
+      .filter(item => item.category.includes('(Expense)'))
+      .reduce((sum, item) => sum + item.total, 0)
+    return visibleIncome - visibleExpense
   }
 })
+
+function toggleCategory(category: string) {
+  if (hiddenCategories.value.has(category)) {
+    hiddenCategories.value.delete(category)
+  } else {
+    hiddenCategories.value.add(category)
+  }
+  // Create new Set to trigger reactivity
+  hiddenCategories.value = new Set(hiddenCategories.value)
+}
+
+function handleSegmentClick(category: string) {
+  toggleCategory(category)
+}
+
+const getCategoryColor = (index: number) => {
+  return colors[index % colors.length]
+}
 
 const isBalanceNegative = computed(() => {
   return selectedType.value === 'all' && totalAmount.value < 0
@@ -195,22 +234,29 @@ function confirmDelete() {
     <BaseCard>
       <template #header>
         <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ chartTitle }}</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">{{ chartSubtitle }}</p>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ chartTitle }}</h2>
+            <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ chartSubtitle }}</p>
           </div>
-          <div class="!text-xs">
+          <div class="flex-shrink-0">
             <BaseSelect v-model="selectedType" :options="typeOptions" />
           </div>
         </div>
       </template>
-      <div v-if="filteredTransactionsByCategory.length > 0">
-        <ExpenseChart :transactions-by-category="filteredTransactionsByCategory" :total-expenses="totalAmount"
-          :label="selectedType === 'all' ? 'Saldo' : totalLabel" :is-negative="isBalanceNegative"
-          :is-expense="selectedType === 'expense'" />
-        <div class="mt-6 text-center">
-          <p class="text-sm text-slate-500">{{ totalLabel }}</p>
-          <div class="flex gap-4 mx-auto justify-center items-center">
+
+      <div v-if="filteredTransactionsByCategory.length > 0" class="space-y-6">
+        <!-- Chart with centered total -->
+        <div class="relative">
+          <ExpenseChart :transactions-by-category="filteredTransactionsByCategory" :total-expenses="totalAmount"
+            :label="selectedType === 'all' ? 'Saldo' : totalLabel" :is-negative="isBalanceNegative"
+            :is-expense="selectedType === 'expense'" :hidden-categories="hiddenCategories"
+            :on-segment-click="handleSegmentClick" />
+        </div>
+
+        <!-- Total Amount Display -->
+        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-4 dark:bg-slate-800/50">
+          <div class="flex-1">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ totalLabel }}</p>
             <p :class="[
               'text-2xl font-bold',
               isBalanceNegative
@@ -219,16 +265,79 @@ function confirmDelete() {
             ]">
               {{ displayTotal }}
             </p>
-            <button
-              class="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-brand/40 hover:text-brand dark:border-slate-700 dark:text-slate-400"
-              type="button" @click="showTotals = !showTotals">
-              <font-awesome-icon :icon="['fas', showTotals ? 'eye-slash' : 'eye']" />
+          </div>
+          <button
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-brand/40"
+            type="button" @click="showTotals = !showTotals"
+            :aria-label="showTotals ? 'Sembunyikan saldo' : 'Tampilkan saldo'">
+            <font-awesome-icon :icon="['fas', showTotals ? 'eye-slash' : 'eye']" class="h-5 w-5" />
+          </button>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div v-if="allCategories.length > 0" class="space-y-3">
+          <div class="flex items-center justify-between">
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Rincian Kategori</p>
+            <button v-if="hiddenCategories.size > 0" @click="hiddenCategories = new Set()"
+              class="text-xs text-brand hover:underline font-medium" type="button">
+              Tampilkan Semua
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <button v-for="(item, index) in allCategories" :key="item.category" @click="toggleCategory(item.category)"
+              :class="[
+                'group relative rounded-xl border-2 p-3 text-left transition-all',
+                'hover:scale-105 hover:shadow-md active:scale-95',
+                hiddenCategories.has(item.category)
+                  ? 'border-slate-200 bg-slate-50/50 opacity-50 dark:border-slate-700 dark:bg-slate-800/30'
+                  : 'border-slate-200 bg-white hover:border-brand/40 hover:bg-brand/5 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-brand/40'
+              ]" type="button">
+              <!-- Color indicator -->
+              <div class="mb-2 h-2 w-full rounded-full" :style="{ backgroundColor: getCategoryColor(index) }"></div>
+
+              <!-- Category name (top) -->
+              <p :class="[
+                'text-[10px] font-semibold mb-1.5 line-clamp-2',
+                hiddenCategories.has(item.category)
+                  ? 'text-slate-400 dark:text-slate-500'
+                  : 'text-slate-700 dark:text-slate-300'
+              ]">
+                {{ item.category }}
+              </p>
+
+              <!-- Amount (bottom) -->
+              <p :class="[
+                'text-xs font-bold',
+                hiddenCategories.has(item.category)
+                  ? 'text-slate-400 dark:text-slate-500'
+                  : 'text-slate-900 dark:text-slate-100'
+              ]">
+                {{ formatIDR(item.total) }}
+              </p>
+
+              <!-- Toggle indicator -->
+              <div class="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full transition"
+                :class="[
+                  hiddenCategories.has(item.category)
+                    ? 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500 opacity-100'
+                    : 'bg-brand/10 text-brand opacity-0 group-hover:opacity-100 dark:bg-brand/20'
+                ]">
+                <font-awesome-icon :icon="['fas', hiddenCategories.has(item.category) ? 'eye-slash' : 'eye']"
+                  class="h-3 w-3" />
+              </div>
             </button>
           </div>
         </div>
       </div>
-      <div v-else class="py-12 text-center text-slate-500">
-        <p>Belum ada transaksi nih. Tambahkan transaksi dulu untuk lihat rinciannya!</p>
+
+      <div v-else class="py-16 text-center">
+        <div
+          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'chart-pie']" class="text-2xl text-slate-400 dark:text-slate-500" />
+        </div>
+        <p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Belum ada transaksi</p>
+        <p class="text-xs text-slate-500 dark:text-slate-500">Tambahkan transaksi dulu untuk melihat rincian keuangan
+        </p>
       </div>
     </BaseCard>
 
@@ -269,7 +378,7 @@ function confirmDelete() {
       enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
       leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
       <div v-if="showTransactionNotification && newTransaction" :class="[
-        'fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg px-4 py-4 shadow-xl max-w-[90%] w-full max-w-md',
+        'fixed bottom-24 left-1/2 z-50 -translate-x-1/2 w-full max-w-md rounded-lg px-4 py-4 shadow-xl',
         newTransaction.type === 'income'
           ? 'bg-green-50 border-2 border-green-200 dark:bg-green-900/20 dark:border-green-800'
           : 'bg-red-50 border-2 border-red-200 dark:bg-red-900/20 dark:border-red-800',
