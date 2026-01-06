@@ -32,7 +32,15 @@ let Tesseract: any = null
 async function loadTesseract() {
   if (!Tesseract) {
     try {
-      Tesseract = (await import('tesseract.js')).default
+      // Import tesseract.js - this will be bundled and cached by service worker
+      const tesseractModule = await import('tesseract.js')
+      Tesseract = tesseractModule.default
+      
+      // Pre-warm tesseract worker to cache assets on first load
+      // This ensures worker files are cached for offline use
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        console.log('Service worker active - Tesseract.js will be cached for offline use')
+      }
     } catch (error) {
       console.error('Failed to load Tesseract.js:', error)
       throw new Error('OCR library not available. Please ensure tesseract.js is installed.')

@@ -350,7 +350,8 @@ async function handleInstall() {
         <div v-else-if="!isInstalled && !isInstallable"
           class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
           <div class="flex items-start gap-3">
-            <font-awesome-icon :icon="['fas', 'circle-info']" class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <font-awesome-icon :icon="['fas', 'circle-info']"
+              class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
             <div class="flex-1">
               <p class="font-semibold text-blue-900 dark:text-blue-100 mb-1">
                 Cara Instal Manual (Android Chrome)
