@@ -66,6 +66,30 @@ export function useTransactions() {
     })).sort((a, b) => b.total - a.total)
   })
 
+  // Helper function to get transactions by category with type filter
+  const getTransactionsByCategory = (type: 'all' | 'income' | 'expense') => {
+    const filtered = type === 'all' 
+      ? transactions.value
+      : type === 'income'
+      ? incomeTransactions.value
+      : expenseTransactions.value
+
+    const grouped = new Map<string, { total: number; count: number }>()
+    
+    filtered.forEach((t) => {
+      const existing = grouped.get(t.category) || { total: 0, count: 0 }
+      grouped.set(t.category, {
+        total: existing.total + t.amount,
+        count: existing.count + 1,
+      })
+    })
+    
+    return Array.from(grouped.entries()).map(([category, data]) => ({
+      category,
+      ...data,
+    })).sort((a, b) => b.total - a.total)
+  }
+
   const recentTransactions = computed(() => 
     [...transactions.value]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -93,6 +117,7 @@ export function useTransactions() {
     updateTransaction,
     deleteTransaction,
     getTransactionById,
+    getTransactionsByCategory,
   }
 }
 
