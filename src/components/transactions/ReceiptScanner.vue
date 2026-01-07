@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -8,6 +9,8 @@ import type { TransactionFormData } from '@/types/transaction'
 import { parseReceiptText, parseReceiptTextDetailed, type ReceiptParseResult } from '@/utils/receiptParser'
 import { validateImageForReceipt } from '@/utils/imageValidation'
 import { formatIDR } from '@/utils/currency'
+import { useTokenStore } from '@/stores/token'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 interface Props {
   isOpen: boolean
@@ -24,6 +27,9 @@ const emit = defineEmits<{
   scanComplete: [data: TransactionFormData]
   scanCompleteMultiple: [data: TransactionFormData[]]
 }>()
+
+const router = useRouter()
+const tokenStore = useTokenStore()
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Tesseract: any = null
@@ -129,6 +135,13 @@ function handleCameraClick() {
 }
 
 async function processImage(file: File) {
+  // Check license/usage limit
+  if (!tokenStore.canUseReceiptScan()) {
+    error.value = `Receipt scanning limit reached (${tokenStore.MAX_BASIC_USAGE} scans per day). Activate a license to unlock unlimited scans.`
+    errorType.value = 'limit-reached'
+    return
+  }
+
   processing.value = true
   processingProgress.value = 0
   error.value = null
@@ -301,6 +314,8 @@ function handleSubmit() {
         const finalValidation = validateAndFixDate(t.date)
         return { ...t, date: finalValidation.date }
       })
+      // Record usage
+      tokenStore.recordReceiptScan()
       emit('scanCompleteMultiple', finalTransactions)
       handleClose()
     }
@@ -316,6 +331,8 @@ function handleSubmit() {
     if (formData.value.description.trim()) {
       // Final validation before emitting
       const finalDateValidation = validateAndFixDate(formData.value.date)
+      // Record usage
+      tokenStore.recordReceiptScan()
       emit('scanComplete', {
         ...formData.value,
         date: finalDateValidation.date,
@@ -477,6 +494,26 @@ const errorIcon = computed(() => {
   <!-- Main Scanner Modal -->
   <BaseModal :is-open="isOpen" title="Scan Receipt" size="lg" @close="handleClose">
     <div v-if="!showPreview" class="space-y-4">
+      <!-- Usage Limit Warning -->
+      <div v-if="!tokenStore.isLicenseActive"
+        class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+        <div class="flex items-start gap-2">
+          <font-awesome-icon :icon="['fas', 'info-circle']"
+            class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+          <div class="flex-1">
+            <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
+              Basic Account Limit
+            </p>
+            <p class="text-xs text-amber-700 dark:text-amber-400">
+              You have {{ tokenStore.getRemainingUsage('receipt') }} of {{ tokenStore.MAX_BASIC_USAGE }} scans remaining
+              today.
+              <button @click="router.push('/profile')" class="underline font-medium">Activate license</button> for
+              unlimited scans.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="text-center">
         <p class="text-sm text-slate-600 dark:text-slate-400">
           Take a photo or upload an image of your receipt to automatically extract transaction details

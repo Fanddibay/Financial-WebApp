@@ -20,6 +20,7 @@ interface Props {
   isExpense?: boolean
   hiddenCategories?: Set<string>
   onSegmentClick?: (category: string) => void
+  disabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,6 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
   isExpense: false,
   hiddenCategories: () => new Set<string>(),
   onSegmentClick: undefined,
+  disabled: false,
 })
 
 const hoveredIndex = ref<number | null>(null)
@@ -50,6 +52,22 @@ const visibleCategories = computed(() => {
 })
 
 const chartData = computed(() => {
+  // If disabled and no visible categories, show empty chart with gray color
+  if (props.disabled || visibleCategories.value.length === 0) {
+    return {
+      labels: [''],
+      datasets: [
+        {
+          data: [1], // Single segment for empty state
+          backgroundColor: ['#e2e8f0'], // slate-200
+          borderWidth: 0,
+          hoverBorderWidth: 0,
+          hoverOffset: 0,
+        },
+      ],
+    }
+  }
+
   return {
     labels: visibleCategories.value.map((item) => item.category),
     datasets: [
@@ -79,6 +97,12 @@ const chartOptions = computed(() => ({
     mode: 'nearest' as const,
   },
   onHover: (event: ChartEvent, activeElements: ActiveElement[]) => {
+    if (props.disabled) {
+      if (event.native && event.native.target instanceof HTMLElement) {
+        event.native.target.style.cursor = 'default'
+      }
+      return
+    }
     if (activeElements.length > 0 && activeElements[0]) {
       const index = activeElements[0].index
       hoveredIndex.value = index
@@ -93,7 +117,10 @@ const chartOptions = computed(() => ({
     }
   },
   onClick: (_event: ChartEvent, activeElements: ActiveElement[]) => {
-    if (activeElements.length > 0 && props.onSegmentClick) {
+    if (props.disabled || !props.onSegmentClick) {
+      return
+    }
+    if (activeElements.length > 0) {
       const index = activeElements[0]?.index
       if (index !== undefined && index >= 0 && index < visibleCategories.value.length) {
         const category = visibleCategories.value[index]?.category
@@ -149,12 +176,19 @@ const chartOptions = computed(() => ({
       <!-- Centered total inside donut -->
       <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div class="text-center">
-          <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ label }}</p>
+          <p :class="[
+            'text-xs font-medium mb-1',
+            disabled
+              ? 'text-slate-400 dark:text-slate-500'
+              : 'text-slate-500 dark:text-slate-400'
+          ]">{{ label }}</p>
           <p :class="[
             'text-2xl font-bold leading-tight',
-            isNegative || isExpense
-              ? 'text-red-600 dark:text-red-400'
-              : 'text-slate-900 dark:text-slate-100'
+            disabled
+              ? 'text-slate-400 dark:text-slate-500'
+              : isNegative || isExpense
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-slate-900 dark:text-slate-100'
           ]">
             {{ formatIDR(totalExpenses) }}
           </p>

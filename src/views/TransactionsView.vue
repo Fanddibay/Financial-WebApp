@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
@@ -31,6 +31,7 @@ const showScanner = ref(false)
 const showFilterSection = ref(false)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
+const showScrollToTop = ref(false)
 
 // Date filter state
 type DateFilterType = 'none' | 'today' | 'last7days' | 'last30days' | 'custom'
@@ -150,7 +151,12 @@ const filteredTransactions = computed(() => {
     )
   }
 
-  return result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  // Sort by createdAt (waktu input) - yang paling baru di input di atas
+  return result.sort((a, b) => {
+    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return timeB - timeA // Descending: newest first
+  })
 })
 
 const activeFiltersCount = computed(() => {
@@ -213,9 +219,6 @@ watch(filterType, () => {
   }
 })
 
-onMounted(() => {
-  fetchTransactions()
-})
 
 function handleEdit(id: string) {
   router.push({ name: 'transaction-edit', params: { id } })
@@ -254,6 +257,27 @@ function handleScanCompleteMultiple(data: TransactionFormData[]) {
   })
   fetchTransactions()
 }
+
+function handleScroll() {
+  const scrollThreshold = window.innerHeight * 1.5
+  showScrollToTop.value = window.scrollY > scrollThreshold
+}
+
+function scrollToTop() {
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  })
+}
+
+onMounted(() => {
+  fetchTransactions()
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
+})
 </script>
 
 <template>
@@ -435,5 +459,17 @@ function handleScanCompleteMultiple(data: TransactionFormData[]) {
       message="Yakin mau hapus transaksi ini? Tindakan ini tidak bisa dibatalkan." confirm-text="Hapus"
       cancel-text="Batal" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
       @close="showDeleteConfirm = false" />
+
+    <!-- Scroll to Top Button -->
+    <Transition enter-active-class="transition-all duration-300 ease-out"
+      enter-from-class="opacity-0 scale-90 translate-y-4" enter-to-class="opacity-100 scale-100 translate-y-0"
+      leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 scale-100 translate-y-0"
+      leave-to-class="opacity-0 scale-90 translate-y-4">
+      <button v-if="showScrollToTop" type="button" @click="scrollToTop"
+        class="fixed bottom-44 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+        title="Scroll to top">
+        <font-awesome-icon :icon="['fas', 'arrow-up']" class="h-5 w-5" />
+      </button>
+    </Transition>
   </div>
 </template>

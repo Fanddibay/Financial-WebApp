@@ -1,18 +1,23 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatStore } from '@/stores/chat'
 import { useTransactionStore } from '@/stores/transaction'
 import { useThemeStore } from '@/stores/theme'
+import { useTokenStore } from '@/stores/token'
 import { analyzeFinancialData } from '@/services/financialAI'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+const router = useRouter()
 const chatStore = useChatStore()
 const transactionStore = useTransactionStore()
 const themeStore = useThemeStore()
+const tokenStore = useTokenStore()
 
 const inputMessage = ref('')
 const messagesEnd = ref<HTMLElement | null>(null)
+const limitError = ref<string | null>(null)
 
 const hasMessages = computed(() => chatStore.messages.length > 0)
 const isDark = computed(() => themeStore.theme === 'dark')
@@ -39,6 +44,16 @@ async function handleSend() {
         return
     }
 
+    // Check license/usage limit
+    if (!tokenStore.canUseChat()) {
+        limitError.value = `Chat limit reached (${tokenStore.MAX_BASIC_USAGE} messages per day). Activate a license to unlock unlimited chat.`
+        setTimeout(() => {
+            limitError.value = null
+        }, 5000)
+        return
+    }
+
+    limitError.value = null
     const message = inputMessage.value.trim()
     inputMessage.value = ''
 
@@ -63,6 +78,8 @@ async function handleSend() {
     }
 
     await chatStore.sendMessage(message, context)
+    // Record usage after successful send
+    tokenStore.recordChatMessage()
     scrollToBottom()
 }
 
@@ -158,6 +175,21 @@ function handleClear() {
 
         <!-- Input -->
         <div class="border-t border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900 rounded-b-2xl sm:rounded-b-2xl">
+            <!-- Usage Limit Warning -->
+            <div v-if="!tokenStore.isLicenseActive" class="mb-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2">
+                <div class="flex items-start gap-2">
+                    <font-awesome-icon :icon="['fas', 'info-circle']" class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0 text-xs" />
+                    <div class="flex-1">
+                        <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
+                            Basic Account: {{ tokenStore.getRemainingUsage('chat') }}/{{ tokenStore.MAX_BASIC_USAGE }} messages remaining
+                        </p>
+                        <button @click="router.push('/profile')" class="text-xs text-amber-700 dark:text-amber-400 underline font-medium">
+                            Activate license for unlimited chat
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex gap-2">
                 <input 
                     v-model="inputMessage" 
@@ -175,6 +207,9 @@ function handleClear() {
             </div>
             <p v-if="chatStore.error" class="mt-2 text-xs text-red-600 dark:text-red-400">
                 {{ chatStore.error }}
+            </p>
+            <p v-if="limitError" class="mt-2 text-xs text-red-600 dark:text-red-400">
+                {{ limitError }}
             </p>
             <!-- AI Disclaimer -->
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">

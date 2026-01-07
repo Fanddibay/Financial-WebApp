@@ -39,6 +39,9 @@ const formData = ref<TransactionFormData>({
   date: getTodayDate(),
 })
 
+const isFromTextInput = ref(false)
+const isCancelling = ref(false) // Guard to prevent auto-save when canceling
+
 const pendingTransactions = ref<PendingTransaction[]>([])
 const editingIndex = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
@@ -91,6 +94,36 @@ onMounted(async () => {
     } else {
       router.push('/transactions')
     }
+  } else {
+    // Check for prefilled data from query params (e.g., from text input)
+    const query = route.query
+    if (query.from === 'text-input') {
+      isFromTextInput.value = true
+      if (query.type) {
+        formData.value.type = query.type as 'income' | 'expense'
+      }
+      if (query.amount) {
+        const amount = parseFloat(query.amount as string)
+        if (!isNaN(amount) && amount > 0) {
+          formData.value.amount = amount
+        }
+      }
+      if (query.description) {
+        formData.value.description = decodeURIComponent(query.description as string)
+      }
+      if (query.category) {
+        formData.value.category = decodeURIComponent(query.category as string)
+      }
+      if (query.date) {
+        formData.value.date = query.date as string
+      }
+
+      // CRITICAL: Clear query params immediately after reading them
+      // This prevents any accidental auto-save or re-reading on navigation
+      router.replace({ query: {} }).catch(() => {
+        // Ignore navigation errors
+      })
+    }
   }
 })
 
@@ -123,6 +156,11 @@ function validateForm(data: TransactionFormData): string | null {
 }
 
 async function handleSubmit() {
+  // CRITICAL: Don't save if user is canceling
+  if (isCancelling.value) {
+    return
+  }
+
   // Final date validation before submission
   if (formData.value.date && isDateInFuture(formData.value.date)) {
     showAlertModal(
@@ -134,7 +172,7 @@ async function handleSubmit() {
     formData.value.date = getTodayDate()
     return
   }
-  
+
   const error = validateForm(formData.value)
   if (error) {
     // Determine variant based on error message
@@ -184,7 +222,7 @@ function handleSaveAndAddMore() {
     formData.value.date = getTodayDate()
     return
   }
-  
+
   const error = validateForm(formData.value)
   if (error) {
     // Determine variant based on error message
@@ -316,15 +354,61 @@ async function handleSubmitAll() {
 }
 
 function handleCancel() {
+  // CRITICAL: Set canceling flag to prevent any auto-save
+  isCancelling.value = true
+
+  // CRITICAL: When canceling, ensure no data is saved
+  // Clear any prefilled data from text input
+  if (isFromTextInput.value) {
+    // Reset form data to defaults
+    formData.value = {
+      type: defaultFormData.type,
+      amount: defaultFormData.amount,
+      description: defaultFormData.description,
+      category: defaultFormData.category,
+      date: getTodayDate(),
+    }
+    isFromTextInput.value = false
+  }
+
   if (pendingTransactions.value.length > 0) {
     showCancelConfirm.value = true
   } else {
-    router.back()
+    // Clear query params before going back to prevent any auto-save
+    router.replace({ query: {} }).then(() => {
+      // Reset canceling flag after navigation
+      setTimeout(() => {
+        isCancelling.value = false
+      }, 100)
+      router.back()
+    }).catch(() => {
+      // Reset flag even on error
+      isCancelling.value = false
+      router.back()
+    })
   }
 }
 
 function confirmCancel() {
-  router.back()
+  // CRITICAL: Set canceling flag to prevent any auto-save
+  isCancelling.value = true
+
+  // CRITICAL: Clear all pending transactions and query params
+  pendingTransactions.value = []
+  editingIndex.value = null
+
+  // Clear query params before going back
+  router.replace({ query: {} }).then(() => {
+    // Reset canceling flag after navigation
+    setTimeout(() => {
+      isCancelling.value = false
+    }, 100)
+    router.back()
+  }).catch(() => {
+    // Reset flag even on error
+    isCancelling.value = false
+    router.back()
+  })
 }
 
 function formatCurrency(amount: number): string {
@@ -358,6 +442,26 @@ function formatDate(dateString: string): string {
       </p>
     </div>
 
+    <!-- Info Banner for Text Input -->
+    <div v-if="isFromTextInput"
+      class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+      <div class="flex items-start gap-3">
+        <div class="flex-shrink-0 mt-0.5">
+          <font-awesome-icon :icon="['fas', 'info-circle']" class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
+            Data dari Input Teks
+          </p>
+          <p class="text-xs text-blue-700 dark:text-blue-300">
+            Form telah diisi otomatis dari teks yang Anda masukkan. Silakan periksa dan edit semua field sebelum
+            menyimpan.
+            Field yang kosong atau perlu diperbaiki akan ditandai dengan jelas.
+          </p>
+        </div>
+      </div>
+    </div>
+
     <BaseCard class="overflow-visible">
       <TransactionForm v-model="formData" :categories="categories" :loading="loading" @submit="handleSubmit">
         <template #actions>
@@ -365,22 +469,13 @@ function formatDate(dateString: string): string {
             <BaseButton variant="secondary" @click="handleCancel" class="flex-1 min-w-[100px]">
               Batal
             </BaseButton>
-            <BaseButton
-              v-if="pendingTransactions.length === 0"
-              type="submit"
-              :loading="loading"
-              class="flex-1 min-w-[100px]"
-            >
+            <BaseButton v-if="pendingTransactions.length === 0" type="submit" :loading="loading"
+              class="flex-1 min-w-[100px]">
               {{ isEdit ? 'Update' : 'Simpan' }}
             </BaseButton>
             <div v-if="!isEdit" class="w-full p-4">
-              <BaseButton
-                type="button"
-                variant="secondary"
-                :loading="loading"
-                @click="handleSaveAndAddMore"
-                class="w-full"
-              >
+              <BaseButton type="button" variant="secondary" :loading="loading" @click="handleSaveAndAddMore"
+                class="w-full">
                 {{ editingIndex !== null ? 'Update & Tambah Lagi' : 'Simpan & Tambah Lagi' }}
               </BaseButton>
               <p class="mt-2 text-center italic text-sm text-slate-600 dark:text-slate-400">
@@ -406,9 +501,11 @@ function formatDate(dateString: string): string {
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-700">
                 <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Tipe</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Deskripsi</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Deskripsi
+                </th>
                 <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Jumlah</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Tanggal</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Tanggal
+                </th>
                 <th class="px-2 py-1.5 text-right text-[10px] font-medium text-slate-600 dark:text-slate-400">Aksi</th>
               </tr>
             </thead>
@@ -481,37 +578,18 @@ function formatDate(dateString: string): string {
   </div>
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmModal
-    :is-open="showDeleteConfirm"
-    title="Hapus Transaksi"
-    message="Yakin mau hapus transaksi ini dari daftar? Tindakan ini tidak bisa dibatalkan."
-    confirm-text="Hapus"
-    cancel-text="Batal"
-    variant="danger"
-    :icon="['fas', 'trash']"
-    @confirm="confirmDelete"
-    @close="showDeleteConfirm = false"
-  />
+  <ConfirmModal :is-open="showDeleteConfirm" title="Hapus Transaksi"
+    message="Yakin mau hapus transaksi ini dari daftar? Tindakan ini tidak bisa dibatalkan." confirm-text="Hapus"
+    cancel-text="Batal" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
+    @close="showDeleteConfirm = false" />
 
   <!-- Cancel Confirmation Modal -->
-  <ConfirmModal
-    :is-open="showCancelConfirm"
-    title="Transaksi Belum Disimpan"
+  <ConfirmModal :is-open="showCancelConfirm" title="Transaksi Belum Disimpan"
     message="Kamu punya transaksi yang belum disimpan. Yakin mau batal? Semua perubahan akan hilang."
-    confirm-text="Batal"
-    cancel-text="Lanjut Edit"
-    variant="warning"
-    :icon="['fas', 'exclamation-triangle']"
-    @confirm="confirmCancel"
-    @close="showCancelConfirm = false"
-  />
+    confirm-text="Batal" cancel-text="Lanjut Edit" variant="warning" :icon="['fas', 'exclamation-triangle']"
+    @confirm="confirmCancel" @close="showCancelConfirm = false" />
 
   <!-- Alert Modal -->
-  <AlertModal
-    :is-open="showAlert"
-    :title="alertTitle"
-    :message="alertMessage"
-    :variant="alertVariant"
-    @close="showAlert = false"
-  />
+  <AlertModal :is-open="showAlert" :title="alertTitle" :message="alertMessage" :variant="alertVariant"
+    @close="showAlert = false" />
 </template>

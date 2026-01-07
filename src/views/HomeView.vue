@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onActivated, onUnmounted, ref, watch, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
 import ExpenseChart from '@/components/charts/ExpenseChart.vue'
@@ -14,6 +15,7 @@ import { formatIDR } from '@/utils/currency'
 import type { TransactionFormData } from '@/types/transaction'
 
 const router = useRouter()
+const route = useRoute()
 const {
   transactions,
   transactionsByCategory,
@@ -121,6 +123,21 @@ const isBalanceNegative = computed(() => {
   return selectedType.value === 'all' && totalAmount.value < 0
 })
 
+// Check if there are NO transactions at all (true no transaction state)
+const hasNoTransactions = computed(() => {
+  return allCategories.value.length === 0
+})
+
+// Check if all filters are hidden (filtered empty state)
+const allFiltersHidden = computed(() => {
+  return allCategories.value.length > 0 && filteredTransactionsByCategory.value.length === 0
+})
+
+// Check if chart should be disabled (all filters hidden)
+const isChartDisabled = computed(() => {
+  return allFiltersHidden.value
+})
+
 const chartTitle = computed(() => {
   if (selectedType.value === 'income') return 'Rincian Income'
   if (selectedType.value === 'expense') return 'Rincian Expense'
@@ -176,10 +193,8 @@ const currentMonthExpenses = computed(() => {
     .reduce((sum, t) => sum + t.amount, 0)
 })
 
-onMounted(() => {
-  fetchTransactions()
-
-  // Check for new transaction in sessionStorage
+// Function to check and show notification from sessionStorage
+function checkAndShowNotification() {
   const storedTransaction = sessionStorage.getItem('newTransaction')
   if (storedTransaction) {
     try {
@@ -195,7 +210,50 @@ onMounted(() => {
       console.error('Error parsing transaction data:', error)
     }
   }
+}
+
+onMounted(() => {
+  fetchTransactions()
+  checkAndShowNotification()
+
+  // Listen for custom event to check notification (for when already on homepage)
+  window.addEventListener('check-transaction-notification', checkAndShowNotification)
 })
+
+onUnmounted(() => {
+  // Cleanup event listener
+  window.removeEventListener('check-transaction-notification', checkAndShowNotification)
+})
+
+// onActivated is called when component is activated (useful with keep-alive)
+onActivated(() => {
+  // Check for notification every time component is activated
+  checkAndShowNotification()
+})
+
+// Watch route changes to check for notification when navigating to homepage
+// This ensures notification is shown even if component is already mounted
+watch(
+  () => route.path,
+  (newPath, oldPath) => {
+    // Check when navigating TO homepage (not when leaving)
+    if (newPath === '/' && oldPath !== '/') {
+      // When navigating to homepage, check for notification
+      // Use multiple checks with delays to ensure we catch the sessionStorage
+      // This handles cases where component is already mounted
+      nextTick(() => {
+        // First check immediately
+        checkAndShowNotification()
+        // Second check after a short delay (in case sessionStorage was set during navigation)
+        setTimeout(() => {
+          checkAndShowNotification()
+        }, 200)
+      })
+    }
+  },
+  { immediate: false }
+)
+
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
@@ -244,26 +302,51 @@ function confirmDelete() {
         </div>
       </template>
 
-      <div v-if="filteredTransactionsByCategory.length > 0" class="space-y-6">
+      <!-- No Transaction State: benar-benar tidak ada transaksi -->
+      <div v-if="hasNoTransactions" class="py-16 text-center">
+        <div
+          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'chart-pie']" class="text-2xl text-slate-400 dark:text-slate-500" />
+        </div>
+        <p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Belum ada transaksi</p>
+        <p class="text-xs text-slate-500 dark:text-slate-500">Tambahkan transaksi dulu untuk melihat rincian keuangan
+        </p>
+      </div>
+
+      <!-- Chart State: ada transaksi (baik filtered atau tidak) -->
+      <div v-else class="space-y-6">
         <!-- Chart with centered total -->
-        <div class="relative">
-          <ExpenseChart :transactions-by-category="filteredTransactionsByCategory" :total-expenses="totalAmount"
-            :label="selectedType === 'all' ? 'Saldo' : totalLabel" :is-negative="isBalanceNegative"
-            :is-expense="selectedType === 'expense'" :hidden-categories="hiddenCategories"
-            :on-segment-click="handleSegmentClick" />
+        <div class="relative" :class="{ 'opacity-50 grayscale': isChartDisabled }">
+          <ExpenseChart
+            :transactions-by-category="filteredTransactionsByCategory.length > 0 ? filteredTransactionsByCategory : []"
+            :total-expenses="isChartDisabled ? 0 : totalAmount" :label="selectedType === 'all' ? 'Saldo' : totalLabel"
+            :is-negative="isBalanceNegative" :is-expense="selectedType === 'expense'"
+            :hidden-categories="hiddenCategories" :on-segment-click="handleSegmentClick" :disabled="isChartDisabled" />
+
+          <!-- Filtered Empty State Hint -->
+          <div v-if="isChartDisabled" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div class="bg-white/90 dark:bg-slate-800/90 rounded-lg px-4 py-2 shadow-sm">
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
+                Tidak ada data yang dipilih oleh filter
+              </p>
+            </div>
+          </div>
         </div>
 
         <!-- Total Amount Display -->
-        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-4 dark:bg-slate-800/50">
+        <div class="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-4 dark:bg-slate-800/50"
+          :class="{ 'opacity-50': isChartDisabled }">
           <div class="flex-1">
             <p class="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{{ totalLabel }}</p>
             <p :class="[
               'text-2xl font-bold',
-              isBalanceNegative
-                ? 'text-red-600 dark:text-red-400'
-                : 'text-slate-900 dark:text-slate-100'
+              isChartDisabled
+                ? 'text-slate-400 dark:text-slate-500'
+                : isBalanceNegative
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-slate-900 dark:text-slate-100'
             ]">
-              {{ displayTotal }}
+              {{ isChartDisabled ? formatIDR(0) : displayTotal }}
             </p>
           </div>
           <button
@@ -274,13 +357,17 @@ function confirmDelete() {
           </button>
         </div>
 
-        <!-- Category Breakdown -->
+        <!-- Category Breakdown - Always visible and interactive when there are transactions -->
         <div v-if="allCategories.length > 0" class="space-y-3">
           <div class="flex items-center justify-between">
             <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Rincian Kategori</p>
             <button v-if="hiddenCategories.size > 0" @click="hiddenCategories = new Set()"
               class="text-xs text-brand hover:underline font-medium" type="button">
               Tampilkan Semua
+            </button>
+            <button v-else-if="allFiltersHidden" @click="hiddenCategories = new Set()"
+              class="text-xs text-slate-500 hover:text-brand hover:underline font-medium" type="button">
+              Reset Filter
             </button>
           </div>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -330,15 +417,6 @@ function confirmDelete() {
         </div>
       </div>
 
-      <div v-else class="py-16 text-center">
-        <div
-          class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-          <font-awesome-icon :icon="['fas', 'chart-pie']" class="text-2xl text-slate-400 dark:text-slate-500" />
-        </div>
-        <p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Belum ada transaksi</p>
-        <p class="text-xs text-slate-500 dark:text-slate-500">Tambahkan transaksi dulu untuk melihat rincian keuangan
-        </p>
-      </div>
     </BaseCard>
 
     <!-- Financial Insight Card -->

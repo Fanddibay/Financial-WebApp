@@ -5,6 +5,7 @@ import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
+import TextInputModal from '@/components/transactions/TextInputModal.vue'
 import type { TransactionFormData } from '@/types/transaction'
 import { useTransactions } from '@/composables/useTransactions'
 
@@ -21,6 +22,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const { categories, createTransaction, fetchTransactions } = useTransactions()
 const showScanner = ref(false)
+const showTextInput = ref(false)
 
 function handleAddByForm() {
   emit('close')
@@ -29,6 +31,10 @@ function handleAddByForm() {
 
 function handleAddByScan() {
   showScanner.value = true
+}
+
+function handleAddByText() {
+  showTextInput.value = true
 }
 
 async function handleScanComplete(data: TransactionFormData) {
@@ -78,6 +84,19 @@ async function handleScanCompleteMultiple(data: TransactionFormData[]) {
 
 function handleClose() {
   showScanner.value = false
+  showTextInput.value = false
+  emit('close')
+}
+
+function handleTextInputEdit() {
+  // When TextInputModal navigates to edit, close this parent modal too
+  showTextInput.value = false
+  emit('close')
+}
+
+function handleTextInputSubmit() {
+  // When TextInputModal submits successfully, close this parent modal too
+  showTextInput.value = false
   emit('close')
 }
 </script>
@@ -117,6 +136,20 @@ function handleClose() {
             <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
           </button>
         </BaseCard>
+
+        <BaseCard>
+          <button type="button" @click="handleAddByText"
+            class="flex w-full items-center gap-4 rounded-lg p-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+              <font-awesome-icon :icon="['fas', 'keyboard']" class="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div class="flex-1">
+              <h3 class="font-semibold text-slate-900 dark:text-slate-100">Input Teks</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">Ketik transaksi dalam bahasa natural</p>
+            </div>
+            <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
+          </button>
+        </BaseCard>
       </div>
     </div>
 
@@ -128,5 +161,8 @@ function handleClose() {
 
     <ReceiptScanner :is-open="showScanner" :categories="categories" @close="showScanner = false"
       @scan-complete="handleScanComplete" @scan-complete-multiple="handleScanCompleteMultiple" />
+
+    <TextInputModal :is-open="showTextInput" @close="showTextInput = false" @edit-navigate="handleTextInputEdit"
+      @submit-complete="handleTextInputSubmit" />
   </BaseModal>
 </template>

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useProfileStore } from '@/stores/profile'
 import { useThemeStore } from '@/stores/theme'
 import { useTransactionStore } from '@/stores/transaction'
+import { useTokenStore } from '@/stores/token'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -16,11 +17,11 @@ import { usePWAInstall } from '@/composables/usePWAInstall'
 const profileStore = useProfileStore()
 const themeStore = useThemeStore()
 const transactionStore = useTransactionStore()
+const tokenStore = useTokenStore()
 const { isInstallable, isInstalled, isInstalling, install } = usePWAInstall()
 
 const isEditing = ref(false)
 const editName = ref(profileStore.profile.name)
-const editPhone = ref(profileStore.profile.phone)
 
 // Export/Import modals
 const showExportModal = ref(false)
@@ -36,17 +37,62 @@ const notification = ref<{
   message: string
 }>({ type: null, message: '' })
 
+// Token Management
+const licenseTokenInput = ref('')
+const licenseError = ref<string | null>(null)
+const isVerifyingLicense = ref(false)
+
+async function handlePasteLicense() {
+  try {
+    const text = await navigator.clipboard.readText()
+    licenseTokenInput.value = text.trim()
+    licenseError.value = null
+  } catch {
+    showNotification('error', 'Gagal membaca dari clipboard')
+  }
+}
+
+async function handleVerifyLicense() {
+  const token = licenseTokenInput.value.trim()
+
+  if (!token) {
+    licenseError.value = '⚠️ Please enter your token before continuing.'
+    return
+  }
+
+  isVerifyingLicense.value = true
+  licenseError.value = null
+
+  // Small delay for better UX
+  await new Promise((resolve) => setTimeout(resolve, 300))
+
+  const result = tokenStore.activateLicense(token)
+
+  if (result.success) {
+    showNotification('success', '✅ License activated successfully. All premium features are now unlocked.')
+    licenseTokenInput.value = ''
+    licenseError.value = null
+  } else {
+    licenseError.value = result.error || '❌ Invalid token'
+  }
+
+  isVerifyingLicense.value = false
+}
+
+function handleRemoveLicense() {
+  tokenStore.removeLicense()
+  showNotification('success', 'License removed. You are now on Basic account.')
+}
+
 function handleSave() {
   profileStore.updateProfile({
     name: editName.value,
-    phone: editPhone.value,
   })
   isEditing.value = false
 }
 
 function handleCancel() {
   editName.value = profileStore.profile.name
-  editPhone.value = profileStore.profile.phone
   isEditing.value = false
 }
 
@@ -123,7 +169,6 @@ function handleImportError(message: string) {
 
 const avatarUrl = computed(() => profileStore.profile.avatar)
 const displayName = computed(() => profileStore.profile.name || 'User')
-const displayPhone = computed(() => profileStore.profile.phone || 'Belum diatur')
 
 async function handleInstall() {
   const success = await install()
@@ -151,15 +196,21 @@ async function handleInstall() {
             <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full rounded-full object-cover" />
           </div>
           <div v-if="!isEditing" class="text-center">
-            <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ displayName }}</h2>
-            <p class="text-sm text-slate-500 dark:text-slate-400">{{ displayPhone }}</p>
+            <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ displayName }}</h2>
+            <span :class="[
+              'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium',
+              tokenStore.isLicenseActive
+                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
+            ]">
+              {{ tokenStore.isLicenseActive ? 'License Active' : 'Basic Account' }}
+            </span>
           </div>
         </div>
 
         <!-- Edit Form -->
         <div v-if="isEditing" class="space-y-4">
           <BaseInput v-model="editName" label="Nama" placeholder="Masukkan nama kamu" />
-          <BaseInput v-model="editPhone" label="Nomor Telepon" type="tel" placeholder="Masukkan nomor telepon kamu" />
           <div class="flex gap-3 pt-2">
             <BaseButton variant="secondary" class="flex-1" @click="handleCancel">Batal</BaseButton>
             <BaseButton class="flex-1" @click="handleSave">Simpan</BaseButton>
@@ -172,13 +223,75 @@ async function handleInstall() {
             <label class="text-sm font-medium text-slate-600 dark:text-slate-400">Nama</label>
             <p class="mt-1 text-slate-900 dark:text-slate-100">{{ displayName }}</p>
           </div>
-          <div>
-            <label class="text-sm font-medium text-slate-600 dark:text-slate-400">Nomor Telepon</label>
-            <p class="mt-1 text-slate-900 dark:text-slate-100">{{ displayPhone }}</p>
-          </div>
           <BaseButton variant="secondary" class="w-full" @click="isEditing = true">
             <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
             Edit Profil
+          </BaseButton>
+        </div>
+      </div>
+    </BaseCard>
+
+    <!-- Token & License -->
+    <BaseCard>
+      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Token & License</h3>
+      <div class="space-y-4">
+        <!-- Activate License Card -->
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+          <div class="flex items-start gap-3 mb-4">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 flex-shrink-0">
+              <font-awesome-icon :icon="['fas', 'key']" class="text-brand" />
+            </div>
+            <div class="flex-1">
+              <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">Activate License</h4>
+              <p class="text-sm text-slate-600 dark:text-slate-400">
+                Activate your license to unlock all premium features such as receipt scanning, smart text input, and
+                unlimited chatbot access.
+              </p>
+            </div>
+          </div>
+
+          <div v-if="tokenStore.isLicenseActive"
+            class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mb-4">
+            <div class="flex items-center gap-2">
+              <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
+              <p class="text-sm font-medium text-green-800 dark:text-green-300">License Active</p>
+            </div>
+            <p class="text-xs text-green-700 dark:text-green-400 mt-1">
+              All premium features are unlocked. Activated on {{ new Date(tokenStore.tokenState.licenseActivatedAt ||
+                '').toLocaleDateString() }}
+            </p>
+          </div>
+
+          <div v-else class="space-y-3">
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <input v-model="licenseTokenInput" type="text" placeholder="Paste your 12-digit token here"
+                  maxlength="12"
+                  class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  @input="licenseError = null" />
+              </div>
+              <BaseButton variant="secondary" size="sm" @click="handlePasteLicense" class="shrink-0">
+                <font-awesome-icon :icon="['fas', 'paste']" class="mr-1" />
+                Paste
+              </BaseButton>
+            </div>
+
+            <div v-if="licenseError"
+              class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-2">
+              <p class="text-xs text-red-800 dark:text-red-300">{{ licenseError }}</p>
+            </div>
+
+            <BaseButton :loading="isVerifyingLicense" :disabled="isVerifyingLicense || !licenseTokenInput.trim()"
+              class="w-full" @click="handleVerifyLicense">
+              <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
+              Verify Token
+            </BaseButton>
+          </div>
+
+          <BaseButton v-if="tokenStore.isLicenseActive" variant="secondary" size="sm" class="w-full mt-3"
+            @click="handleRemoveLicense">
+            <font-awesome-icon :icon="['fas', 'trash']" class="mr-2" />
+            Remove License
           </BaseButton>
         </div>
       </div>

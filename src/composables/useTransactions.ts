@@ -90,9 +90,36 @@ export function useTransactions() {
     })).sort((a, b) => b.total - a.total)
   }
 
+  // Helper function to group transactions by date (daily)
+  const getTransactionsByDate = (type: 'income' | 'expense') => {
+    const filtered = type === 'income' 
+      ? incomeTransactions.value
+      : expenseTransactions.value
+
+    const grouped = new Map<string, { total: number; count: number }>()
+    
+    filtered.forEach((t) => {
+      // Extract date part (YYYY-MM-DD) from ISO string
+      const dateKey = t.date.split('T')[0]
+      const existing = grouped.get(dateKey) || { total: 0, count: 0 }
+      grouped.set(dateKey, {
+        total: existing.total + t.amount,
+        count: existing.count + 1,
+      })
+    })
+    
+    // Convert to array and sort by date
+    const result = Array.from(grouped.entries()).map(([date, data]) => ({
+      date,
+      ...data,
+    })).sort((a, b) => a.date.localeCompare(b.date))
+
+    return result
+  }
+
   const recentTransactions = computed(() => 
     [...transactions.value]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 5)
   )
 
@@ -118,6 +145,7 @@ export function useTransactions() {
     deleteTransaction,
     getTransactionById,
     getTransactionsByCategory,
+    getTransactionsByDate,
   }
 }
 

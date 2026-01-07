@@ -2,6 +2,7 @@ import type { App } from 'vue'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  faKeyboard,
   faFilter,
   faArrowUp,
   faArrowDown,
@@ -18,6 +19,7 @@ import {
   faChevronDown,
   faCircleInfo,
   faComments,
+  faDatabase,
   faEdit,
   faEye,
   faEyeSlash,
@@ -25,10 +27,13 @@ import {
   faFilePdf,
   faFileImport,
   faDownload,
+  faKey,
   faLock,
+  faCheck,
   faCheckCircle,
   faExclamationCircle,
   faExclamationTriangle,
+  faPaste,
   faShield,
   faHouse,
   faLayerGroup,
@@ -51,6 +56,7 @@ import {
 import { faVuejs } from '@fortawesome/free-brands-svg-icons'
 
 const icons = [
+  faKeyboard,
   faFilter,
   faArrowUp,
   faArrowDown,
@@ -67,6 +73,7 @@ const icons = [
   faChevronDown,
   faCircleInfo,
   faComments,
+  faDatabase,
   faEdit,
   faEye,
   faEyeSlash,
@@ -74,10 +81,13 @@ const icons = [
   faFilePdf,
   faFileImport,
   faDownload,
+  faKey,
   faLock,
+  faCheck,
   faCheckCircle,
   faExclamationCircle,
   faExclamationTriangle,
+  faPaste,
   faShield,
   faHouse,
   faLayerGroup,
