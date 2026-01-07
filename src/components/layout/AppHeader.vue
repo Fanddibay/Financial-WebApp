@@ -49,7 +49,7 @@ const displayName = computed(() => {
         <div class="flex items-center gap-2">
           <div class="text-right">
             <h5 class="text-xs font-medium text-slate-900 dark:text-slate-100">
-              {{ greeting }}, {{ displayName }}
+              {{ greeting }}, <br> {{ displayName }}
             </h5>
             <p v-if="showDate" class="text-xs text-slate-500 dark:text-slate-400">{{ currentDate }}</p>
           </div>

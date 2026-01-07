@@ -41,6 +41,8 @@ const notification = ref<{
 const licenseTokenInput = ref('')
 const licenseError = ref<string | null>(null)
 const isVerifyingLicense = ref(false)
+const showDeactivateConfirm = ref(false)
+const isDeactivating = ref(false)
 
 async function handlePasteLicense() {
   try {
@@ -63,25 +65,59 @@ async function handleVerifyLicense() {
   isVerifyingLicense.value = true
   licenseError.value = null
 
-  // Small delay for better UX
-  await new Promise((resolve) => setTimeout(resolve, 300))
+  try {
+    const result = await tokenStore.activateLicense(token)
 
-  const result = tokenStore.activateLicense(token)
-
-  if (result.success) {
-    showNotification('success', '✅ License activated successfully. All premium features are now unlocked.')
-    licenseTokenInput.value = ''
-    licenseError.value = null
-  } else {
-    licenseError.value = result.error || '❌ Invalid token'
+    if (result.success) {
+      showNotification(
+        'success',
+        '✅ License activated successfully! All premium features are now unlocked on this device.',
+      )
+      licenseTokenInput.value = ''
+      licenseError.value = null
+    } else {
+      // Show user-friendly error message
+      const errorMsg = result.error || '❌ Invalid token. Please check your token and try again.'
+      licenseError.value = errorMsg
+      showNotification('error', errorMsg)
+    }
+  } catch (error) {
+    console.error('Error activating license:', error)
+    const errorMsg = 'Network error. Please check your connection and try again.'
+    licenseError.value = errorMsg
+    showNotification('error', errorMsg)
+  } finally {
+    isVerifyingLicense.value = false
   }
-
-  isVerifyingLicense.value = false
 }
 
-function handleRemoveLicense() {
-  tokenStore.removeLicense()
-  showNotification('success', 'License removed. You are now on Basic account.')
+async function handleDeactivateLicense() {
+  showDeactivateConfirm.value = true
+}
+
+async function confirmDeactivateLicense() {
+  isDeactivating.value = true
+
+  try {
+    const result = await tokenStore.deactivateLicense()
+
+    if (result.success) {
+      showNotification(
+        'success',
+        '✅ License deactivated successfully. You can now activate this license on another device. This device has returned to Basic account mode.',
+      )
+      showDeactivateConfirm.value = false
+    } else {
+      const errorMsg =
+        result.error || 'Something went wrong while deactivating the license. Please try again.'
+      showNotification('error', errorMsg)
+    }
+  } catch (error) {
+    console.error('Error deactivating license:', error)
+    showNotification('error', 'Network error. Please check your connection and try again.')
+  } finally {
+    isDeactivating.value = false
+  }
 }
 
 function handleSave() {
@@ -250,19 +286,64 @@ async function handleInstall() {
             </div>
           </div>
 
-          <div v-if="tokenStore.isLicenseActive"
+          <!-- License Status Display -->
+          <div v-if="tokenStore.licenseStatus === 'active' && tokenStore.isLicenseActive"
             class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mb-4">
-            <div class="flex items-center gap-2">
-              <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
-              <p class="text-sm font-medium text-green-800 dark:text-green-300">License Active</p>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
+                <p class="text-sm font-medium text-green-800 dark:text-green-300">License Status: Active</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <font-awesome-icon :icon="['fas', 'mobile-screen-button']"
+                  class="text-green-600 dark:text-green-400 text-xs" />
+                <p class="text-xs text-green-700 dark:text-green-400">Device: This device</p>
+              </div>
+              <p class="text-xs text-green-700 dark:text-green-400 mt-1">
+                All premium features are unlocked. Activated on
+                {{ new Date(tokenStore.tokenState.licenseActivatedAt || '').toLocaleDateString() }}
+              </p>
             </div>
-            <p class="text-xs text-green-700 dark:text-green-400 mt-1">
-              All premium features are unlocked. Activated on {{ new Date(tokenStore.tokenState.licenseActivatedAt ||
-                '').toLocaleDateString() }}
+          </div>
+
+          <!-- Checking Status -->
+          <div v-else-if="tokenStore.licenseStatus === 'checking'"
+            class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 mb-4">
+            <div class="flex items-center gap-2">
+              <svg class="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg"
+                fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+              </svg>
+              <p class="text-sm font-medium text-blue-800 dark:text-blue-300">Checking license status...</p>
+            </div>
+          </div>
+
+          <!-- Error Status -->
+          <div v-else-if="tokenStore.licenseStatus === 'error'"
+            class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
+            <div class="flex items-center gap-2">
+              <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 dark:text-red-400" />
+              <p class="text-sm font-medium text-red-800 dark:text-red-300">License Status: Error</p>
+            </div>
+            <p class="text-xs text-red-700 dark:text-red-400 mt-1">
+              Unable to verify license status. Please check your connection and try again.
             </p>
           </div>
 
-          <div v-else class="space-y-3">
+          <!-- Basic Account Status -->
+          <div v-else
+            class="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 mb-4">
+            <div class="flex items-center gap-2">
+              <font-awesome-icon :icon="['fas', 'circle-info']" class="text-slate-600 dark:text-slate-400" />
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-300">License Status: Basic</p>
+            </div>
+          </div>
+
+          <!-- Activate License Form (only show when license is not active) -->
+          <div v-if="!tokenStore.isLicenseActive" class="space-y-3">
             <div class="flex gap-2">
               <div class="flex-1">
                 <input v-model="licenseTokenInput" type="text" placeholder="Paste your 12-digit token here"
@@ -288,10 +369,11 @@ async function handleInstall() {
             </BaseButton>
           </div>
 
+          <!-- Deactivate License Button -->
           <BaseButton v-if="tokenStore.isLicenseActive" variant="secondary" size="sm" class="w-full mt-3"
-            @click="handleRemoveLicense">
-            <font-awesome-icon :icon="['fas', 'trash']" class="mr-2" />
-            Remove License
+            @click="handleDeactivateLicense">
+            <font-awesome-icon :icon="['fas', 'unlink']" class="mr-2" />
+            Deactivate License
           </BaseButton>
         </div>
       </div>
@@ -535,5 +617,11 @@ async function handleInstall() {
       message="Ini akan mengganti semua data Anda saat ini. Apakah Anda yakin ingin melanjutkan? Pastikan Anda memiliki backup dari data saat ini."
       confirm-text="Ya, Impor" cancel-text="Batal" variant="warning" :icon="['fas', 'exclamation-triangle']"
       @confirm="handleImportExecute" @close="showImportConfirm = false" />
+
+    <!-- Deactivate License Confirmation Modal -->
+    <ConfirmModal :is-open="showDeactivateConfirm" title="Deactivate License?"
+      message="This will remove license access from this device and return you to Basic account mode. Your transaction data will not be affected. You can activate this license again on another device by entering the same token."
+      confirm-text="Deactivate" cancel-text="Cancel" variant="warning" :icon="['fas', 'unlink']"
+      @confirm="confirmDeactivateLicense" @close="showDeactivateConfirm = false" />
   </div>
 </template>

@@ -19,4 +19,10 @@ installFontAwesome(app)
 const themeStore = useThemeStore()
 themeStore.initTheme()
 
+// Initialize token store to ensure device UUID is generated on first load
+import { useTokenStore } from './stores/token'
+const tokenStore = useTokenStore()
+// This will generate and store device UUID if it doesn't exist
+tokenStore.getOrCreateDeviceId()
+
 app.mount('#app')

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
+import { useToastStore } from '@/stores/toast'
 import type { TransactionFormData } from '@/types/transaction'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -13,6 +14,7 @@ import { formatIDR } from '@/utils/currency'
 
 const route = useRoute()
 const router = useRouter()
+const toastStore = useToastStore()
 const { categories, loading, fetchTransactions, createTransaction, updateTransaction, getTransactionById } = useTransactions()
 
 const isEdit = computed(() => route.name === 'transaction-edit')
@@ -191,6 +193,7 @@ async function handleSubmit() {
         return
       }
       await updateTransaction(id, formData.value)
+      toastStore.success('Transaksi berhasil diupdate!')
       router.push('/')
     } else {
       const transaction = await createTransaction(formData.value)

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
+import { useToastStore } from '@/stores/toast'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -14,6 +15,7 @@ import { exportToXLSX, exportToPDF } from '@/utils/export'
 import type { TransactionFormData, TransactionType } from '@/types/transaction'
 
 const router = useRouter()
+const toastStore = useToastStore()
 const {
   transactions,
   summary,
@@ -229,10 +231,20 @@ function handleDelete(id: string) {
   showDeleteConfirm.value = true
 }
 
-function confirmDelete() {
+async function confirmDelete() {
   if (transactionToDelete.value) {
-    deleteTransaction(transactionToDelete.value)
+    const idToDelete = transactionToDelete.value
+    showDeleteConfirm.value = false
     transactionToDelete.value = null
+
+    try {
+      await deleteTransaction(idToDelete)
+      await nextTick()
+      toastStore.success('Transaksi berhasil dihapus!')
+    } catch (error) {
+      console.error('Error deleting transaction:', error)
+      toastStore.error('Gagal menghapus transaksi. Silakan coba lagi.')
+    }
   }
 }
 

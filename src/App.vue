@@ -4,6 +4,7 @@ import AppHeader from '@/components/layout/AppHeader.vue'
 import BottomNav from '@/components/navigation/BottomNav.vue'
 import ChatButton from '@/components/chat/ChatButton.vue'
 import ChatWindow from '@/components/chat/ChatWindow.vue'
+import Toast from '@/components/ui/Toast.vue'
 </script>
 
 <template>
@@ -19,5 +20,8 @@ import ChatWindow from '@/components/chat/ChatWindow.vue'
     <!-- Chat Components -->
     <ChatButton />
     <ChatWindow />
+
+    <!-- Toast Notifications -->
+    <Toast />
   </div>
 </template>
