@@ -75,7 +75,46 @@ export const useTokenStore = defineStore('token', () => {
 
   const tokenState = ref<TokenState>(getInitialState())
   const usageState = ref<UsageState>(getInitialUsage())
-  const licenseStatus = ref<'active' | 'inactive' | 'checking' | 'error'>('inactive')
+  
+  // Initialize license status optimistically - if token exists in localStorage, assume active
+  // This ensures license persists across refreshes until explicitly deactivated
+  function getInitialLicenseStatus(): 'active' | 'inactive' | 'checking' | 'error' {
+    // If we have a token and device ID in localStorage, assume it's active
+    // The backend check will verify this, but we don't want to lose the license on refresh
+    if (tokenState.value.licenseToken && tokenState.value.deviceId) {
+      // Check if device ID matches current device by checking localStorage directly
+      // This avoids calling getOrCreateDeviceUUID() which might not be ready yet
+      try {
+        const storedDeviceId = localStorage.getItem(DEVICE_UUID_KEY)
+        if (storedDeviceId) {
+          // Device UUID exists - compare with stored device ID
+          if (tokenState.value.deviceId === storedDeviceId) {
+            // Device ID matches - assume license is active
+            // Background check will verify with backend
+            return 'active'
+          }
+          // Device ID doesn't match - different device, license not active
+          return 'inactive'
+        } else {
+          // Device UUID doesn't exist yet - this might be first load
+          // Save the device ID from token state to device UUID storage
+          // This ensures device UUID is consistent
+          try {
+            localStorage.setItem(DEVICE_UUID_KEY, tokenState.value.deviceId)
+            // Assume active for now - background check will verify
+            return 'active'
+          } catch {
+            // Ignore storage errors - assume inactive if we can't store
+          }
+        }
+      } catch {
+        // Ignore errors - assume inactive if we can't verify
+      }
+    }
+    return 'inactive'
+  }
+  
+  const licenseStatus = ref<'active' | 'inactive' | 'checking' | 'error'>(getInitialLicenseStatus())
 
   // Computed properties
   const isLicenseActive = computed(() => {
@@ -114,45 +153,35 @@ export const useTokenStore = defineStore('token', () => {
     }
   }
 
-  // Validate token format
-  function validateTokenFormat(token: string): { valid: boolean; error?: string } {
-    if (!token || token.trim() === '') {
-      return { valid: false, error: 'Please enter your token before continuing.' }
+  // Normalize license key: trim whitespace, convert to uppercase, remove extra spaces
+  // Preserve dashes for Lemon Squeezy format (e.g., E7C4B885-2F81-4836-ABB6-EE39A48FF428)
+  // No format validation - all validation is done by backend
+  function normalizeLicenseKey(key: string): string {
+    if (!key) return ''
+    // Trim and uppercase, remove spaces, but preserve dashes
+    return key.trim().toUpperCase().replace(/\s+/g, '')
+  }
+
+  // Minimal frontend validation - only checks if key is not empty after normalization
+  // All other validation is delegated to backend
+  function validateLicenseKeyInput(key: string): { valid: boolean; error?: string } {
+    const normalized = normalizeLicenseKey(key)
+    if (!normalized) {
+      return { valid: false, error: 'Please enter your license key before continuing.' }
     }
-
-    if (token.length !== 12) {
-      return {
-        valid: false,
-        error:
-          'Invalid token format. Token must be 12 characters and include letters, numbers, and special characters.',
-      }
-    }
-
-    // Check for letters, numbers, and special characters
-    const hasLetter = /[a-zA-Z]/.test(token)
-    const hasNumber = /[0-9]/.test(token)
-    const hasSpecial = /[^a-zA-Z0-9]/.test(token)
-
-    if (!hasLetter || !hasNumber || !hasSpecial) {
-      return {
-        valid: false,
-        error:
-          'Invalid token format. Token must be 12 characters and include letters, numbers, and special characters.',
-      }
-    }
-
     return { valid: true }
   }
 
-  // Validate history token
+  // Validate history token (legacy - not actively used but kept for compatibility)
   function validateHistoryToken(token: string): { valid: boolean; error?: string } {
-    const formatCheck = validateTokenFormat(token)
-    if (!formatCheck.valid) {
-      return formatCheck
+    const normalized = normalizeLicenseKey(token)
+    const validation = validateLicenseKeyInput(normalized)
+    if (!validation.valid) {
+      return validation
     }
 
     // Check if token is in the list
-    if (!HISTORY_TOKENS.includes(token)) {
+    if (!HISTORY_TOKENS.includes(normalized)) {
       return {
         valid: false,
         error: 'This token is not recognized. Please check again or contact support.',
@@ -198,10 +227,13 @@ export const useTokenStore = defineStore('token', () => {
     return getOrCreateDeviceUUID()
   }
 
-  // Activate license using Supabase
-  async function activateLicense(token: string): Promise<{ success: boolean; error?: string }> {
-    // Validate token format first
-    const validation = validateTokenFormat(token)
+  // Activate license using Supabase Edge Function
+  async function activateLicense(licenseKey: string): Promise<{ success: boolean; error?: string }> {
+    // Normalize license key (trim, uppercase, remove extra spaces)
+    const normalizedKey = normalizeLicenseKey(licenseKey)
+
+    // Minimal frontend validation - only check if key is not empty
+    const validation = validateLicenseKeyInput(normalizedKey)
     if (!validation.valid) {
       return { success: false, error: validation.error }
     }
@@ -213,20 +245,24 @@ export const useTokenStore = defineStore('token', () => {
     licenseStatus.value = 'checking'
 
     try {
-      // Activate license via Supabase
-      const result = await licenseService.activateLicense(token, currentDeviceUUID)
+      // Activate license via Supabase Edge Function
+      // Backend handles all validation (format, existence, device binding, etc.)
+      const result = await licenseService.activateLicense(normalizedKey, currentDeviceUUID)
 
       if (result.success && result.data) {
         // License activated successfully
-        tokenState.value.licenseToken = token
+        // Use the actual token from database (not normalizedKey) to ensure consistency
+        tokenState.value.licenseToken = result.data.token || normalizedKey
         tokenState.value.licenseActivatedAt = result.data.activated_at || new Date().toISOString()
         tokenState.value.deviceId = currentDeviceUUID
         licenseStatus.value = 'active'
         saveState()
+        // console.log('License activated successfully:', result.data.token)
         return { success: true }
       } else {
-        // Activation failed
+        // Activation failed - show backend error message
         licenseStatus.value = 'error'
+        console.error('License activation failed:', result.error)
         return {
           success: false,
           error: result.error || 'Failed to activate license. Please try again.',
@@ -263,20 +299,20 @@ export const useTokenStore = defineStore('token', () => {
     saveState()
   }
 
-  // Deactivate license using Supabase (removes device binding but keeps token valid for reactivation)
+  // Deactivate license using Supabase Edge Function
   async function deactivateLicense(): Promise<{ success: boolean; error?: string }> {
     if (!tokenState.value.licenseToken) {
       return { success: false, error: 'No active license found on this device.' }
     }
 
     const currentDeviceUUID = getOrCreateDeviceUUID()
-    const token = tokenState.value.licenseToken
+    const licenseKey = normalizeLicenseKey(tokenState.value.licenseToken)
 
     licenseStatus.value = 'checking'
 
     try {
-      // Deactivate license via Supabase
-      const result = await licenseService.deactivateLicense(token, currentDeviceUUID)
+      // Deactivate license via Supabase Edge Function
+      const result = await licenseService.deactivateLicense(licenseKey, currentDeviceUUID)
 
       if (result.success) {
         // License deactivated successfully
@@ -303,7 +339,10 @@ export const useTokenStore = defineStore('token', () => {
     }
   }
 
-  // Check license status from Supabase
+  // Check license status from Supabase Edge Function
+  // This is called on app initialization to verify license status
+  // Important: If check fails (network error, etc.), we keep the existing status
+  // to prevent license from being lost on refresh
   async function checkLicenseStatus(): Promise<void> {
     if (!tokenState.value.licenseToken) {
       licenseStatus.value = 'inactive'
@@ -311,14 +350,38 @@ export const useTokenStore = defineStore('token', () => {
     }
 
     const currentDeviceUUID = getOrCreateDeviceUUID()
-    const token = tokenState.value.licenseToken
+    const licenseKey = normalizeLicenseKey(tokenState.value.licenseToken)
+
+    // Set status to checking while verifying
+    const previousStatus = licenseStatus.value
+    licenseStatus.value = 'checking'
 
     try {
-      const result = await licenseService.checkLicenseStatus(token, currentDeviceUUID)
-      licenseStatus.value = result.success ? 'active' : 'inactive'
+      const result = await licenseService.checkLicenseStatus(licenseKey, currentDeviceUUID)
+      
+      if (result.success) {
+        // Backend confirms license is active
+        licenseStatus.value = 'active'
+      } else {
+        // Backend says license is not active - only set to inactive if backend explicitly says so
+        // This handles cases where license was deactivated on another device or expired
+        licenseStatus.value = 'inactive'
+        // Clear local state if backend confirms license is not valid
+        tokenState.value.licenseToken = null
+        tokenState.value.licenseActivatedAt = null
+        tokenState.value.deviceId = null
+        saveState()
+      }
     } catch (error) {
+      // Network error or other unexpected error - keep existing status
+      // This prevents license from being lost due to temporary network issues
       console.error('Error checking license status:', error)
-      licenseStatus.value = 'error'
+      // Revert to previous status if it was active, otherwise set to error
+      if (previousStatus === 'active') {
+        licenseStatus.value = 'active' // Keep active status if we had it before
+      } else {
+        licenseStatus.value = 'error' // Only set error if we didn't have active status
+      }
     }
   }
 
@@ -379,8 +442,36 @@ export const useTokenStore = defineStore('token', () => {
   }
 
   // Initialize: Check license status on store creation if token exists
-  if (tokenState.value.licenseToken) {
-    checkLicenseStatus()
+  // This verifies with backend but doesn't block - license is already active in state
+  // We check in background to verify, but don't clear license if check fails (optimistic approach)
+  // This ensures license persists across refreshes until explicitly deactivated
+  if (tokenState.value.licenseToken && tokenState.value.deviceId) {
+    // Get current device UUID to verify device match
+    try {
+      const currentDeviceUUID = getOrCreateDeviceUUID()
+      // Only verify if device ID matches (same device)
+      if (tokenState.value.deviceId === currentDeviceUUID) {
+        // Check in background - don't await to avoid blocking initialization
+        // If check fails (network error, etc.), license remains active
+        checkLicenseStatus().catch((error) => {
+          // Silently handle error - license status remains as initialized (active)
+          // This prevents license from being lost due to temporary network issues
+          // console.error('Background license check failed:', error)
+        })
+      } else {
+        // Different device - license is not active on this device
+        licenseStatus.value = 'inactive'
+        // Clear token state for different device
+        tokenState.value.licenseToken = null
+        tokenState.value.licenseActivatedAt = null
+        tokenState.value.deviceId = null
+        saveState()
+      }
+    } catch (error) {
+      // If we can't get device UUID, keep license as active (optimistic)
+      // Background check will verify later
+      // console.error('Error getting device UUID during initialization:', error)
+    }
   }
 
   return {
@@ -400,7 +491,8 @@ export const useTokenStore = defineStore('token', () => {
     deactivateLicense,
     checkLicenseStatus,
     getOrCreateDeviceId,
-    validateTokenFormat,
+    normalizeLicenseKey,
+    validateLicenseKeyInput,
 
     // Usage tracking
     canUseReceiptScan,

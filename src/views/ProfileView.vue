@@ -47,18 +47,35 @@ const isDeactivating = ref(false)
 async function handlePasteLicense() {
   try {
     const text = await navigator.clipboard.readText()
-    licenseTokenInput.value = text.trim()
+    // Normalize: trim, uppercase, remove extra spaces
+    licenseTokenInput.value = tokenStore.normalizeLicenseKey(text)
     licenseError.value = null
   } catch {
     showNotification('error', 'Gagal membaca dari clipboard')
   }
 }
 
-async function handleVerifyLicense() {
-  const token = licenseTokenInput.value.trim()
+function handleLicenseInput() {
+  // Auto-normalize on input: trim, uppercase, remove extra spaces
+  const normalized = tokenStore.normalizeLicenseKey(licenseTokenInput.value)
+  licenseTokenInput.value = normalized
+  // Clear error when user types
+  licenseError.value = null
+}
 
-  if (!token) {
-    licenseError.value = '⚠️ Please enter your token before continuing.'
+async function handleVerifyLicense() {
+  // Normalize the input before processing
+  const normalizedKey = tokenStore.normalizeLicenseKey(licenseTokenInput.value)
+
+  // Basic validation - only check if key is not empty
+  const validation = tokenStore.validateLicenseKeyInput(normalizedKey)
+  if (!validation.valid) {
+    licenseError.value = validation.error || '⚠️ Please enter your license key before continuing.'
+    return
+  }
+
+  // Prevent double submission
+  if (isVerifyingLicense.value) {
     return
   }
 
@@ -66,7 +83,8 @@ async function handleVerifyLicense() {
   licenseError.value = null
 
   try {
-    const result = await tokenStore.activateLicense(token)
+    // Activate license - backend handles all validation
+    const result = await tokenStore.activateLicense(normalizedKey)
 
     if (result.success) {
       showNotification(
@@ -76,8 +94,8 @@ async function handleVerifyLicense() {
       licenseTokenInput.value = ''
       licenseError.value = null
     } else {
-      // Show user-friendly error message
-      const errorMsg = result.error || '❌ Invalid token. Please check your token and try again.'
+      // Show user-friendly error message from backend
+      const errorMsg = result.error || 'Invalid license key. Please check your license and try again.'
       licenseError.value = errorMsg
       showNotification('error', errorMsg)
     }
@@ -280,8 +298,8 @@ async function handleInstall() {
             <div class="flex-1">
               <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">Activate License</h4>
               <p class="text-sm text-slate-600 dark:text-slate-400">
-                Activate your license to unlock all premium features such as receipt scanning, smart text input, and
-                unlimited chatbot access.
+                Enter your license key to unlock all premium features such as receipt scanning, smart text input, and
+                unlimited chatbot access. Your license key will be automatically formatted.
               </p>
             </div>
           </div>
@@ -346,26 +364,37 @@ async function handleInstall() {
           <div v-if="!tokenStore.isLicenseActive" class="space-y-3">
             <div class="flex gap-2">
               <div class="flex-1">
-                <input v-model="licenseTokenInput" type="text" placeholder="Paste your 12-digit token here"
-                  maxlength="12"
-                  class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  @input="licenseError = null" />
+                <input v-model="licenseTokenInput" type="text" placeholder="Paste your license key here"
+                  class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2.5 text-sm font-mono focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                  :disabled="isVerifyingLicense" @input="handleLicenseInput" />
               </div>
-              <BaseButton variant="secondary" size="sm" @click="handlePasteLicense" class="shrink-0">
+              <BaseButton variant="secondary" size="sm" :disabled="isVerifyingLicense" @click="handlePasteLicense"
+                class="shrink-0">
                 <font-awesome-icon :icon="['fas', 'paste']" class="mr-1" />
                 Paste
               </BaseButton>
             </div>
 
-            <div v-if="licenseError"
-              class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-2">
-              <p class="text-xs text-red-800 dark:text-red-300">{{ licenseError }}</p>
-            </div>
+            <!-- Error Message -->
+            <Transition enter-active-class="transition-all duration-200 ease-out"
+              enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition-all duration-150 ease-in" leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-1">
+              <div v-if="licenseError"
+                class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                <div class="flex items-start gap-2">
+                  <font-awesome-icon :icon="['fas', 'exclamation-circle']"
+                    class="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0 text-sm" />
+                  <p class="text-xs text-red-800 dark:text-red-300 leading-relaxed flex-1">{{ licenseError }}</p>
+                </div>
+              </div>
+            </Transition>
 
+            <!-- Activate Button -->
             <BaseButton :loading="isVerifyingLicense" :disabled="isVerifyingLicense || !licenseTokenInput.trim()"
               class="w-full" @click="handleVerifyLicense">
-              <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
-              Verify Token
+              <font-awesome-icon v-if="!isVerifyingLicense" :icon="['fas', 'check']" class="mr-2" />
+              {{ isVerifyingLicense ? 'Activating...' : 'Activate License' }}
             </BaseButton>
           </div>
 
