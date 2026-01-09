@@ -77,40 +77,44 @@ export const useTokenStore = defineStore('token', () => {
   const usageState = ref<UsageState>(getInitialUsage())
   
   // Initialize license status optimistically - if token exists in localStorage, assume active
-  // This ensures license persists across refreshes until explicitly deactivated
+  // CRITICAL: This ensures license persists across refreshes until explicitly deactivated
+  // We use optimistic approach - assume license is active if token exists, verify later
   function getInitialLicenseStatus(): 'active' | 'inactive' | 'checking' | 'error' {
     // If we have a token and device ID in localStorage, assume it's active
     // The backend check will verify this, but we don't want to lose the license on refresh
     if (tokenState.value.licenseToken && tokenState.value.deviceId) {
-      // Check if device ID matches current device by checking localStorage directly
-      // This avoids calling getOrCreateDeviceUUID() which might not be ready yet
       try {
         const storedDeviceId = localStorage.getItem(DEVICE_UUID_KEY)
+        
         if (storedDeviceId) {
           // Device UUID exists - compare with stored device ID
           if (tokenState.value.deviceId === storedDeviceId) {
-            // Device ID matches - assume license is active
-            // Background check will verify with backend
+            // Device ID matches - license is active on this device
             return 'active'
           }
-          // Device ID doesn't match - different device, license not active
+          // Device ID doesn't match - different device, license not active on this device
           return 'inactive'
         } else {
-          // Device UUID doesn't exist yet - this might be first load
+          // Device UUID doesn't exist yet - this might be first load or refresh
           // Save the device ID from token state to device UUID storage
-          // This ensures device UUID is consistent
+          // This ensures device UUID is consistent across refreshes
           try {
             localStorage.setItem(DEVICE_UUID_KEY, tokenState.value.deviceId)
-            // Assume active for now - background check will verify
+            // Assume active - same device, just first time checking device UUID
             return 'active'
           } catch {
-            // Ignore storage errors - assume inactive if we can't store
+            // If we can't save, still assume active (optimistic)
+            // The device ID in token state is valid, just can't save UUID
+            return 'active'
           }
         }
       } catch {
-        // Ignore errors - assume inactive if we can't verify
+        // If there's any error, be optimistic - if token exists, assume active
+        // This prevents license from being lost due to localStorage errors
+        return 'active'
       }
     }
+    // No token - license is inactive
     return 'inactive'
   }
   
@@ -120,17 +124,41 @@ export const useTokenStore = defineStore('token', () => {
   const isLicenseActive = computed(() => {
     // License is active if:
     // 1. Token exists in state
-    // 2. Device ID matches current device
-    // 3. Status is active
+    // 2. Device ID matches current device (or is being verified)
+    // 3. Status is active or checking (optimistic - if we have token, assume active until proven otherwise)
+    
     if (!tokenState.value.licenseToken) {
       return false
     }
 
-    const currentDeviceUUID = getOrCreateDeviceUUID()
-    const deviceMatches = tokenState.value.deviceId === currentDeviceUUID
-    const statusIsActive = licenseStatus.value === 'active'
+    // Get current device UUID - handle errors gracefully
+    let currentDeviceUUID: string | null = null
+    try {
+      currentDeviceUUID = getOrCreateDeviceUUID()
+    } catch {
+      // If we can't get device UUID, try to get from localStorage directly
+      try {
+        const stored = localStorage.getItem(DEVICE_UUID_KEY)
+        if (stored) {
+          currentDeviceUUID = stored
+        }
+      } catch {
+        // Ignore errors - will check device ID match below
+      }
+    }
 
-    return deviceMatches && statusIsActive
+    // Device must match (or we're still initializing - be optimistic)
+    if (currentDeviceUUID && tokenState.value.deviceId && tokenState.value.deviceId !== currentDeviceUUID) {
+      return false
+    }
+
+    // Status must be active or checking
+    // If we're checking and have a token with matching device, assume active (optimistic)
+    // This ensures license persists during background verification
+    const statusIsActive = licenseStatus.value === 'active' || 
+                          (licenseStatus.value === 'checking' && tokenState.value.licenseToken !== null)
+
+    return statusIsActive
   })
 
   const isHistoryImported = computed(() => !!tokenState.value.historyToken)
@@ -341,9 +369,11 @@ export const useTokenStore = defineStore('token', () => {
 
   // Check license status from Supabase Edge Function
   // This is called on app initialization to verify license status
-  // Important: If check fails (network error, etc.), we keep the existing status
-  // to prevent license from being lost on refresh
+  // CRITICAL: This function should NEVER clear license just because check fails
+  // Only clear license if backend EXPLICITLY confirms it's invalid
+  // This ensures license persists across refreshes until explicitly deactivated
   async function checkLicenseStatus(): Promise<void> {
+    // If no token, status is inactive
     if (!tokenState.value.licenseToken) {
       licenseStatus.value = 'inactive'
       return
@@ -352,36 +382,103 @@ export const useTokenStore = defineStore('token', () => {
     const currentDeviceUUID = getOrCreateDeviceUUID()
     const licenseKey = normalizeLicenseKey(tokenState.value.licenseToken)
 
-    // Set status to checking while verifying
+    // CRITICAL: Save current status before checking - this is our fallback
+    // If status is already 'active', we MUST preserve it even if check fails
     const previousStatus = licenseStatus.value
-    licenseStatus.value = 'checking'
+    
+    // IMPORTANT: Only set to 'checking' if status is NOT already 'active'
+    // If status is 'active', keep it as 'active' (don't change during check)
+    // This prevents license from appearing inactive during background verification
+    if (previousStatus !== 'active') {
+      licenseStatus.value = 'checking'
+    }
+    // If previousStatus is 'active', keep it as 'active' - don't change to 'checking'
 
     try {
       const result = await licenseService.checkLicenseStatus(licenseKey, currentDeviceUUID)
       
-      if (result.success) {
-        // Backend confirms license is active
+      if (result.success && result.data) {
+        // Backend confirms license is active - update status to active
         licenseStatus.value = 'active'
-      } else {
-        // Backend says license is not active - only set to inactive if backend explicitly says so
-        // This handles cases where license was deactivated on another device or expired
-        licenseStatus.value = 'inactive'
-        // Clear local state if backend confirms license is not valid
-        tokenState.value.licenseToken = null
-        tokenState.value.licenseActivatedAt = null
-        tokenState.value.deviceId = null
+        // Optionally update activated_at if backend provides it
+        if (result.data.activated_at) {
+          tokenState.value.licenseActivatedAt = result.data.activated_at
+        }
         saveState()
+      } else {
+        // Backend says license is not active or check failed
+        // CRITICAL: Only clear license if error message indicates it's TRULY invalid
+        // Do NOT clear license for network errors, check failures, or generic errors
+        
+        const errorMessage = (result.error || '').toLowerCase()
+        const isTrulyInvalid = 
+          errorMessage.includes('not active') ||
+          errorMessage.includes('expired') ||
+          errorMessage.includes('disabled') ||
+          errorMessage.includes('refunded') ||
+          errorMessage.includes('another device') ||
+          errorMessage.includes('not valid') ||
+          errorMessage.includes('invalid license') ||
+          errorMessage.includes('license is not active on this device')
+        
+        // CRITICAL: Only clear license if ALL conditions are met:
+        // 1. Error message indicates license is TRULY invalid (not just check failure)
+        // 2. Previous status was 'active' (we had an active license)
+        // 3. Error specifically mentions device mismatch, expired, disabled, etc.
+        if (isTrulyInvalid && previousStatus === 'active') {
+          // Check if error is specific enough to warrant clearing license
+          // Only clear if error explicitly says license is not active on THIS device
+          // or license is expired/disabled
+          const isSpecificInvalidError = 
+            errorMessage.includes('not active on this device') ||
+            errorMessage.includes('already active on another device') ||
+            errorMessage.includes('another device') ||
+            errorMessage.includes('expired') ||
+            errorMessage.includes('disabled') ||
+            errorMessage.includes('refunded')
+          
+          if (isSpecificInvalidError) {
+            // Backend explicitly confirms license is invalid on this device - clear it
+            licenseStatus.value = 'inactive'
+            tokenState.value.licenseToken = null
+            tokenState.value.licenseActivatedAt = null
+            tokenState.value.deviceId = null
+            saveState()
+          } else {
+            // Generic "not active" or "not valid" error - could be check failure
+            // Keep existing status (optimistic approach)
+            licenseStatus.value = 'active' // Keep active - don't clear on generic error
+          }
+        } else {
+          // Check failed but error doesn't indicate license is truly invalid
+          // OR previous status was not 'active'
+          // CRITICAL: If we had 'active' status before, keep it as 'active'
+          // Never change from 'active' to 'inactive' just because check failed
+          if (previousStatus === 'active') {
+            licenseStatus.value = 'active' // Keep active - don't change
+          } else {
+            // We didn't have active status before - keep what we had
+            licenseStatus.value = previousStatus || 'inactive'
+          }
+        }
       }
     } catch (error) {
-      // Network error or other unexpected error - keep existing status
-      // This prevents license from being lost due to temporary network issues
-      console.error('Error checking license status:', error)
-      // Revert to previous status if it was active, otherwise set to error
+      // Network error or other unexpected error - ALWAYS preserve existing status
+      // This is CRITICAL to prevent license from being lost due to temporary issues
+      
+      // IMPORTANT: Always revert to previous status on error
+      // If previous status was 'active', keep it as 'active'
+      // Never change status to 'inactive' just because check failed
       if (previousStatus === 'active') {
-        licenseStatus.value = 'active' // Keep active status if we had it before
+        licenseStatus.value = 'active' // CRITICAL: Keep active on error
       } else {
-        licenseStatus.value = 'error' // Only set error if we didn't have active status
+        // If we didn't have active status, revert to what we had
+        licenseStatus.value = previousStatus || 'inactive'
       }
+      
+      // CRITICAL: Do NOT clear token state on error
+      // This would cause license to be lost on refresh due to network errors
+      // Only clear token state if backend EXPLICITLY confirms license is invalid
     }
   }
 
@@ -441,37 +538,71 @@ export const useTokenStore = defineStore('token', () => {
     return Math.max(0, MAX_BASIC_USAGE - used)
   }
 
-  // Initialize: Check license status on store creation if token exists
-  // This verifies with backend but doesn't block - license is already active in state
-  // We check in background to verify, but don't clear license if check fails (optimistic approach)
+  // Initialize: Verify license status on store creation if token exists
+  // CRITICAL: This must NOT clear the license on failure - only verify in background
+  // License is already set to 'active' by getInitialLicenseStatus() if token exists
+  // We verify in background but NEVER clear license just because check fails
   // This ensures license persists across refreshes until explicitly deactivated
+  
+  // Initialize: Verify license status on store creation if token exists
+  // CRITICAL: License is already set to 'active' by getInitialLicenseStatus() if token exists
+  // We verify in background but NEVER clear license just because check fails
+  // This ensures license persists across refreshes until explicitly deactivated
+  
+  // Use nextTick or setTimeout to ensure initialization completes first
+  // This prevents race condition where checkLicenseStatus() runs before status is initialized
   if (tokenState.value.licenseToken && tokenState.value.deviceId) {
-    // Get current device UUID to verify device match
-    try {
-      const currentDeviceUUID = getOrCreateDeviceUUID()
-      // Only verify if device ID matches (same device)
-      if (tokenState.value.deviceId === currentDeviceUUID) {
-        // Check in background - don't await to avoid blocking initialization
-        // If check fails (network error, etc.), license remains active
-        checkLicenseStatus().catch((error) => {
-          // Silently handle error - license status remains as initialized (active)
-          // This prevents license from being lost due to temporary network issues
-          // console.error('Background license check failed:', error)
-        })
-      } else {
-        // Different device - license is not active on this device
-        licenseStatus.value = 'inactive'
-        // Clear token state for different device
-        tokenState.value.licenseToken = null
-        tokenState.value.licenseActivatedAt = null
-        tokenState.value.deviceId = null
-        saveState()
+    // Ensure status is 'active' before starting background check
+    // This is critical - if status is not 'active', isLicenseActive will return false
+    if (licenseStatus.value !== 'active') {
+      // If status is not 'active' but we have token and device ID, set it to 'active'
+      // This handles edge cases where initialization didn't set status correctly
+      const storedDeviceId = localStorage.getItem(DEVICE_UUID_KEY)
+      if (storedDeviceId === tokenState.value.deviceId || !storedDeviceId) {
+        licenseStatus.value = 'active'
       }
-    } catch (error) {
-      // If we can't get device UUID, keep license as active (optimistic)
-      // Background check will verify later
-      // console.error('Error getting device UUID during initialization:', error)
     }
+    
+    // Delay background check slightly to ensure state is fully initialized
+    setTimeout(() => {
+      try {
+        const currentDeviceUUID = getOrCreateDeviceUUID()
+        // Only verify if device ID matches (same device)
+        if (tokenState.value.deviceId === currentDeviceUUID) {
+          // Ensure status is 'active' before checking (safety check)
+          if (licenseStatus.value !== 'active') {
+            licenseStatus.value = 'active'
+          }
+          
+          // Check in background - don't await to avoid blocking initialization
+          // IMPORTANT: If check fails (network error, etc.), license remains active
+          // Only clear license if backend EXPLICITLY says it's invalid
+          checkLicenseStatus().catch(() => {
+            // Silently handle error - license status remains as initialized (active)
+            // This is CRITICAL to prevent license from being lost due to temporary network issues
+            // Explicitly set status back to 'active' if it was changed during check
+            if (tokenState.value.licenseToken && tokenState.value.deviceId === currentDeviceUUID) {
+              licenseStatus.value = 'active'
+            }
+          })
+        } else {
+          // Different device - license is not active on this device
+          // Only clear if device ID truly doesn't match
+          licenseStatus.value = 'inactive'
+          tokenState.value.licenseToken = null
+          tokenState.value.licenseActivatedAt = null
+          tokenState.value.deviceId = null
+          saveState()
+        }
+      } catch (error) {
+        // If we can't verify, keep license as active (optimistic approach)
+        // Don't clear license just because we can't verify
+        // Ensure status remains 'active' if we have token and device ID
+        if (tokenState.value.licenseToken && tokenState.value.deviceId) {
+          licenseStatus.value = 'active'
+        }
+      }
+    }, 50) // Small delay to ensure initialization is complete
   }
 
   return {
