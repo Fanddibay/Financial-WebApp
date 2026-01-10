@@ -33,34 +33,135 @@ function getYesterdayDateString(): string {
 }
 
 /**
+ * Get multiplier value from multiplier word
+ */
+function getMultiplierValue(multiplier: string): number {
+  const mult = multiplier.toLowerCase()
+  if (mult === 'ribu' || mult === 'rb' || mult === 'k') {
+    return 1000
+  } else if (mult === 'juta' || mult === 'jt' || mult === 'm') {
+    return 1000000
+  } else if (mult === 'milyar' || mult === 'miliar' || mult === 'b') {
+    return 1000000000
+  }
+  return 1
+}
+
+/**
  * Parse amount from text
- * Handles: "20 ribu", "20k", "Rp 20.000", "5 juta", "500rb", "Rp 5.000.000", etc.
- * Priority: Multiplier words > Currency format > Plain numbers
+ * Handles: "20 ribu", "20k", "Rp 20.000", "5 juta", "500rb", "Rp 5.000.000", 
+ *          "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", etc.
+ * Priority: Multiple multipliers > Single multiplier > Currency format > Plain numbers
  */
 function parseAmount(text: string): { amount: number; confidence: 'high' | 'medium' | 'low' | 'none' } {
   const lowerText = text.toLowerCase().trim()
   
-  // Pattern 1: Number with multiplier words (HIGHEST PRIORITY - must check first)
+  // Pattern 1: Multiple multipliers (HIGHEST PRIORITY)
+  // Matches: "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", "1.5 juta", 
+  //          "1juta520rb" (no spaces), "1 juta 500 ribu", etc.
+  // This pattern finds all number-multiplier pairs and sums them
+  // We use a flexible pattern that handles both with and without spaces
+  
+  // Unified pattern that matches number-multiplier pairs with optional space
+  // This pattern will match: "1 juta", "1juta", "520 ribu", "520rb", "1juta520rb", etc.
+  // Pattern explanation:
+  // - (\d+(?:[.,]\d+)?) - matches number with optional decimal
+  // - \s* - optional whitespace
+  // - (ribu|rb|k|juta|jt|m|milyar|miliar|b) - multiplier word
+  // - (?=\s|$|[^\w\d]|\d) - lookahead: space, end, non-word/digit, or another digit (for next number)
+  const multiplierPattern = /(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)(?=\s|$|[^\w\d]|\d)/gi
+  const allMultiplierMatches = Array.from(lowerText.matchAll(multiplierPattern))
+  
+  if (allMultiplierMatches.length > 0) {
+    let totalAmount = 0
+    let hasValidAmount = false
+    
+    // Sort matches by position in text (left to right) to process in order
+    const sortedMatches = [...allMultiplierMatches].sort((a, b) => {
+      const aIndex = a.index ?? 0
+      const bIndex = b.index ?? 0
+      return aIndex - bIndex
+    })
+    
+    // Process all multiplier matches and sum them
+    for (const match of sortedMatches) {
+      const numberStr = match[1].replace(/,/g, '.') // Handle comma as decimal separator
+      const number = parseFloat(numberStr)
+      const multiplier = match[2]
+      
+      if (!isNaN(number) && number > 0) {
+        const multiplierValue = getMultiplierValue(multiplier)
+        const partialAmount = Math.round(number * multiplierValue)
+        
+        if (partialAmount > 0 && partialAmount <= 10000000000) {
+          totalAmount += partialAmount
+          hasValidAmount = true
+        }
+      }
+    }
+    
+    // If we found multiple multipliers, return the sum (highest confidence)
+    if (hasValidAmount && sortedMatches.length > 1) {
+      if (totalAmount > 0 && totalAmount <= 10000000000) {
+        return { amount: totalAmount, confidence: 'high' }
+      }
+    }
+    
+    // If only one multiplier found, use it
+    if (hasValidAmount && allMultiplierMatches.length === 1) {
+      if (totalAmount > 0 && totalAmount <= 10000000000) {
+        // Check if there's a currency format that might be more accurate
+        // Only prefer currency format if it's significantly different (more than 10%)
+        const currencyPattern = /(?:rp\s*)?(\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?)/gi
+        const currencyMatches = Array.from(lowerText.matchAll(currencyPattern))
+        
+        if (currencyMatches.length > 0) {
+          // Check if currency format gives a different (and likely more accurate) result
+          let largestCurrency = 0
+          for (const currMatch of currencyMatches) {
+            const currStr = currMatch[1]
+            let normalized = currStr
+            if (currStr.includes('.') && currStr.split('.').length > 2) {
+              normalized = currStr.replace(/\./g, '')
+            } else {
+              normalized = currStr.replace(/[.,]/g, '')
+            }
+            const currAmount = parseFloat(normalized)
+            if (!isNaN(currAmount) && currAmount > largestCurrency) {
+              largestCurrency = currAmount
+            }
+          }
+          
+          // If currency format is close to multiplier result, prefer currency (more explicit)
+          // Otherwise, use multiplier result
+          if (largestCurrency > 0 && Math.abs(largestCurrency - totalAmount) / totalAmount < 0.1) {
+            // Currency format is close, continue to currency pattern check
+          } else {
+            // Multiplier is more accurate, return it
+            return { amount: totalAmount, confidence: 'high' }
+          }
+        } else {
+          // No currency format found, return multiplier result
+          return { amount: totalAmount, confidence: 'high' }
+        }
+      }
+    }
+  }
+  
+  // Pattern 1b: Single multiplier (fallback if multiple not found)
   // Matches: "20 ribu", "5 juta", "500rb", "15k", "2.5 juta", etc.
-  const multiplierPattern = /(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/i
-  let multiplierMatch = lowerText.match(multiplierPattern)
-  if (multiplierMatch) {
-    const numberStr = multiplierMatch[1].replace(/,/g, '.') // Handle comma as decimal separator
+  const singleMultiplierPattern = /(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/i
+  const singleMultiplierMatch = lowerText.match(singleMultiplierPattern)
+  if (singleMultiplierMatch && allMultiplierMatches.length === 0) {
+    const numberStr = singleMultiplierMatch[1].replace(/,/g, '.')
     const number = parseFloat(numberStr)
-    const multiplier = multiplierMatch[2].toLowerCase()
+    const multiplier = singleMultiplierMatch[2].toLowerCase()
     
     if (!isNaN(number) && number > 0) {
-      let multiplierValue = 1
-      if (multiplier === 'ribu' || multiplier === 'rb' || multiplier === 'k') {
-        multiplierValue = 1000
-      } else if (multiplier === 'juta' || multiplier === 'jt' || multiplier === 'm') {
-        multiplierValue = 1000000
-      } else if (multiplier === 'milyar' || multiplier === 'miliar' || multiplier === 'b') {
-        multiplierValue = 1000000000
-      }
-      
+      const multiplierValue = getMultiplierValue(multiplier)
       const amount = Math.round(number * multiplierValue)
-      if (!isNaN(amount) && amount > 0 && amount <= 10000000000) { // Max 10 billion
+      
+      if (!isNaN(amount) && amount > 0 && amount <= 10000000000) {
         return { amount, confidence: 'high' }
       }
     }

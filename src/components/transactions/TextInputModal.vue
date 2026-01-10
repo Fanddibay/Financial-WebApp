@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -15,7 +15,7 @@ interface Props {
   isOpen: boolean
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
@@ -33,6 +33,9 @@ const showPreview = ref(false)
 const isSubmitting = ref(false)
 const showWarnings = ref(true)
 const limitError = ref<string | null>(null)
+const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
+const showExamples = ref(false) // Show/hide "Contoh"
+const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 const exampleTexts = [
   'Beli bakso hari ini 20 ribu',
@@ -40,6 +43,8 @@ const exampleTexts = [
   'Bayar tagihan listrik kemarin 500rb',
   'Ngopi pagi ini 15k',
   'Transfer masuk dari bank 2 juta',
+  'Beli dispenser 1 juta 520 ribu',
+  'Belanja bulanan 2 juta 300 ribu',
 ]
 
 function handleInput() {
@@ -261,10 +266,21 @@ function handleClose() {
   isProcessing.value = false
   isSubmitting.value = false
   showWarnings.value = true
+  showUsageGuide.value = false // Reset to default closed
+  showExamples.value = false // Reset to default closed
 
   // Emit close event
   emit('close')
 }
+
+// Auto-focus textarea when modal opens
+watch(() => props.isOpen, (isOpen) => {
+  if (isOpen && !showPreview.value) {
+    nextTick(() => {
+      textareaRef.value?.focus()
+    })
+  }
+})
 
 const hasErrors = computed(() => {
   return parseResult.value?.errors && parseResult.value.errors.length > 0
@@ -353,53 +369,84 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
           <p class="text-xs text-red-800 dark:text-red-300">{{ limitError }}</p>
         </div>
 
-        <!-- Helper Text -->
-        <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
-          <div class="flex items-start gap-3">
-            <div class="flex-shrink-0 mt-0.5">
-              <font-awesome-icon :icon="['fas', 'lightbulb']" class="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
+        <!-- Helper Text - Collapsible -->
+        <div
+          class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 overflow-hidden">
+          <button type="button" @click="showUsageGuide = !showUsageGuide"
+            class="w-full flex items-center justify-between p-4 text-left hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors">
+            <div class="flex items-center gap-3">
+              <div class="flex-shrink-0">
+                <font-awesome-icon :icon="['fas', 'lightbulb']" class="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <p class="text-sm font-medium text-blue-900 dark:text-blue-200">
                 Cara Menggunakan
               </p>
+            </div>
+            <font-awesome-icon :icon="['fas', showUsageGuide ? 'chevron-up' : 'chevron-down']"
+              class="h-4 w-4 text-blue-600 dark:text-blue-400 transition-transform" />
+          </button>
+          <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
+            enter-to-class="opacity-100 max-h-32" leave-active-class="transition-all duration-200 ease-in"
+            leave-from-class="opacity-100 max-h-32" leave-to-class="opacity-0 max-h-0">
+            <div v-show="showUsageGuide" class="px-4 pb-4 pt-0 overflow-hidden">
               <p class="text-xs text-blue-700 dark:text-blue-300">
                 Ketik transaksi dalam bahasa natural, seperti "Beli bakso hari ini 20 ribu" atau "Gaji masuk 5 juta".
                 Aplikasi akan otomatis mengisi form untuk Anda.
               </p>
             </div>
-          </div>
+          </Transition>
         </div>
 
-        <div class="space-y-1.5">
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        <!-- Input Field - Enhanced UI/UX -->
+        <div class="space-y-2">
+          <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">
             Masukkan Transaksi
           </label>
-          <textarea v-model="inputText" placeholder="Contoh: Beli bakso hari ini 20 ribu" rows="3"
-            class="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-900 transition focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-400 resize-none"
-            @input="handleInput" @keydown.ctrl.enter.exact.prevent="handleParse"
-            @keydown.meta.enter.exact.prevent="handleParse" />
-        </div>
-
-        <!-- Example Texts -->
-        <div class="space-y-2">
-          <p class="text-xs font-medium text-slate-600 dark:text-slate-400">
-            Contoh:
-          </p>
-          <div class="flex flex-wrap gap-2">
-            <button v-for="(example, index) in exampleTexts" :key="index" type="button"
-              @click="handleExampleClick(example)"
-              class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 transition-colors">
-              {{ example }}
-            </button>
+          <div class="relative">
+            <textarea ref="textareaRef" v-model="inputText"
+              placeholder="Contoh: Beli bakso hari ini 20 ribu atau Gaji masuk 5 juta" rows="8"
+              class="w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:ring-brand/20 resize-none shadow-sm focus:shadow-md"
+              @input="handleInput" @keydown.ctrl.enter.exact.prevent="handleParse"
+              @keydown.meta.enter.exact.prevent="handleParse" />
+            <div v-if="inputText.trim()" class="absolute bottom-2 right-2 text-xs text-slate-400 dark:text-slate-500">
+              {{ inputText.length }} karakter
+            </div>
           </div>
+          <!-- <p class="text-xs text-slate-500 dark:text-slate-400">
+            Tekan <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-xs font-mono">Ctrl+Enter</kbd>
+            atau <kbd class="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-xs font-mono">Cmd+Enter</kbd>
+            untuk
+            melanjutkan
+          </p> -->
         </div>
 
-        <!-- Parse Button -->
-        <BaseButton @click="handleParse" :loading="isProcessing" :disabled="!inputText.trim()" class="w-full">
-          <font-awesome-icon :icon="['fas', 'magic']" class="mr-2" />
-          Lanjutkan
-        </BaseButton>
+        <!-- Example Texts - Collapsible -->
+        <div class="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <button type="button" @click="showExamples = !showExamples"
+            class="w-full flex items-center justify-between p-3 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+            <div class="flex items-center gap-2">
+              <font-awesome-icon :icon="['fas', 'lightbulb']" class="h-4 w-4 text-slate-500 dark:text-slate-400" />
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Lihat Contoh
+              </p>
+            </div>
+            <font-awesome-icon :icon="['fas', showExamples ? 'chevron-up' : 'chevron-down']"
+              class="h-4 w-4 text-slate-500 dark:text-slate-400 transition-transform" />
+          </button>
+          <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
+            enter-to-class="opacity-100 max-h-96" leave-active-class="transition-all duration-200 ease-in"
+            leave-from-class="opacity-100 max-h-96" leave-to-class="opacity-0 max-h-0">
+            <div v-show="showExamples" class="px-3 pb-3 pt-0 overflow-hidden">
+              <div class="flex flex-wrap gap-2 pt-2">
+                <button v-for="(example, index) in exampleTexts" :key="index" type="button"
+                  @click="handleExampleClick(example)"
+                  class="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-300 hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 transition-colors">
+                  {{ example }}
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <!-- Preview Section -->
@@ -660,8 +707,14 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
     </div>
 
     <template #footer>
-      <div v-if="!showPreview" class="flex justify-end">
-        <BaseButton variant="secondary" @click="handleClose">Tutup</BaseButton>
+      <div v-if="!showPreview" class="flex items-center justify-between gap-3">
+        <BaseButton variant="secondary" @click="handleClose">
+          Tutup
+        </BaseButton>
+        <BaseButton @click="handleParse" :loading="isProcessing" :disabled="!inputText.trim()">
+          <font-awesome-icon :icon="['fas', 'magic']" class="mr-2" />
+          Lanjutkan
+        </BaseButton>
       </div>
     </template>
   </BaseModal>
