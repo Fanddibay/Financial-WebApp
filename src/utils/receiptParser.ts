@@ -24,9 +24,9 @@ export interface ReceiptItem {
 // CONSTANTS & CONFIGURATION
 // ============================================================================
 
-const MIN_AMOUNT_THRESHOLD = 1000 // Minimum valid amount in IDR
+const MIN_AMOUNT_THRESHOLD = 100 // Minimum valid amount in IDR (lowered for better detection)
 const MAX_AMOUNT_THRESHOLD = 1000000000 // Maximum reasonable amount (1 billion IDR)
-const ITEM_SUM_TOLERANCE = 0.15 // 15% tolerance for item sum vs total
+const ITEM_SUM_TOLERANCE = 0.25 // 25% tolerance for item sum vs total (more flexible)
 
 // Indonesian receipt keywords - ordered by priority
 const TOTAL_KEYWORDS = [
@@ -132,12 +132,12 @@ function extractNumbers(text: string): NumberMatch[] {
   const numbers: NumberMatch[] = []
 
   lines.forEach((line, lineIndex) => {
-    // Enhanced pattern: matches various Indonesian number formats
+    // Enhanced pattern: matches various Indonesian number formats (more flexible)
     const patterns = [
-      /(?:Rp|IDR|RP)\s*(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)/gi, // With currency prefix: Rp 10.000
+      /(?:Rp|IDR|RP|rp)\s*(\d{1,3}(?:[.,]\s?\d{3})*(?:\.\d{2})?)/gi, // With currency prefix: Rp 10.000
       /(\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?)/g, // Number with separators: 10.000 or 10,000
       /(\d{1,3}\s+\d{3}(?:\s+\d{3})*)/g, // Space-separated: 10 000 000
-      /(\d{4,})/g, // Large numbers (4+ digits, likely prices): 10000
+      /(\d{3,})/g, // Numbers with 3+ digits (lowered from 4+ for better detection)
     ]
 
     patterns.forEach(pattern => {
@@ -147,7 +147,8 @@ function extractNumbers(text: string): NumberMatch[] {
           const normalized = normalizeNumber(match[1] || match[0])
           const value = parseFloat(normalized)
           
-          if (!isNaN(value) && value >= MIN_AMOUNT_THRESHOLD && value <= MAX_AMOUNT_THRESHOLD) {
+          // Accept any positive number, filter later by threshold
+          if (!isNaN(value) && value > 0 && value <= MAX_AMOUNT_THRESHOLD) {
             // Get context (20 chars before and after)
             const start = Math.max(0, match.index - 20)
             const end = Math.min(line.length, match.index + match[0].length + 20)
@@ -256,11 +257,11 @@ function detectTotalByKeyword(text: string, numbers: NumberMatch[]): TotalDetect
     for (const { pattern, weight, label } of TOTAL_KEYWORDS) {
       const keywordMatch = lowerLine.match(pattern)
       if (keywordMatch && keywordMatch.index !== undefined) {
-        // Find numbers in this line or next 2 lines
+        // Find numbers in this line or next 2 lines (more flexible threshold)
         const nearbyNumbers = numbers.filter(
           (n) => 
             Math.abs(n.lineIndex - lineIndex) <= 2 && 
-            n.value >= MIN_AMOUNT_THRESHOLD &&
+            n.value >= 100 && // Lower threshold for keyword-based detection
             classifyNumber(n, numbers) !== 'non-price'
         )
 
@@ -355,25 +356,35 @@ function detectTotalByContext(text: string, numbers: NumberMatch[]): TotalDetect
  * Tier 3: Select largest valid number (fallback)
  */
 function detectTotalByLargest(numbers: NumberMatch[]): TotalDetectionResult | null {
-  // Filter out non-price numbers and get valid candidates
+  // Filter out non-price numbers and get valid candidates (more flexible)
   const validNumbers = numbers
     .filter((n) => {
       const category = classifyNumber(n, numbers)
       return category !== 'non-price' && 
              category !== 'supporting' &&
-             n.value >= MIN_AMOUNT_THRESHOLD
+             n.value >= 100 // Lower threshold for fallback detection
     })
     .sort((a, b) => b.value - a.value)
 
   if (validNumbers.length > 0) {
-    // Prefer numbers that are significantly larger than others (likely total)
     const largest = validNumbers[0]
     const secondLargest = validNumbers[1]
     
-    // If largest is significantly bigger, it's likely the total
-    if (!secondLargest || largest.value > secondLargest.value * 1.5) {
+    // More flexible: if largest is bigger OR if there's only one number, use it
+    if (!secondLargest || largest.value > secondLargest.value * 1.2) { // Lowered from 1.5
       return {
         amount: largest.value,
+        confidence: 'low',
+        method: 'largest',
+      }
+    }
+    
+    // If numbers are close, prefer the one that appears later in receipt (usually total is at bottom)
+    if (secondLargest && largest.value <= secondLargest.value * 1.2) {
+      // Use the one that appears later (higher line index)
+      const laterNumber = largest.lineIndex > secondLargest.lineIndex ? largest : secondLargest
+      return {
+        amount: laterNumber.value,
         confidence: 'low',
         method: 'largest',
       }
@@ -424,11 +435,11 @@ function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
     const trimmedLine = line.trim()
     if (trimmedLine.length < 3) return
 
-    // Get numbers in this line
+    // Get numbers in this line (more flexible for item detection)
     const lineNumbers = numbers.filter(
       (n) => n.lineIndex === lineIndex && 
-             n.value >= MIN_AMOUNT_THRESHOLD &&
-             classifyNumber(n, numbers) === 'item-price'
+             n.value >= 100 && // Lower threshold for items
+             (classifyNumber(n, numbers) === 'item-price' || classifyNumber(n, numbers) === 'unknown')
     )
 
     for (const num of lineNumbers) {

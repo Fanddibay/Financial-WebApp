@@ -77,8 +77,8 @@ export async function detectBlur(imageSrc: string): Promise<{ isBlurred: boolean
       }
       variance /= laplacian.length
 
-      // Threshold: variance < 80 is considered blurred (adjusted for sampling)
-      const isBlurred = variance < 80
+      // Threshold: variance < 50 is considered blurred (more lenient - adjusted for sampling)
+      const isBlurred = variance < 50 // Lowered from 80 to reduce false positives
 
       resolve({ isBlurred, variance })
     }
@@ -121,8 +121,8 @@ export async function detectLowLight(imageSrc: string): Promise<{ isLowLight: bo
       }
 
       const avgBrightness = totalBrightness / pixelCount
-      // Threshold: brightness < 80 is considered low light (0-255 scale)
-      const isLowLight = avgBrightness < 80
+      // Threshold: brightness < 50 is considered low light (more lenient - 0-255 scale)
+      const isLowLight = avgBrightness < 50 // Lowered from 80 to reduce false positives
 
       resolve({ isLowLight, brightness: avgBrightness })
     }
@@ -186,16 +186,17 @@ export function validateReceiptPattern(text: string): {
   ]
   const hasFinancialKeywords = financialKeywords.some((keyword) => normalizedText.includes(keyword))
 
-  // Check for minimum text length (receipts should have some text)
-  const hasEnoughText = normalizedText.length > 20
+  // Check for minimum text length (more lenient - receipts can be short)
+  const hasEnoughText = normalizedText.length > 10 // Lowered from 20
 
-  // Calculate confidence score
+  // Calculate confidence score (more lenient scoring)
   let confidence = 0
-  if (hasPriceFormat) confidence += 40
+  if (hasPriceFormat) confidence += 50 // Increased weight
   if (hasFinancialKeywords) confidence += 40
-  if (hasEnoughText) confidence += 20
+  if (hasEnoughText) confidence += 10 // Lowered weight
 
-  const isValid = confidence >= 50 && hasEnoughText
+  // Lower threshold for validation (more permissive)
+  const isValid = confidence >= 40 && hasEnoughText // Lowered from 50
 
   return {
     isValid,
@@ -269,8 +270,8 @@ export async function validateImageForReceipt(
       }
     }
 
-    // Check if text is too short (might indicate unreadable text)
-    if (ocrText.trim().length < 10) {
+    // Check if text is too short (more lenient threshold)
+    if (ocrText.trim().length < 5) { // Lowered from 10
       return {
         isValid: false,
         errorType: 'no-text',

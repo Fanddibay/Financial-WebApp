@@ -13,6 +13,25 @@ import { validateAndFixDate } from '@/utils/dateValidation'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+// Helper function to infer category (simplified version for component use)
+function inferCategory(text: string): string {
+  const lowerText = text.toLowerCase()
+  const categoryKeywords: Record<string, string[]> = {
+    Makanan: ['restaurant', 'cafe', 'food', 'grocery', 'market', 'warung', 'makan', 'minum', 'kopi', 'indomaret', 'alfamart'],
+    Transportasi: ['gas', 'fuel', 'bensin', 'taxi', 'grab', 'gojek', 'parking', 'parkir', 'toll'],
+    Belanja: ['store', 'shop', 'toko', 'mall', 'retail', 'clothing', 'pakaian'],
+    Tagihan: ['utility', 'listrik', 'air', 'internet', 'phone', 'pln', 'pdam'],
+    Hiburan: ['movie', 'cinema', 'bioskop', 'game', 'entertainment'],
+    Kesehatan: ['pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'klinik'],
+  }
+  for (const [category, keywords] of Object.entries(categoryKeywords)) {
+    if (keywords.some((keyword) => lowerText.includes(keyword))) {
+      return category
+    }
+  }
+  return 'Lainnya'
+}
+
 interface Props {
   isOpen: boolean
   categories?: string[]
@@ -156,51 +175,44 @@ async function processImage(file: File) {
     const TesseractInstance = await loadTesseract()
 
     // Perform OCR with progress tracking
-    // Use 'eng+ind' for better Indonesian receipt recognition
-    // Fallback to 'eng' if Indonesian language pack is not available
+    // Use 'eng' (most reliable for receipts with numbers and common text)
     processingProgress.value = 40
-    let ocrResult
-    try {
-      // Try with Indonesian language support first
-      ocrResult = await TesseractInstance.recognize(file, 'eng+ind', {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        logger: (m: any) => {
-          if (m.status === 'recognizing text') {
-            // Map OCR progress to 40-90% of total progress
-            processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
-          }
-        },
-      })
-    } catch {
-      // Fallback to English only if Indonesian language pack fails
-      console.warn('Indonesian language pack not available, using English only')
-      ocrResult = await TesseractInstance.recognize(file, 'eng', {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        logger: (m: any) => {
-          if (m.status === 'recognizing text') {
-            processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
-          }
-        },
-      })
-    }
+    const ocrResult = await TesseractInstance.recognize(file, 'eng', {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      logger: (m: any) => {
+        if (m.status === 'recognizing text') {
+          // Map OCR progress to 40-90% of total progress
+          processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
+        }
+      },
+    })
 
     const { data: { text, confidence } } = ocrResult
 
     processingProgress.value = 95
 
-    // Validate OCR text for receipt patterns
-    const postValidation = await validateImageForReceipt(imageSrc, text)
+    // Validate OCR text for receipt patterns (more lenient)
+    // Only validate if we have substantial text
+    if (text.trim().length > 10) {
+      const postValidation = await validateImageForReceipt(imageSrc, text)
 
-    if (!postValidation.isValid) {
-      validationFailed.value = true
-      error.value = postValidation.errorMessage || 'Tidak dapat mendeteksi informasi struk dari gambar ini.'
-      errorType.value = postValidation.errorType || 'not-receipt'
-      processing.value = false
-      return
+      // Only fail if confidence is very low AND no numbers found
+      const hasNumbers = /\d{3,}/.test(text) // At least 3 consecutive digits
+
+      if (!postValidation.isValid && !hasNumbers) {
+        // Only fail if both validation fails AND no numbers detected
+        validationFailed.value = true
+        error.value = postValidation.errorMessage || 'Tidak dapat mendeteksi informasi struk dari gambar ini.'
+        errorType.value = postValidation.errorType || 'not-receipt'
+        processing.value = false
+        return
+      }
+      // If validation fails but numbers exist, continue anyway (more permissive)
     }
 
-    // Check OCR confidence (very low confidence might indicate unreadable text)
-    if (confidence < 30) {
+    // Check OCR confidence (more lenient - only reject very poor quality)
+    // Lower threshold to allow more receipts through
+    if (confidence < 10) { // Lowered from 30 to be more permissive
       validationFailed.value = true
       error.value = 'Teks pada gambar tidak terbaca dengan jelas. Pastikan foto jelas dan fokus pada struk. Coba ambil foto ulang.'
       errorType.value = 'no-text'
@@ -214,51 +226,58 @@ async function processImage(file: File) {
     const detailed = parseReceiptTextDetailed(text)
     detailedResult.value = detailed
 
-    // Only auto-fill if we have a valid detected amount
-    if (detailed.detectedAmount > 0) {
-      // Parse for form data
-      const parsed = parseReceiptText(text)
-      scannedData.value = parsed
+    // Always try to parse and show form - be more permissive
+    // Parse for form data regardless of detected amount
+    const parsed = parseReceiptText(text)
+    scannedData.value = parsed
 
-      // Check if multiple transactions were found
-      if (Array.isArray(parsed)) {
-        hasMultipleTransactions.value = true
-        // Validate and fix dates for all transactions
-        multipleFormData.value = parsed.map((item) => {
-          const dateValidation = validateAndFixDate(item.date || '')
-          if (dateValidation.error && !dateError.value) {
-            dateError.value = dateValidation.error
-          }
-          return {
-            ...defaultFormData,
-            ...item,
-            date: dateValidation.date,
-          }
-        })
-      } else {
-        hasMultipleTransactions.value = false
-        // Validate and fix date for single transaction
-        const dateValidation = validateAndFixDate(parsed.date || '')
-        if (dateValidation.error) {
+    // Check if multiple transactions were found
+    if (Array.isArray(parsed)) {
+      hasMultipleTransactions.value = true
+      // Validate and fix dates for all transactions
+      multipleFormData.value = parsed.map((item) => {
+        const dateValidation = validateAndFixDate(item.date || '')
+        if (dateValidation.error && !dateError.value) {
           dateError.value = dateValidation.error
         }
+        return {
+          ...defaultFormData,
+          ...item,
+          date: dateValidation.date,
+        }
+      })
+      showPreview.value = true
+    } else {
+      hasMultipleTransactions.value = false
+      // Validate and fix date for single transaction
+      const dateValidation = validateAndFixDate(parsed.date || '')
+      if (dateValidation.error) {
+        dateError.value = dateValidation.error
+      }
+
+      // If amount detected, use it; otherwise show form with merchant info
+      if (detailed.detectedAmount > 0) {
         // Merge parsed data with default form data
         formData.value = {
           ...defaultFormData,
           ...parsed,
           date: dateValidation.date,
         }
+      } else {
+        // No amount detected but we have text - show form with available info
+        formData.value = {
+          ...defaultFormData,
+          description: parsed.description || detailed.merchant || 'Receipt Transaction',
+          category: parsed.category || (detailed.merchant ? inferCategory(detailed.merchant) : 'Lainnya'),
+          date: dateValidation.date,
+          amount: 0, // Let user fill manually
+        }
+        // Show warning but don't block
+        if (text.trim().length > 10) {
+          dateError.value = 'Total pembayaran tidak terdeteksi otomatis. Silakan masukkan jumlah secara manual.'
+        }
       }
-
       showPreview.value = true
-    } else {
-      // No amount detected - show form but don't auto-fill
-      validationFailed.value = true
-      error.value = 'Tidak dapat mendeteksi total pembayaran dari struk. Silakan masukkan informasi secara manual.'
-      errorType.value = 'not-receipt'
-      // Reset form to defaults (no auto-fill)
-      formData.value = { ...defaultFormData }
-      showPreview.value = true // Still show preview so user can see the image
     }
   } catch (err) {
     validationFailed.value = true
