@@ -41,20 +41,42 @@ async function handleScanComplete(data: TransactionFormData) {
   try {
     const transaction = await createTransaction(data)
     fetchTransactions()
-    // Store transaction data for notification with scanner flag
-    sessionStorage.setItem('newTransaction', JSON.stringify({
-      type: transaction.type,
-      amount: transaction.amount,
-      description: transaction.description,
-      category: transaction.category,
-      date: transaction.date,
-      source: 'scanner', // Flag to indicate this came from scanner
-    }))
+    
+    // Always store transaction data for notification with scanner flag
+    // This ensures notification appears even if navigation is delayed
+    try {
+      sessionStorage.setItem('newTransaction', JSON.stringify({
+        type: transaction.type,
+        amount: transaction.amount,
+        description: transaction.description,
+        category: transaction.category,
+        date: transaction.date,
+        source: 'scanner', // Flag to indicate this came from scanner
+      }))
+    } catch (storageError) {
+      console.warn('Failed to store notification in sessionStorage:', storageError)
+    }
+    
     showScanner.value = false
     emit('close')
-    router.push('/')
+    
+    // Use nextTick to ensure sessionStorage is set before navigation
+    await router.push('/')
+    
+    // Trigger notification check after navigation
+    window.dispatchEvent(new Event('check-transaction-notification'))
   } catch (error) {
     console.error('Error creating transaction:', error)
+    // Still try to show notification if transaction was created but navigation failed
+    try {
+      sessionStorage.setItem('newTransaction', JSON.stringify({
+        ...data,
+        source: 'scanner',
+      }))
+      window.dispatchEvent(new Event('check-transaction-notification'))
+    } catch (storageError) {
+      console.warn('Failed to store notification:', storageError)
+    }
   }
 }
 
@@ -65,23 +87,48 @@ async function handleScanCompleteMultiple(data: TransactionFormData[]) {
       await createTransaction(transaction)
     }
     fetchTransactions()
-    // Store last transaction data for notification with scanner flag and count
+    
+    // Always store transaction data for notification with scanner flag and count
     if (lastTransaction) {
-      sessionStorage.setItem('newTransaction', JSON.stringify({
-        type: lastTransaction.type,
-        amount: lastTransaction.amount,
-        description: lastTransaction.description,
-        category: lastTransaction.category,
-        date: lastTransaction.date,
-        source: 'scanner', // Flag to indicate this came from scanner
-        count: data.length, // Number of transactions added
-      }))
+      try {
+        sessionStorage.setItem('newTransaction', JSON.stringify({
+          type: lastTransaction.type,
+          amount: lastTransaction.amount,
+          description: lastTransaction.description,
+          category: lastTransaction.category,
+          date: lastTransaction.date,
+          source: 'scanner', // Flag to indicate this came from scanner
+          count: data.length, // Number of transactions added
+        }))
+      } catch (storageError) {
+        console.warn('Failed to store notification in sessionStorage:', storageError)
+      }
     }
+    
     showScanner.value = false
     emit('close')
-    router.push('/')
+    
+    // Use nextTick to ensure sessionStorage is set before navigation
+    await router.push('/')
+    
+    // Trigger notification check after navigation
+    window.dispatchEvent(new Event('check-transaction-notification'))
   } catch (error) {
     console.error('Error creating transactions:', error)
+    // Still try to show notification if transactions were created but navigation failed
+    const lastTransaction = data[data.length - 1]
+    if (lastTransaction) {
+      try {
+        sessionStorage.setItem('newTransaction', JSON.stringify({
+          ...lastTransaction,
+          source: 'scanner',
+          count: data.length,
+        }))
+        window.dispatchEvent(new Event('check-transaction-notification'))
+      } catch (storageError) {
+        console.warn('Failed to store notification:', storageError)
+      }
+    }
   }
 }
 

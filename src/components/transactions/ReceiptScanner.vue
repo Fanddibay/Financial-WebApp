@@ -8,6 +8,7 @@ import TransactionForm from '@/components/transactions/TransactionForm.vue'
 import type { TransactionFormData } from '@/types/transaction'
 import { parseReceiptText, parseReceiptTextDetailed, type ReceiptParseResult } from '@/utils/receiptParser'
 import { validateImageForReceipt } from '@/utils/imageValidation'
+import { quickPreprocessImageForOCR } from '@/utils/imagePreprocessing'
 import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -169,25 +170,40 @@ async function processImage(file: File) {
     previewImage.value = imageSrc
     processingProgress.value = 10
 
-    // Validate image before OCR
+    // Validate image before OCR (more lenient - just check size)
     processingProgress.value = 20
     const preValidation = await validateImageForReceipt(imageSrc)
 
-    if (!preValidation.isValid) {
+    // Only block if image is too small, allow blur/low-light to proceed
+    if (preValidation.errorType === 'too-small') {
       validationFailed.value = true
-      error.value = preValidation.errorMessage || 'Gambar tidak valid untuk pemindaian struk.'
-      errorType.value = preValidation.errorType || 'unknown'
+      error.value = preValidation.errorMessage || 'Gambar terlalu kecil untuk pemindaian.'
+      errorType.value = preValidation.errorType
       processing.value = false
       return
+    }
+
+    // Preprocess image for better OCR accuracy
+    processingProgress.value = 25
+    let processedFile: File
+    try {
+      processedFile = await quickPreprocessImageForOCR(file)
+    } catch (preprocessError) {
+      console.warn('Image preprocessing failed, using original:', preprocessError)
+      processedFile = file // Fallback to original if preprocessing fails
     }
 
     // Load Tesseract if not already loaded
     processingProgress.value = 30
     const TesseractInstance = await loadTesseract()
 
-    // Perform OCR with progress tracking
+    // Perform OCR with optimized parameters for receipts
     processingProgress.value = 40
-    const { data: { text, confidence } } = await TesseractInstance.recognize(file, 'eng', {
+    const { data: { text, confidence } } = await TesseractInstance.recognize(processedFile, 'eng', {
+      // PSM 6: Assume a single uniform block of text (good for receipts)
+      // PSM 11: Sparse text (alternative if PSM 6 doesn't work well)
+      tessedit_pageseg_mode: '6', // Uniform block of text
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       logger: (m: any) => {
         if (m.status === 'recognizing text') {
@@ -199,24 +215,25 @@ async function processImage(file: File) {
 
     processingProgress.value = 95
 
-    // Validate OCR text for receipt patterns
+    // More lenient validation - only fail if absolutely no useful text
     const postValidation = await validateImageForReceipt(imageSrc, text)
 
-    if (!postValidation.isValid) {
+    // Only fail if no numbers found at all (very strict)
+    if (!postValidation.isValid && text.trim().length < 10) {
       validationFailed.value = true
-      error.value = postValidation.errorMessage || 'Tidak dapat mendeteksi informasi struk dari gambar ini.'
-      errorType.value = postValidation.errorType || 'not-receipt'
+      error.value = postValidation.errorMessage || 'Tidak dapat membaca teks dari gambar. Pastikan foto jelas dan fokus pada struk.'
+      errorType.value = postValidation.errorType || 'no-text'
       processing.value = false
       return
     }
 
-    // Check OCR confidence (very low confidence might indicate unreadable text)
-    if (confidence < 30) {
+    // Lower confidence threshold - allow lower confidence to proceed
+    // Many receipts have mixed quality text, so we'll let the parser handle it
+    if (confidence < 5 && text.trim().length < 20) {
       validationFailed.value = true
-      error.value = 'Teks pada gambar tidak terbaca dengan jelas. Pastikan foto jelas dan fokus pada struk. Coba ambil foto ulang.'
+      error.value = 'Teks pada gambar tidak terbaca dengan jelas. Silakan masukkan informasi secara manual atau coba ambil foto ulang.'
       errorType.value = 'no-text'
-      processing.value = false
-      return
+      // Don't return - still show form for manual input
     }
 
     processingProgress.value = 100
@@ -263,13 +280,36 @@ async function processImage(file: File) {
 
       showPreview.value = true
     } else {
-      // No amount detected - show form but don't auto-fill
+      // No amount detected - still show form for manual input
+      // Parse anyway to get any available data (date, merchant, etc.)
+      const parsed = parseReceiptText(text)
+      scannedData.value = parsed
+
+      if (Array.isArray(parsed)) {
+        hasMultipleTransactions.value = true
+        multipleFormData.value = parsed.map((item) => {
+          const dateValidation = validateAndFixDate(item.date || '')
+          return {
+            ...defaultFormData,
+            ...item,
+            date: dateValidation.date,
+          }
+        })
+      } else {
+        hasMultipleTransactions.value = false
+        const dateValidation = validateAndFixDate(parsed.date || '')
+        formData.value = {
+          ...defaultFormData,
+          ...parsed,
+          date: dateValidation.date,
+        }
+      }
+
+      // Show warning but allow manual input
       validationFailed.value = true
-      error.value = 'Tidak dapat mendeteksi total pembayaran dari struk. Silakan masukkan informasi secara manual.'
+      error.value = 'Total pembayaran tidak terdeteksi otomatis. Silakan masukkan informasi secara manual.'
       errorType.value = 'not-receipt'
-      // Reset form to defaults (no auto-fill)
-      formData.value = { ...defaultFormData }
-      showPreview.value = true // Still show preview so user can see the image
+      showPreview.value = true // Show preview so user can see the image
     }
   } catch (err) {
     validationFailed.value = true

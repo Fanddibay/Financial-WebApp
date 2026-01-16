@@ -77,8 +77,8 @@ export async function detectBlur(imageSrc: string): Promise<{ isBlurred: boolean
       }
       variance /= laplacian.length
 
-      // Threshold: variance < 80 is considered blurred (adjusted for sampling)
-      const isBlurred = variance < 80
+      // Threshold: variance < 50 is considered blurred (more lenient for better success rate)
+      const isBlurred = variance < 50
 
       resolve({ isBlurred, variance })
     }
@@ -121,8 +121,8 @@ export async function detectLowLight(imageSrc: string): Promise<{ isLowLight: bo
       }
 
       const avgBrightness = totalBrightness / pixelCount
-      // Threshold: brightness < 80 is considered low light (0-255 scale)
-      const isLowLight = avgBrightness < 80
+      // Threshold: brightness < 50 is considered low light (more lenient, 0-255 scale)
+      const isLowLight = avgBrightness < 50
 
       resolve({ isLowLight, brightness: avgBrightness })
     }
@@ -157,6 +157,7 @@ export function validateReceiptPattern(text: string): {
   hasPriceFormat: boolean
   hasFinancialKeywords: boolean
   hasEnoughText: boolean
+  hasNumbers: boolean
 } {
   const normalizedText = text.toLowerCase().trim()
 
@@ -165,6 +166,8 @@ export function validateReceiptPattern(text: string): {
     /rp\s*\d/i,
     /idr\s*\d/i,
     /\d+[.,]\d{3}/, // Indonesian number format: 1.000 or 1,000
+    /\d+[.,]\d{3}[.,]\d{3}/, // Larger numbers: 1.000.000
+    /\d{3,}/, // Any number with 3+ digits (likely a price)
     /\d+\.\d{2}/, // Decimal prices
     /total/i,
     /jumlah/i,
@@ -172,35 +175,62 @@ export function validateReceiptPattern(text: string): {
   ]
   const hasPriceFormat = pricePatterns.some((pattern) => pattern.test(normalizedText))
 
-  // Check for financial keywords
+  // Check for financial keywords (expanded list)
   const financialKeywords = [
     'total',
     'jumlah',
     'bayar',
     'pembayaran',
     'subtotal',
+    'sub total',
+    'sebelum pajak',
     'pajak',
+    'ppn',
+    'pph',
     'tax',
+    'vat',
     'diskon',
     'discount',
+    'potongan',
+    'promo',
     'kembalian',
     'change',
+    'tunai',
+    'cash',
     'receipt',
     'struk',
     'nota',
+    'invoice',
+    'kwitansi',
+    'tanggal',
+    'date',
+    'waktu',
+    'time',
+    'kasir',
+    'cashier',
+    'teller',
+    'harga',
+    'price',
+    'biaya',
+    'cost',
   ]
   const hasFinancialKeywords = financialKeywords.some((keyword) => normalizedText.includes(keyword))
 
-  // Check for minimum text length (receipts should have some text)
-  const hasEnoughText = normalizedText.length > 20
+  // Check for presence of any numbers
+  const hasNumbers = /\d/.test(normalizedText)
+
+  // Check for minimum text length (receipts should have some text) - more lenient
+  const hasEnoughText = normalizedText.length > 10
 
   // Calculate confidence score
   let confidence = 0
-  if (hasPriceFormat) confidence += 40
-  if (hasFinancialKeywords) confidence += 40
-  if (hasEnoughText) confidence += 20
+  if (hasPriceFormat) confidence += 35
+  if (hasFinancialKeywords) confidence += 35
+  if (hasEnoughText) confidence += 15
+  if (hasNumbers) confidence += 15 // Added for numbers presence
 
-  const isValid = confidence >= 50 && hasEnoughText
+  // More lenient validation - only require 40% confidence and presence of numbers
+  const isValid = confidence >= 40 && hasEnoughText && hasNumbers
 
   return {
     isValid,
@@ -208,6 +238,7 @@ export function validateReceiptPattern(text: string): {
     hasPriceFormat,
     hasFinancialKeywords,
     hasEnoughText,
+    hasNumbers, // Export for more flexible validation
   }
 }
 
@@ -252,11 +283,12 @@ export async function validateImageForReceipt(
     }
   }
 
-  // If OCR text is provided, validate receipt patterns
+  // If OCR text is provided, validate receipt patterns (more lenient)
   if (ocrText !== undefined) {
     const patternCheck = validateReceiptPattern(ocrText)
 
-    if (!patternCheck.isValid) {
+    // Only fail if no numbers found at all (very strict)
+    if (!patternCheck.isValid && !patternCheck.hasNumbers) {
       let errorMessage = 'Tidak dapat mendeteksi informasi struk dari gambar ini. '
       if (!patternCheck.hasEnoughText) {
         errorMessage += 'Gambar mungkin tidak mengandung teks yang cukup atau teks tidak terbaca dengan jelas.'
@@ -274,8 +306,8 @@ export async function validateImageForReceipt(
       }
     }
 
-    // Check if text is too short (might indicate unreadable text)
-    if (ocrText.trim().length < 10) {
+    // Only fail if text is extremely short (very strict)
+    if (ocrText.trim().length < 5) {
       return {
         isValid: false,
         errorType: 'no-text',

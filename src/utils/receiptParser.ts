@@ -24,10 +24,17 @@ export interface ReceiptItem {
  * Normalize OCR output:
  * - Remove extra spaces & symbols
  * - Standardize number formats (58,000, 58.000 → 58000)
+ * - Fix common OCR errors (O -> 0, I -> 1, etc.)
  */
 function normalizeOcrText(text: string): string {
   return text
     .replace(/\s+/g, ' ') // Multiple spaces to single space
+    // Fix common OCR errors in number contexts
+    .replace(/(\d)\s*[Oo]\s*(\d)/g, '$10$2') // O between numbers -> 0
+    .replace(/(\d)\s*[Il|]\s*(\d)/g, '$11$2') // I or l between numbers -> 1
+    .replace(/\b[Oo]\s*(\d)/g, '0$1') // O at start of number -> 0
+    .replace(/(\d)\s*[Oo]\b/g, '$10') // O at end of number -> 0
+    // Preserve common receipt symbols
     .replace(/[^\w\s\d.,:/-]/g, '') // Remove special symbols except common ones
     .trim()
 }
@@ -59,28 +66,63 @@ function extractNumbers(text: string): NumberMatch[] {
   const numbers: NumberMatch[] = []
 
   lines.forEach((line, lineIndex) => {
-    // Match numbers with various formats: 10000, 10.000, 10,000, Rp 10000, etc.
-    const numberPattern = /(?:Rp\s?)?(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)/gi
-    const matches = Array.from(line.matchAll(numberPattern))
+    // Enhanced patterns to catch more number formats:
+    // - Rp 10000, Rp.10000, Rp10000
+    // - 10.000, 10,000, 10 000
+    // - 10000.00 (with decimals)
+    // - Numbers at end of line (common for prices)
+    const numberPatterns = [
+      /(?:Rp\s*\.?\s*)?(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Standard format
+      /(\d{3,}(?:[.,]\d{2})?)/g, // Large numbers (3+ digits) that might be prices
+      /(\d+[.,]\d{3,})/g, // Numbers with thousand separators
+    ]
 
-    matches.forEach((match) => {
-      if (match.index !== undefined) {
-        const normalized = normalizeNumber(match[1])
-        const value = parseFloat(normalized)
-        if (!isNaN(value) && value > 0) {
-          numbers.push({
-            value,
-            original: match[0],
-            line: line.trim(),
-            lineIndex,
-            position: match.index,
-          })
+    numberPatterns.forEach((pattern) => {
+      const matches = Array.from(line.matchAll(pattern))
+      matches.forEach((match) => {
+        if (match.index !== undefined) {
+          // Skip if this number is part of a date/time pattern
+          const beforeMatch = line.substring(Math.max(0, match.index - 5), match.index)
+          const afterMatch = line.substring(match.index + match[0].length, match.index + match[0].length + 5)
+          const context = (beforeMatch + match[0] + afterMatch).toLowerCase()
+          
+          // Skip if it looks like a date/time
+          if (/\d{1,2}[\/\-:]\d{1,2}/.test(context)) {
+            return
+          }
+
+          const normalized = normalizeNumber(match[1])
+          const value = parseFloat(normalized)
+          
+          // Only include reasonable amounts (>= 100 IDR, <= 1 billion)
+          if (!isNaN(value) && value >= 100 && value <= 1000000000) {
+            // Check if this number was already added (avoid duplicates)
+            const isDuplicate = numbers.some(
+              (n) => n.lineIndex === lineIndex && 
+                     Math.abs(n.position - match.index) < 10 &&
+                     Math.abs(n.value - value) < 100
+            )
+            
+            if (!isDuplicate) {
+              numbers.push({
+                value,
+                original: match[0],
+                line: line.trim(),
+                lineIndex,
+                position: match.index,
+              })
+            }
+          }
         }
-      }
+      })
     })
   })
 
-  return numbers
+  // Sort by line index and position for better processing
+  return numbers.sort((a, b) => {
+    if (a.lineIndex !== b.lineIndex) return a.lineIndex - b.lineIndex
+    return a.position - b.position
+  })
 }
 
 /**
@@ -166,11 +208,12 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
 } | null {
   const lines = text.split('\n')
   const targetKeywords = [
-    { pattern: /\b(total\s*bayar|bayar)\b/i, weight: 1.0 },
-    { pattern: /\b(grand\s*total)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*bayar|bayar|bayar\s*total)\b/i, weight: 1.0 },
+    { pattern: /\b(grand\s*total|total\s*grand)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 }, // Total at end of line
     { pattern: /\b(total)\b/i, weight: 0.9 },
-    { pattern: /\b(jumlah)\b/i, weight: 0.85 },
-    { pattern: /\b(pembayaran)\b/i, weight: 0.8 },
+    { pattern: /\b(jumlah|jumlah\s*bayar)\b/i, weight: 0.85 },
+    { pattern: /\b(pembayaran|harus\s*bayar)\b/i, weight: 0.8 },
   ]
 
   let bestMatch: {
@@ -185,17 +228,31 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
 
     for (const { pattern, weight } of targetKeywords) {
       const keywordMatch = lowerLine.match(pattern)
-      if (keywordMatch) {
-        // Find numbers in this line or nearby lines
+      if (keywordMatch && keywordMatch.index !== undefined) {
+        // Find numbers in this line or nearby lines (within 2 lines)
+        // Lower threshold to 500 IDR to catch smaller totals
         const nearbyNumbers = numbers.filter(
-          (n) => Math.abs(n.lineIndex - lineIndex) <= 1 && n.value >= 1000
+          (n) => Math.abs(n.lineIndex - lineIndex) <= 2 && n.value >= 500
         )
 
         for (const num of nearbyNumbers) {
-          const distance = Math.abs(num.lineIndex - lineIndex) * 10 + Math.abs(num.position - (keywordMatch.index || 0))
-          const confidence: 'high' | 'medium' | 'low' = weight > 0.9 ? 'high' : weight > 0.85 ? 'medium' : 'low'
+          // Calculate distance: prioritize same line, then proximity
+          const lineDistance = Math.abs(num.lineIndex - lineIndex)
+          const charDistance = Math.abs(num.position - keywordMatch.index)
+          const distance = lineDistance * 100 + charDistance
+          
+          let confidence: 'high' | 'medium' | 'low' = 'low'
+          if (weight >= 0.95) confidence = 'high'
+          else if (weight >= 0.85) confidence = 'medium'
+          
+          // Boost confidence if number is on same line or immediately after keyword
+          if (lineDistance === 0 && charDistance < 30) {
+            if (confidence === 'medium') confidence = 'high'
+            if (confidence === 'low') confidence = 'medium'
+          }
 
-          if (!bestMatch || distance < bestMatch.distance || (distance === bestMatch.distance && weight > (targetKeywords.find((k) => k.pattern.test(bestMatch!.keyword))?.weight || 0))) {
+          if (!bestMatch || distance < bestMatch.distance || 
+              (distance === bestMatch.distance && weight > (targetKeywords.find((k) => k.pattern.test(bestMatch!.keyword))?.weight || 0))) {
             bestMatch = {
               amount: num.value,
               confidence,
@@ -220,9 +277,10 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
 }
 
 /**
- * Tier 2: Select the largest valid number (> threshold, e.g. IDR 1,000)
+ * Tier 2: Select the largest valid number (> threshold, e.g. IDR 500)
+ * Prioritize numbers that appear later in the receipt (totals are usually at bottom)
  */
-function detectTotalTier2(numbers: NumberMatch[], threshold: number = 1000): {
+function detectTotalTier2(numbers: NumberMatch[], threshold: number = 500): {
   amount: number
   confidence: 'low'
 } | null {
@@ -230,13 +288,28 @@ function detectTotalTier2(numbers: NumberMatch[], threshold: number = 1000): {
   const validNumbers = numbers
     .filter((n) => {
       const category = classifyNumber(n, n.line, numbers)
-      return category !== 'non-price' && n.value >= threshold
+      return category !== 'non-price' && n.value >= threshold && n.value <= 1000000000
     })
-    .sort((a, b) => b.value - a.value)
 
   if (validNumbers.length > 0) {
+    // Sort by value (descending) but prioritize numbers that appear later
+    const sorted = validNumbers.sort((a, b) => {
+      // First, prioritize by line index (later = better)
+      if (a.lineIndex !== b.lineIndex) {
+        return b.lineIndex - a.lineIndex
+      }
+      // Then by value (larger = better)
+      return b.value - a.value
+    })
+
+    // Take the largest number from the bottom half of the receipt
+    const bottomHalf = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)))
+    const largest = bottomHalf.reduce((prev, current) => 
+      current.value > prev.value ? current : prev
+    )
+
     return {
-      amount: validNumbers[0].value,
+      amount: largest.value,
       confidence: 'low',
     }
   }

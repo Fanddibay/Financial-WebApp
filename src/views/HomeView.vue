@@ -259,14 +259,20 @@ watch(
     if (newPath === '/' && oldPath !== '/') {
       // When navigating to homepage, check for notification
       // Use multiple checks with delays to ensure we catch the sessionStorage
-      // This handles cases where component is already mounted
+      // This handles cases where component is already mounted or navigation is fast
       nextTick(() => {
         // First check immediately
         checkAndShowNotification()
-        // Second check after a short delay (in case sessionStorage was set during navigation)
+        
+        // Also check after a short delay to catch async sessionStorage writes
         setTimeout(() => {
           checkAndShowNotification()
-        }, 200)
+        }, 100)
+        
+        // Final check after longer delay (for very slow writes)
+        setTimeout(() => {
+          checkAndShowNotification()
+        }, 500)
       })
     }
   },
