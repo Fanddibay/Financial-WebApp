@@ -6,6 +6,7 @@ import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import CurrencyInput from '@/components/ui/CurrencyInput.vue'
+import { getCategoryWithIcon } from '@/utils/categoryIcons'
 
 interface Props {
   modelValue: TransactionFormData
@@ -44,12 +45,39 @@ const categoryOptions = computed(() => {
       ? ['Gaji', 'Freelance', 'Investasi', 'Hadiah', 'Lainnya']
       : ['Makanan', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Lainnya']
 
+  // Filter custom categories untuk menghindari duplikasi dan kategori yang tidak sesuai
   const customCategories = props.categories
-    .filter((cat) => !defaultCategories.includes(cat))
-    .map((cat) => ({ value: cat, label: cat }))
+    .filter((cat) => {
+      // Exclude kategori yang sudah ada di default
+      if (defaultCategories.includes(cat)) return false
+      
+      // Untuk expense, exclude "Gaji" (karena itu kategori income)
+      if (props.modelValue.type === 'expense') {
+        const lowerCat = cat.toLowerCase().trim()
+        if (lowerCat === 'gaji' || lowerCat === 'salary') return false
+        
+        // Exclude "Other" dan variasi lainnya jika sudah ada "Lainnya"
+        if (lowerCat === 'other' || lowerCat === 'lain-lain' || lowerCat === 'lain lain') return false
+      }
+      
+      // Untuk income, exclude kategori expense yang tidak sesuai
+      if (props.modelValue.type === 'income') {
+        const lowerCat = cat.toLowerCase().trim()
+        // Bisa tambahkan filter untuk income jika diperlukan
+      }
+      
+      return true
+    })
+    .map((cat) => ({ 
+      value: cat, 
+      label: getCategoryWithIcon(cat, props.modelValue.type) 
+    }))
 
   return [
-    ...defaultCategories.map((cat) => ({ value: cat, label: cat })),
+    ...defaultCategories.map((cat) => ({ 
+      value: cat, 
+      label: getCategoryWithIcon(cat, props.modelValue.type) 
+    })),
     ...customCategories,
   ]
 })

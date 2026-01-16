@@ -33,15 +33,34 @@ function getYesterdayDateString(): string {
 }
 
 /**
+ * Multiplier words for Indonesian currency
+ * Used for both parsing amounts and cleaning descriptions
+ */
+const MULTIPLIER_WORDS = {
+  ribu: ['ribu', 'rb', 'k'],
+  juta: ['juta', 'jt', 'm'],
+  milyar: ['milyar', 'miliar', 'b']
+} as const
+
+/**
+ * All multiplier word variants (for regex patterns)
+ */
+const ALL_MULTIPLIER_WORDS = [
+  ...MULTIPLIER_WORDS.ribu,
+  ...MULTIPLIER_WORDS.juta,
+  ...MULTIPLIER_WORDS.milyar
+].join('|')
+
+/**
  * Get multiplier value from multiplier word
  */
 function getMultiplierValue(multiplier: string): number {
   const mult = multiplier.toLowerCase()
-  if (mult === 'ribu' || mult === 'rb' || mult === 'k') {
+  if (MULTIPLIER_WORDS.ribu.includes(mult as any)) {
     return 1000
-  } else if (mult === 'juta' || mult === 'jt' || mult === 'm') {
+  } else if (MULTIPLIER_WORDS.juta.includes(mult as any)) {
     return 1000000
-  } else if (mult === 'milyar' || mult === 'miliar' || mult === 'b') {
+  } else if (MULTIPLIER_WORDS.milyar.includes(mult as any)) {
     return 1000000000
   }
   return 1
@@ -69,7 +88,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
   // - \s* - optional whitespace
   // - (ribu|rb|k|juta|jt|m|milyar|miliar|b) - multiplier word
   // - (?=\s|$|[^\w\d]|\d) - lookahead: space, end, non-word/digit, or another digit (for next number)
-  const multiplierPattern = /(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)(?=\s|$|[^\w\d]|\d)/gi
+  const multiplierPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})(?=\\s|$|[^\\w\\d]|\\d)`, 'gi')
   const allMultiplierMatches = Array.from(lowerText.matchAll(multiplierPattern))
   
   if (allMultiplierMatches.length > 0) {
@@ -150,7 +169,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
   
   // Pattern 1b: Single multiplier (fallback if multiple not found)
   // Matches: "20 ribu", "5 juta", "500rb", "15k", "2.5 juta", etc.
-  const singleMultiplierPattern = /(\d+(?:[.,]\d+)?)\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/i
+  const singleMultiplierPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})\\b`, 'i')
   const singleMultiplierMatch = lowerText.match(singleMultiplierPattern)
   if (singleMultiplierMatch && allMultiplierMatches.length === 0) {
     const numberStr = singleMultiplierMatch[1].replace(/,/g, '.')
@@ -426,38 +445,76 @@ function parseDate(text: string): { date: string; confidence: 'high' | 'medium' 
 }
 
 /**
- * Extract description from text
+ * Keywords to remove from description
+ */
+const REMOVABLE_KEYWORDS = {
+  type: ['beli', 'buy', 'bayar', 'pay', 'gaji', 'salary', 'income', 'masuk', 'keluar'],
+  date: ['hari ini', 'kemarin', 'yesterday', 'today', 'sekarang']
+} as const
+
+/**
+ * Extract description from text by removing amounts, dates, type keywords, and multiplier words
+ * 
+ * This function ensures that:
+ * - All currency amounts are removed (Rp 20.000, 5.000.000, etc.)
+ * - All number-multiplier pairs are removed (3 juta, 200 ribu, etc.)
+ * - All standalone multiplier words are removed (ribu, juta, etc.)
+ * - Date patterns are removed
+ * - Type keywords are removed
+ * - Only meaningful description remains
  */
 function extractDescription(text: string): string {
-  // Remove amount patterns, date patterns, and type keywords
-  let description = text
+  if (!text || text.trim().length === 0) {
+    return 'Transaksi'
+  }
+
+  let description = text.trim()
   
   // Step 1: Remove currency formats (Rp 20.000, 5.000.000, etc.)
+  // Matches: "Rp 20.000", "5.000.000", "Rp5.000.000", "20,000", etc.
   description = description.replace(/(?:rp\s*)?\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?/gi, '')
   
   // Step 2: Remove all number-multiplier pairs (3 juta, 200 ribu, etc.)
-  // This pattern handles both with space and without space (3juta, 200rb)
-  // Also handles decimal numbers like "1.5 juta"
-  description = description.replace(/\d+(?:[.,]\d+)?\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/gi, '')
+  // This pattern handles:
+  // - With space: "3 juta", "200 ribu"
+  // - Without space: "3juta", "200rb"
+  // - Decimal numbers: "1.5 juta", "2,5 juta"
+  // - Multiple formats: "1juta520rb"
+  const numberMultiplierPattern = new RegExp(`\\d+(?:[.,]\\d+)?\\s*(${ALL_MULTIPLIER_WORDS})\\b`, 'gi')
+  description = description.replace(numberMultiplierPattern, '')
   
   // Step 3: Remove standalone multiplier words that might remain
-  // This catches cases where multiplier words are left after removing numbers
-  // e.g., "beli keyboard 3 juta 200 ribu" -> after step 2 might leave "juta ribu"
-  description = description.replace(/\b(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/gi, '')
+  // This is critical: after removing number-multiplier pairs, sometimes multiplier words
+  // remain as standalone words (e.g., "beli keyboard 3 juta 200 ribu" -> "keyboard juta ribu")
+  // We need to remove ALL instances of multiplier words, even if they appear alone
+  const standaloneMultiplierPattern = new RegExp(`\\b(${ALL_MULTIPLIER_WORDS})\\b`, 'gi')
+  description = description.replace(standaloneMultiplierPattern, '')
   
   // Step 4: Remove date patterns
-  description = description.replace(/(hari ini|kemarin|yesterday|today|sekarang)/gi, '')
+  // Relative dates: "hari ini", "kemarin", "yesterday", "today", "sekarang"
+  // Note: We need to handle multi-word phrases like "hari ini" separately
+  for (const dateKeyword of REMOVABLE_KEYWORDS.date) {
+    const datePattern = new RegExp(`\\b${dateKeyword.replace(/\s+/g, '\\s+')}\\b`, 'gi')
+    description = description.replace(datePattern, '')
+  }
+  
+  // Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, etc.
   description = description.replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g, '')
   
   // Step 5: Remove type keywords
-  description = description.replace(/\b(beli|buy|bayar|pay|gaji|salary|income|masuk|keluar)\b/gi, '')
+  // Transaction type indicators: "beli", "bayar", "gaji", "masuk", etc.
+  const typeKeywordsPattern = new RegExp(`\\b(${REMOVABLE_KEYWORDS.type.join('|')})\\b`, 'gi')
+  description = description.replace(typeKeywordsPattern, '')
   
-  // Step 6: Clean up multiple spaces and trim
+  // Step 6: Clean up whitespace
+  // Replace multiple spaces/newlines/tabs with single space, then trim
   description = description.replace(/\s+/g, ' ').trim()
 
-  // If description is empty or too short, use original text (cleaned)
+  // Step 7: Validate and fallback
+  // If description is empty or too short after cleaning, use original text (but still cleaned)
   if (!description || description.length < 3) {
-    description = text.trim()
+    // Fallback: return original text but with basic cleaning
+    description = text.trim().replace(/\s+/g, ' ')
   }
 
   return description || 'Transaksi'

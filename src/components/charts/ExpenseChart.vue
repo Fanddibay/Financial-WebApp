@@ -14,21 +14,21 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 interface Props {
   transactionsByCategory: Array<{ category: string; total: number; count: number }>
+  allCategoriesForColorMapping?: Array<{ category: string; total: number; count: number }>
   totalExpenses: number
   label?: string
   isNegative?: boolean
   isExpense?: boolean
   hiddenCategories?: Set<string>
-  onSegmentClick?: (category: string) => void
   disabled?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  allCategoriesForColorMapping: undefined,
   label: 'Total Expenses',
   isNegative: false,
   isExpense: false,
   hiddenCategories: () => new Set<string>(),
-  onSegmentClick: undefined,
   disabled: false,
 })
 
@@ -45,10 +45,10 @@ const colors = [
   '#84cc16', // lime-500
 ]
 
+// Data is already filtered in HomeView, so we use it directly
+// No need to filter again here
 const visibleCategories = computed(() => {
-  return props.transactionsByCategory.filter(
-    (item) => !props.hiddenCategories.has(item.category)
-  )
+  return props.transactionsByCategory
 })
 
 const chartData = computed(() => {
@@ -74,7 +74,9 @@ const chartData = computed(() => {
       {
         data: visibleCategories.value.map((item) => item.total),
         backgroundColor: visibleCategories.value.map((item) => {
-          const originalIndex = props.transactionsByCategory.findIndex(
+          // Use allCategoriesForColorMapping if provided, otherwise fallback to transactionsByCategory
+          const categoriesForMapping = props.allCategoriesForColorMapping || props.transactionsByCategory
+          const originalIndex = categoriesForMapping.findIndex(
             (cat) => cat.category === item.category
           )
           const colorIndex = originalIndex >= 0 ? originalIndex : 0
@@ -107,7 +109,7 @@ const chartOptions = computed(() => ({
       const index = activeElements[0].index
       hoveredIndex.value = index
       if (event.native && event.native.target instanceof HTMLElement) {
-        event.native.target.style.cursor = 'pointer'
+        event.native.target.style.cursor = 'default'
       }
     } else {
       hoveredIndex.value = null
@@ -116,20 +118,8 @@ const chartOptions = computed(() => ({
       }
     }
   },
-  onClick: (_event: ChartEvent, activeElements: ActiveElement[]) => {
-    if (props.disabled || !props.onSegmentClick) {
-      return
-    }
-    if (activeElements.length > 0) {
-      const index = activeElements[0]?.index
-      if (index !== undefined && index >= 0 && index < visibleCategories.value.length) {
-        const category = visibleCategories.value[index]?.category
-        if (category) {
-          props.onSegmentClick(category)
-        }
-      }
-    }
-  },
+  // Removed onClick handler - chart is now view-only for information display
+  // Users can toggle filters via category cards below the chart
   plugins: {
     legend: {
       display: false,

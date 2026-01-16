@@ -13,6 +13,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
 import type { TransactionFormData } from '@/types/transaction'
+import { getCategoryIcon } from '@/utils/categoryIcons'
 
 const router = useRouter()
 const route = useRoute()
@@ -111,12 +112,30 @@ function toggleCategory(category: string) {
   hiddenCategories.value = new Set(hiddenCategories.value)
 }
 
-function handleSegmentClick(category: string) {
-  toggleCategory(category)
-}
-
 const getCategoryColor = (index: number) => {
   return colors[index % colors.length]
+}
+
+// Helper function to get category icon
+function getCategoryIconForDisplay(category: string): string {
+  // Check if it's combined format "Category (Income)" or "Category (Expense)"
+  if (category.includes('(Income)')) {
+    const baseCategory = category.replace(' (Income)', '').trim()
+    return getCategoryIcon(baseCategory, 'income')
+  } else if (category.includes('(Expense)')) {
+    const baseCategory = category.replace(' (Expense)', '').trim()
+    return getCategoryIcon(baseCategory, 'expense')
+  }
+  
+  // Determine type based on selectedType
+  if (selectedType.value === 'income') {
+    return getCategoryIcon(category, 'income')
+  } else if (selectedType.value === 'expense') {
+    return getCategoryIcon(category, 'expense')
+  }
+  
+  // Default to expense for 'all' type if can't determine
+  return getCategoryIcon(category, 'expense')
 }
 
 const isBalanceNegative = computed(() => {
@@ -319,9 +338,10 @@ function confirmDelete() {
         <div class="relative" :class="{ 'opacity-50 grayscale': isChartDisabled }">
           <ExpenseChart
             :transactions-by-category="filteredTransactionsByCategory.length > 0 ? filteredTransactionsByCategory : []"
+            :all-categories-for-color-mapping="allCategories"
             :total-expenses="isChartDisabled ? 0 : totalAmount" :label="selectedType === 'all' ? 'Saldo' : totalLabel"
             :is-negative="isBalanceNegative" :is-expense="selectedType === 'expense'"
-            :hidden-categories="hiddenCategories" :on-segment-click="handleSegmentClick" :disabled="isChartDisabled" />
+            :hidden-categories="hiddenCategories" :disabled="isChartDisabled" />
 
           <!-- Filtered Empty State Hint -->
           <div v-if="isChartDisabled" class="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -382,15 +402,18 @@ function confirmDelete() {
               <!-- Color indicator -->
               <div class="mb-2 h-2 w-full rounded-full" :style="{ backgroundColor: getCategoryColor(index) }"></div>
 
-              <!-- Category name (top) -->
-              <p :class="[
-                'text-[10px] font-semibold mb-1.5 line-clamp-2',
-                hiddenCategories.has(item.category)
-                  ? 'text-slate-400 dark:text-slate-500'
-                  : 'text-slate-700 dark:text-slate-300'
-              ]">
-                {{ item.category }}
-              </p>
+              <!-- Category icon and name (top) -->
+              <div class="flex items-center gap-1.5 mb-1.5">
+                <span class="text-sm">{{ getCategoryIconForDisplay(item.category) }}</span>
+                <p :class="[
+                  'text-[10px] font-semibold line-clamp-2 flex-1',
+                  hiddenCategories.has(item.category)
+                    ? 'text-slate-400 dark:text-slate-500'
+                    : 'text-slate-700 dark:text-slate-300'
+                ]">
+                  {{ item.category }}
+                </p>
+              </div>
 
               <!-- Amount (bottom) -->
               <p :class="[
@@ -468,12 +491,26 @@ function confirmDelete() {
               ? 'bg-green-100 dark:bg-green-900/30'
               : 'bg-red-100 dark:bg-red-900/30',
           ]">
-            <font-awesome-icon :icon="['fas', newTransaction.type === 'income' ? 'arrow-up' : 'arrow-down']" :class="[
-              'text-lg',
-              newTransaction.type === 'income'
-                ? 'text-green-600 dark:text-green-400'
-                : 'text-red-600 dark:text-red-400',
-            ]" />
+            <font-awesome-icon 
+              v-if="(newTransaction as any).source === 'scanner'"
+              :icon="['fas', 'camera']" 
+              :class="[
+                'text-lg',
+                newTransaction.type === 'income'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400',
+              ]" 
+            />
+            <font-awesome-icon 
+              v-else
+              :icon="['fas', newTransaction.type === 'income' ? 'arrow-up' : 'arrow-down']" 
+              :class="[
+                'text-lg',
+                newTransaction.type === 'income'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-red-600 dark:text-red-400',
+              ]" 
+            />
           </div>
           <div class="flex-1">
             <div class="flex items-center justify-between mb-1">
@@ -483,7 +520,15 @@ function confirmDelete() {
                   ? 'text-green-800 dark:text-green-300'
                   : 'text-red-800 dark:text-red-300',
               ]">
-                Transaksi {{ newTransaction.type === 'income' ? 'Income' : 'Expense' }} Berhasil Ditambahkan!
+                <span v-if="(newTransaction as any).source === 'scanner' && (newTransaction as any).count">
+                  {{ (newTransaction as any).count }} Transaksi Berhasil Ditambahkan dari Scanner!
+                </span>
+                <span v-else-if="(newTransaction as any).source === 'scanner'">
+                  Transaksi Berhasil Ditambahkan dari Scanner!
+                </span>
+                <span v-else>
+                  Transaksi {{ newTransaction.type === 'income' ? 'Income' : 'Expense' }} Berhasil Ditambahkan!
+                </span>
               </h3>
               <button @click="closeNotification" :class="[
                 'rounded-lg p-1 transition',
@@ -507,6 +552,11 @@ function confirmDelete() {
                 <span>{{ newTransaction.category }}</span>
                 <span>•</span>
                 <span>{{ formatDate(newTransaction.date) }}</span>
+                <span v-if="(newTransaction as any).source === 'scanner'" class="flex items-center gap-1">
+                  <span>•</span>
+                  <font-awesome-icon :icon="['fas', 'camera']" class="h-3 w-3" />
+                  <span>Scanner</span>
+                </span>
               </div>
             </div>
           </div>

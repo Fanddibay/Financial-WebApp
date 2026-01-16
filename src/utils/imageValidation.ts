@@ -162,32 +162,27 @@ export function validateReceiptPattern(text: string): {
 
   // Check for price formats (Rp, IDR, numbers with currency symbols)
   const pricePatterns = [
-    /rp\s*\d/i,
-    /idr\s*\d/i,
+    /rp\s*\d/i, // Rp 10000
+    /idr\s*\d/i, // IDR 10000
     /\d+[.,]\d{3}/, // Indonesian number format: 1.000 or 1,000
-    /\d+\.\d{2}/, // Decimal prices
+    /\d+[.,]\d{3}[.,]\d{3}/, // Larger numbers: 1.000.000
+    /\d{4,}/, // Large numbers (4+ digits, likely prices)
     /total/i,
     /jumlah/i,
     /bayar/i,
   ]
   const hasPriceFormat = pricePatterns.some((pattern) => pattern.test(normalizedText))
 
-  // Check for financial keywords
+  // Check for financial keywords (Indonesian and English)
   const financialKeywords = [
-    'total',
-    'jumlah',
-    'bayar',
-    'pembayaran',
-    'subtotal',
-    'pajak',
-    'tax',
-    'diskon',
-    'discount',
-    'kembalian',
-    'change',
-    'receipt',
-    'struk',
-    'nota',
+    'total', 'jumlah', 'bayar', 'pembayaran', 'total bayar',
+    'subtotal', 'sub total', 'sebelum pajak',
+    'pajak', 'ppn', 'pph', 'tax', 'vat',
+    'diskon', 'discount', 'potongan', 'promo',
+    'kembalian', 'change', 'tunai', 'cash',
+    'receipt', 'struk', 'nota', 'invoice', 'kwitansi',
+    'tanggal', 'date', 'waktu', 'time',
+    'kasir', 'cashier', 'teller',
   ]
   const hasFinancialKeywords = financialKeywords.some((keyword) => normalizedText.includes(keyword))
 

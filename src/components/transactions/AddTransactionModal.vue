@@ -41,13 +41,14 @@ async function handleScanComplete(data: TransactionFormData) {
   try {
     const transaction = await createTransaction(data)
     fetchTransactions()
-    // Store transaction data for notification
+    // Store transaction data for notification with scanner flag
     sessionStorage.setItem('newTransaction', JSON.stringify({
       type: transaction.type,
       amount: transaction.amount,
       description: transaction.description,
       category: transaction.category,
       date: transaction.date,
+      source: 'scanner', // Flag to indicate this came from scanner
     }))
     showScanner.value = false
     emit('close')
@@ -64,7 +65,7 @@ async function handleScanCompleteMultiple(data: TransactionFormData[]) {
       await createTransaction(transaction)
     }
     fetchTransactions()
-    // Store last transaction data for notification
+    // Store last transaction data for notification with scanner flag and count
     if (lastTransaction) {
       sessionStorage.setItem('newTransaction', JSON.stringify({
         type: lastTransaction.type,
@@ -72,6 +73,8 @@ async function handleScanCompleteMultiple(data: TransactionFormData[]) {
         description: lastTransaction.description,
         category: lastTransaction.category,
         date: lastTransaction.date,
+        source: 'scanner', // Flag to indicate this came from scanner
+        count: data.length, // Number of transactions added
       }))
     }
     showScanner.value = false

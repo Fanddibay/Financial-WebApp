@@ -4,6 +4,7 @@ import type { Transaction } from '@/types/transaction'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
+import { getCategoryIcon } from '@/utils/categoryIcons'
 
 interface Props {
     transaction: Transaction
@@ -27,6 +28,10 @@ const formattedDate = computed(() => {
         day: 'numeric',
     })
 })
+
+const categoryIcon = computed(() => {
+    return getCategoryIcon(props.transaction.category, props.transaction.type)
+})
 </script>
 
 <template>
@@ -39,16 +44,14 @@ const formattedDate = computed(() => {
         <div class="flex-1">
             <div class="flex items-center gap-3">
                 <div :class="[
-                    'flex h-8 w-8 items-center justify-center rounded-lg',
-                    transaction.type === 'income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700',
+                    'flex h-8 w-8 items-center justify-center rounded-lg text-lg',
+                    transaction.type === 'income' ? 'bg-green-100' : 'bg-red-100',
                 ]">
-                    <font-awesome-icon
-                        :icon="transaction.type === 'income' ? ['fas', 'arrow-up'] : ['fas', 'arrow-down']"
-                        class="text-sm" />
+                    {{ categoryIcon }}
                 </div>
                 <div class="flex-1">
                     <h3 class="font-semibold text-slate-900">{{ transaction.description }}</h3>
-                    <p class="text-sm text-slate-600">{{ transaction.category }}</p>
+                    <p class="text-sm text-slate-600">{{ categoryIcon }} {{ transaction.category }}</p>
                     <p class="text-xs text-slate-500">{{ formattedDate }}</p>
                 </div>
             </div>

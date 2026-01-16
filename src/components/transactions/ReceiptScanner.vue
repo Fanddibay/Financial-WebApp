@@ -9,6 +9,7 @@ import type { TransactionFormData } from '@/types/transaction'
 import { parseReceiptText, parseReceiptTextDetailed, type ReceiptParseResult } from '@/utils/receiptParser'
 import { validateImageForReceipt } from '@/utils/imageValidation'
 import { formatIDR } from '@/utils/currency'
+import { validateAndFixDate } from '@/utils/dateValidation'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
@@ -86,37 +87,6 @@ const formData = ref<TransactionFormData>({ ...defaultFormData })
 const multipleFormData = ref<TransactionFormData[]>([])
 const dateError = ref<string | null>(null)
 
-// Helper function to get today's date string
-function getTodayDateString(): string {
-  const dateStr = new Date().toISOString().split('T')[0]
-  return dateStr || new Date().toLocaleDateString('en-CA') // Fallback to YYYY-MM-DD format
-}
-
-// Helper function to validate date is not in the future
-function isDateInFuture(dateString: string): boolean {
-  if (!dateString) return false
-  const date = new Date(dateString)
-  const today = new Date()
-  today.setHours(23, 59, 59, 999) // End of today
-  return date > today
-}
-
-// Validate and fix date - returns corrected date and error message if any
-function validateAndFixDate(dateString: string): { date: string; error: string | null } {
-  if (!dateString) {
-    return { date: getTodayDateString(), error: null }
-  }
-
-  if (isDateInFuture(dateString)) {
-    return {
-      date: getTodayDateString(),
-      error: 'Tanggal yang terdeteksi dari struk adalah tanggal masa depan. Menggunakan tanggal hari ini sebagai gantinya.'
-    }
-  }
-
-  return { date: dateString, error: null }
-}
-
 function handleFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -186,16 +156,35 @@ async function processImage(file: File) {
     const TesseractInstance = await loadTesseract()
 
     // Perform OCR with progress tracking
+    // Use 'eng+ind' for better Indonesian receipt recognition
+    // Fallback to 'eng' if Indonesian language pack is not available
     processingProgress.value = 40
-    const { data: { text, confidence } } = await TesseractInstance.recognize(file, 'eng', {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      logger: (m: any) => {
-        if (m.status === 'recognizing text') {
-          // Map OCR progress to 40-90% of total progress
-          processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
-        }
-      },
-    })
+    let ocrResult
+    try {
+      // Try with Indonesian language support first
+      ocrResult = await TesseractInstance.recognize(file, 'eng+ind', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        logger: (m: any) => {
+          if (m.status === 'recognizing text') {
+            // Map OCR progress to 40-90% of total progress
+            processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
+          }
+        },
+      })
+    } catch {
+      // Fallback to English only if Indonesian language pack fails
+      console.warn('Indonesian language pack not available, using English only')
+      ocrResult = await TesseractInstance.recognize(file, 'eng', {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        logger: (m: any) => {
+          if (m.status === 'recognizing text') {
+            processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
+          }
+        },
+      })
+    }
+
+    const { data: { text, confidence } } = ocrResult
 
     processingProgress.value = 95
 

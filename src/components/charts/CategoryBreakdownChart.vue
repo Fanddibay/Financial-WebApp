@@ -92,10 +92,10 @@ const chartData = computed(() => {
 
 const chartOptions = computed(() => {
   const baseOptions: any = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
         display: props.chartType === 'doughnut',
         position: 'bottom' as const,
         labels: {
@@ -105,9 +105,9 @@ const chartOptions = computed(() => {
             size: 12,
           },
         },
-      },
-      tooltip: {
-        callbacks: {
+    },
+    tooltip: {
+      callbacks: {
           label: (context: any) => {
             const value = props.chartType === 'doughnut' 
               ? context.parsed 
@@ -140,14 +140,14 @@ const chartOptions = computed(() => {
 
   if (props.chartType !== 'doughnut') {
     baseOptions.scales = {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: (value: string | number) => {
-            const numValue = typeof value === 'string' ? parseFloat(value) : value
-            return formatIDR(numValue)
-          },
+    y: {
+      beginAtZero: true,
+      ticks: {
+        callback: (value: string | number) => {
+          const numValue = typeof value === 'string' ? parseFloat(value) : value
+          return formatIDR(numValue)
         },
+      },
         grid: {
           color: 'rgba(148, 163, 184, 0.1)',
         },
@@ -155,9 +155,9 @@ const chartOptions = computed(() => {
       x: {
         grid: {
           display: false,
-        },
-      },
-    }
+    },
+  },
+}
   } else {
     baseOptions.cutout = '60%'
   }

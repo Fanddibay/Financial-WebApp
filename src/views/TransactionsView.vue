@@ -13,6 +13,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportToXLSX, exportToPDF } from '@/utils/export'
 import type { TransactionFormData, TransactionType } from '@/types/transaction'
+import { getCategoryWithIcon } from '@/utils/categoryIcons'
 
 const router = useRouter()
 const toastStore = useToastStore()
@@ -51,32 +52,71 @@ const categoryOptions = computed(() => {
   const baseOptions = [{ value: '', label: 'Semua Kategori' }]
 
   if (filterType.value === 'all') {
-    // Get unique categories from all transactions
-    const allCategories = new Set<string>()
-    transactions.value.forEach((t) => allCategories.add(t.category))
+    // Get unique categories from all transactions with their types
+    const categoryMap = new Map<string, 'income' | 'expense'>()
+    transactions.value.forEach((t) => {
+      // For 'all' type, prefer the most common type for that category
+      if (!categoryMap.has(t.category)) {
+        categoryMap.set(t.category, t.type)
+      }
+    })
+    
+    // Normalize categories - replace "Other" with "Lainnya" if exists
+    const normalizedCategories = Array.from(categoryMap.entries())
+      .filter(([cat]) => {
+        const lowerCat = cat.toLowerCase().trim()
+        // Skip if it's "Other" - will use "Lainnya" instead if it exists
+        return lowerCat !== 'other'
+      })
+      .map(([cat, type]) => {
+        // Normalize "Other" to "Lainnya" if needed (shouldn't happen after filter, but just in case)
+        const normalizedCat = cat.toLowerCase().trim() === 'other' ? 'Lainnya' : cat
+        return [normalizedCat, type] as [string, 'income' | 'expense']
+      })
+    
     return [
       ...baseOptions,
-      ...Array.from(allCategories).map((cat) => ({ value: cat, label: cat })),
+      ...normalizedCategories.map(([cat, type]) => ({ 
+        value: cat, 
+        label: getCategoryWithIcon(cat, type) 
+      })),
     ]
   } else if (filterType.value === 'income') {
     // Get categories from income transactions
     const incomeCategories = new Set<string>()
     transactions.value
       .filter((t) => t.type === 'income')
-      .forEach((t) => incomeCategories.add(t.category))
+      .forEach((t) => {
+        // Normalize "Other" to "Lainnya"
+        const normalizedCat = t.category.toLowerCase().trim() === 'other' ? 'Lainnya' : t.category
+        incomeCategories.add(normalizedCat)
+      })
     return [
       ...baseOptions,
-      ...Array.from(incomeCategories).map((cat) => ({ value: cat, label: cat })),
+      ...Array.from(incomeCategories).map((cat) => ({ 
+        value: cat, 
+        label: getCategoryWithIcon(cat, 'income') 
+      })),
     ]
   } else {
     // Get categories from expense transactions
     const expenseCategories = new Set<string>()
     transactions.value
       .filter((t) => t.type === 'expense')
-      .forEach((t) => expenseCategories.add(t.category))
+      .forEach((t) => {
+        const lowerCat = t.category.toLowerCase().trim()
+        // Exclude "Gaji" from expense categories
+        if (lowerCat === 'gaji' || lowerCat === 'salary') return
+        // Normalize "Other" to "Lainnya"
+        const normalizedCat = lowerCat === 'other' ? 'Lainnya' : t.category
+        expenseCategories.add(normalizedCat)
+      })
     return [
       ...baseOptions,
-      ...Array.from(expenseCategories).map((cat) => ({ value: cat, label: cat })),
+      ...Array.from(expenseCategories).map((cat) => ({ 
+        value: cat, 
+        label: getCategoryWithIcon(cat, 'expense') 
+      })),
     ]
   }
 })

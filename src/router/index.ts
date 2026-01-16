@@ -78,12 +78,18 @@ const router = createRouter({
       component: () => import('../views/admin/AdminProfileView.vue'),
       meta: { requiresAdmin: true },
     },
-    // Catch-all for /admin/* routes - must be last
+    // Catch-all for /admin/* routes - must be before general catch-all
     {
       path: '/admin/:pathMatch(.*)*',
       name: 'admin-catch-all',
       redirect: '/admin',
       meta: { requiresAdmin: true },
+    },
+    // Catch-all for all other unmatched routes - must be last
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'not-found',
+      component: () => import('../views/NotFoundView.vue'),
     },
   ],
 })

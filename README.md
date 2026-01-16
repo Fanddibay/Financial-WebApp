@@ -133,9 +133,9 @@ interface Transaction {
   amount: number
   description: string
   category: string
-  date: string        // ISO date string
-  createdAt: string   // ISO timestamp
-  updatedAt: string   // ISO timestamp
+  date: string // ISO date string
+  createdAt: string // ISO timestamp
+  updatedAt: string // ISO timestamp
 }
 ```
 
@@ -148,6 +148,7 @@ The app uses **Indonesian Rupiah (IDR)** for all currency displays. The `formatI
 The app includes an AI-powered financial assistant chatbot:
 
 ### Features
+
 - **Floating Chat Button** - Always accessible in bottom-right corner
 - **Context-Aware** - Knows your current financial summary and recent transactions
 - **Modular AI Service** - Supports OpenAI API or mock service for development
@@ -164,6 +165,7 @@ The app includes an AI-powered financial assistant chatbot:
 **Without API Key**: The app uses a mock service with predefined responses for development/testing.
 
 ### Chat Features
+
 - Ask about your balance, expenses, income
 - Get budgeting advice
 - Understand your financial patterns
@@ -201,13 +203,13 @@ To use a different AI provider:
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start development server |
-| `npm run build` | Type check + production build |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run ESLint + Prettier |
-| `npm run test:unit` | Run Vitest unit tests |
+| Command             | Description                   |
+| ------------------- | ----------------------------- |
+| `npm run dev`       | Start development server      |
+| `npm run build`     | Type check + production build |
+| `npm run preview`   | Preview production build      |
+| `npm run lint`      | Run ESLint + Prettier         |
+| `npm run test:unit` | Run Vitest unit tests         |
 
 ## Supabase License Token System
 
@@ -216,13 +218,15 @@ The app includes a license token system for premium features using Supabase.
 ### Setup
 
 1. **Install Dependencies**
+
    ```bash
    npm install @supabase/supabase-js
    ```
 
 2. **Environment Variables**
-   
+
    Create `.env` file in project root:
+
    ```env
    VITE_SUPABASE_URL=https://yfjxcxvgxfdruxfhsbrk.supabase.co
    VITE_SUPABASE_ANON_KEY=sb_publishable_50YVF8IQC7otBPc_EYexkw_VCgrgthd
@@ -231,7 +235,6 @@ The app includes a license token system for premium features using Supabase.
    For production (Netlify/Vercel), add these as environment variables in your hosting platform.
 
 3. **Setup Supabase Table**
-   
    - Go to [Supabase Dashboard](https://supabase.com/dashboard)
    - Select your project → **SQL Editor**
    - Copy and paste the contents of `supabase-setup.sql`
@@ -240,7 +243,7 @@ The app includes a license token system for premium features using Supabase.
    This will create the `license_tokens` table, enable RLS, create policies, and insert 5 initial tokens.
 
 4. **Test Tokens**
-   
+
    Initial tokens available:
    - `A1b2C3d4E5f!`
    - `X9y8Z7w6V5u@`
@@ -251,6 +254,7 @@ The app includes a license token system for premium features using Supabase.
    Test by going to Profile page → Token & License section.
 
 ### Features
+
 - ✅ One-device-per-license enforcement
 - ✅ Cross-browser support
 - ✅ Network error handling
@@ -353,13 +357,13 @@ npm run build
 
 ## Scripts
 
-| Command | Description |
-| --- | --- |
-| `npm run dev` | Start development server |
-| `npm run build` | Type check + production build |
-| `npm run preview` | Preview production build |
-| `npm run lint` | Run ESLint + Prettier |
-| `npm run test:unit` | Run Vitest unit tests |
+| Command             | Description                   |
+| ------------------- | ----------------------------- |
+| `npm run dev`       | Start development server      |
+| `npm run build`     | Type check + production build |
+| `npm run preview`   | Preview production build      |
+| `npm run lint`      | Run ESLint + Prettier         |
+| `npm run test:unit` | Run Vitest unit tests         |
 
 ## License
 

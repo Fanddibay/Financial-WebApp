@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAdminAuth } from '@/composables/useAdminAuth'
 import { useAdminLicenses } from '@/composables/useAdminLicenses'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseInput from '@/components/ui/BaseInput.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
 const toastStore = useToastStore()
-const { isAdmin, loading: authLoading } = useAdminAuth()
 const { createLicense, activateLicense, loading, error, copyTokenToClipboard, fetchLicenses } = useAdminLicenses()
 
 const generatedToken = ref<string | null>(null)
@@ -74,7 +71,8 @@ function handleGenerateNew() {
 <template>
   <div class="min-h-screen bg-slate-50 pb-20 dark:bg-slate-900">
     <!-- Header -->
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
+    <div
+      class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
       <div class="mx-auto max-w-[430px] px-4 py-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
           Add License
@@ -88,7 +86,8 @@ function handleGenerateNew() {
     <!-- Content -->
     <div class="mx-auto max-w-[430px] px-4 py-6">
       <!-- Error State -->
-      <div v-if="error" class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+      <div v-if="error"
+        class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
         <div class="mb-2 flex items-start gap-3">
           <FontAwesomeIcon :icon="['fas', 'circle-exclamation']" class="mt-0.5 text-red-600 dark:text-red-400" />
           <div class="flex-1">
@@ -96,7 +95,8 @@ function handleGenerateNew() {
             <p class="text-xs text-red-700 dark:text-red-300 leading-relaxed">{{ error }}</p>
           </div>
         </div>
-        <div v-if="error.includes('permission') || error.includes('RLS') || error.includes('policy')" class="mt-3 rounded border border-red-300 bg-red-100 p-3 dark:border-red-700 dark:bg-red-900/30">
+        <div v-if="error.includes('permission') || error.includes('RLS') || error.includes('policy')"
+          class="mt-3 rounded border border-red-300 bg-red-100 p-3 dark:border-red-700 dark:bg-red-900/30">
           <p class="mb-2 text-xs font-medium text-red-900 dark:text-red-200">Quick Fix:</p>
           <ol class="ml-4 list-decimal space-y-1 text-xs text-red-800 dark:text-red-300">
             <li>Go to Supabase Dashboard → Table Editor → license_tokens</li>
@@ -117,15 +117,11 @@ function handleGenerateNew() {
           Generate License Token
         </h2>
         <p class="mb-8 text-center text-sm text-slate-600 dark:text-slate-400">
-          Click the button below to generate a new UUID-based license token. The token will be created in inactive status and can be activated immediately.
+          Click the button below to generate a new UUID-based license token. The token will be created in inactive
+          status and can be activated immediately.
         </p>
 
-        <BaseButton
-          variant="primary"
-          size="lg"
-          :loading="loading"
-          :disabled="loading"
-          @click="handleGenerateToken"
+        <BaseButton variant="primary" size="lg" :loading="loading" :disabled="loading" @click="handleGenerateToken"
           class="w-full max-w-xs">
           <span v-if="!loading">Generate License</span>
           <span v-else class="flex items-center gap-2">
@@ -154,14 +150,10 @@ function handleGenerateNew() {
               License Token
             </label>
             <div class="flex items-center gap-2">
-              <input
-                :value="generatedToken"
-                type="text"
-                readonly
+              <input :value="generatedToken" type="text" readonly
                 class="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                 style="cursor: text; user-select: all;" />
-              <button
-                @click="handleCopyToken"
+              <button @click="handleCopyToken"
                 class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                 title="Copy token">
                 <FontAwesomeIcon :icon="['fas', 'copy']" />
@@ -171,22 +163,13 @@ function handleGenerateNew() {
 
           <!-- Actions -->
           <div class="flex flex-col gap-3">
-            <BaseButton
-              variant="primary"
-              size="lg"
-              :loading="loading"
-              :disabled="loading"
-              @click="handleActivateClick"
+            <BaseButton variant="primary" size="lg" :loading="loading" :disabled="loading" @click="handleActivateClick"
               class="w-full">
               <FontAwesomeIcon :icon="['fas', 'check']" />
               <span>Activate License</span>
             </BaseButton>
 
-            <BaseButton
-              variant="secondary"
-              size="lg"
-              @click="handleGenerateNew"
-              class="w-full">
+            <BaseButton variant="secondary" size="lg" @click="handleGenerateNew" class="w-full">
               <FontAwesomeIcon :icon="['fas', 'plus']" />
               <span>Generate Another</span>
             </BaseButton>
@@ -211,16 +194,9 @@ function handleGenerateNew() {
     </div>
 
     <!-- Confirm Activate Modal -->
-    <ConfirmModal
-      :is-open="showActivateConfirm"
-      title="Activate License"
+    <ConfirmModal :is-open="showActivateConfirm" title="Activate License"
       message="Are you sure you want to activate this license token? It will become immediately usable."
-      confirm-text="Activate"
-      cancel-text="Cancel"
-      variant="info"
-      :icon="['fas', 'check-circle']"
-      @confirm="confirmActivate"
-      @close="showActivateConfirm = false" />
+      confirm-text="Activate" cancel-text="Cancel" variant="info" :icon="['fas', 'check-circle']"
+      @confirm="confirmActivate" @close="showActivateConfirm = false" />
   </div>
 </template>
-
