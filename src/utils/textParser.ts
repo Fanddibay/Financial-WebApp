@@ -431,13 +431,29 @@ function parseDate(text: string): { date: string; confidence: 'high' | 'medium' 
 function extractDescription(text: string): string {
   // Remove amount patterns, date patterns, and type keywords
   let description = text
-    .replace(/(?:rp\s*)?\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?/gi, '')
-    .replace(/\d+\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)/gi, '')
-    .replace(/(hari ini|kemarin|yesterday|today|sekarang)/gi, '')
-    .replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g, '')
-    .replace(/\b(beli|buy|bayar|pay|gaji|salary|income|masuk|keluar)\b/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  
+  // Step 1: Remove currency formats (Rp 20.000, 5.000.000, etc.)
+  description = description.replace(/(?:rp\s*)?\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?/gi, '')
+  
+  // Step 2: Remove all number-multiplier pairs (3 juta, 200 ribu, etc.)
+  // This pattern handles both with space and without space (3juta, 200rb)
+  // Also handles decimal numbers like "1.5 juta"
+  description = description.replace(/\d+(?:[.,]\d+)?\s*(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/gi, '')
+  
+  // Step 3: Remove standalone multiplier words that might remain
+  // This catches cases where multiplier words are left after removing numbers
+  // e.g., "beli keyboard 3 juta 200 ribu" -> after step 2 might leave "juta ribu"
+  description = description.replace(/\b(ribu|rb|k|juta|jt|m|milyar|miliar|b)\b/gi, '')
+  
+  // Step 4: Remove date patterns
+  description = description.replace(/(hari ini|kemarin|yesterday|today|sekarang)/gi, '')
+  description = description.replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g, '')
+  
+  // Step 5: Remove type keywords
+  description = description.replace(/\b(beli|buy|bayar|pay|gaji|salary|income|masuk|keluar)\b/gi, '')
+  
+  // Step 6: Clean up multiple spaces and trim
+  description = description.replace(/\s+/g, ' ').trim()
 
   // If description is empty or too short, use original text (cleaned)
   if (!description || description.length < 3) {

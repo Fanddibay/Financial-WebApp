@@ -209,6 +209,158 @@ To use a different AI provider:
 | `npm run lint` | Run ESLint + Prettier |
 | `npm run test:unit` | Run Vitest unit tests |
 
+## Supabase License Token System
+
+The app includes a license token system for premium features using Supabase.
+
+### Setup
+
+1. **Install Dependencies**
+   ```bash
+   npm install @supabase/supabase-js
+   ```
+
+2. **Environment Variables**
+   
+   Create `.env` file in project root:
+   ```env
+   VITE_SUPABASE_URL=https://yfjxcxvgxfdruxfhsbrk.supabase.co
+   VITE_SUPABASE_ANON_KEY=sb_publishable_50YVF8IQC7otBPc_EYexkw_VCgrgthd
+   ```
+
+   For production (Netlify/Vercel), add these as environment variables in your hosting platform.
+
+3. **Setup Supabase Table**
+   
+   - Go to [Supabase Dashboard](https://supabase.com/dashboard)
+   - Select your project → **SQL Editor**
+   - Copy and paste the contents of `supabase-setup.sql`
+   - Click **Run**
+
+   This will create the `license_tokens` table, enable RLS, create policies, and insert 5 initial tokens.
+
+4. **Test Tokens**
+   
+   Initial tokens available:
+   - `A1b2C3d4E5f!`
+   - `X9y8Z7w6V5u@`
+   - `M3n2O1p0Q9r#`
+   - `S7t6U5v4W3x$`
+   - `K1l2M3n4O5p%`
+
+   Test by going to Profile page → Token & License section.
+
+### Features
+- ✅ One-device-per-license enforcement
+- ✅ Cross-browser support
+- ✅ Network error handling
+- ✅ Feature gating (Basic: 3x limit, Premium: unlimited)
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push code to GitHub
+2. Visit [vercel.com](https://vercel.com) and login with GitHub
+3. Click "Add New Project" → Import your repository
+4. Framework preset: **Vite** (auto-detected)
+5. Add environment variables if needed:
+   - `VITE_OPENAI_API_KEY` (optional)
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+6. Click "Deploy"
+
+### Netlify
+
+1. Push code to GitHub
+2. Visit [netlify.com](https://netlify.com) and login with GitHub
+3. Click "Add new site" → "Import an existing project"
+4. Select your repository
+5. Build settings:
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+6. Add environment variables in Site settings
+7. Click "Deploy site"
+
+### Cloudflare Pages
+
+1. Push code to GitHub
+2. Visit [dash.cloudflare.com](https://dash.cloudflare.com)
+3. Go to "Pages" → "Create a project"
+4. Connect to Git → Select GitHub repository
+5. Build settings:
+   - Framework preset: **Vite**
+   - Build command: `npm run build`
+   - Build output directory: `dist`
+6. Add environment variables if needed
+7. Click "Save and Deploy"
+
+### Build Locally (Before Deploy)
+
+```bash
+npm install
+npm run build
+npm run preview
+```
+
+## Troubleshooting
+
+### PWA Installation Issues
+
+If the install button doesn't appear on Android Chrome:
+
+1. **Check PWA Requirements:**
+   - ✅ HTTPS (required for production)
+   - ✅ Valid manifest
+   - ✅ Active service worker
+   - ✅ Icons available
+
+2. **Manual Install (Android Chrome):**
+   - Open Chrome menu (3 dots)
+   - Select "Add to Home screen" or "Install app"
+
+3. **Debug Steps:**
+   - Open DevTools → Application → Manifest (check if valid)
+   - Application → Service Workers (should be active)
+   - Clear browser cache and reload
+   - Unregister service worker and reload
+
+### Build Errors
+
+```bash
+# Ensure correct Node.js version (20.19.0+ or 22.12.0+)
+node --version
+
+# Clear cache and rebuild
+rm -rf node_modules dist
+npm install
+npm run build
+```
+
+### License Token Issues
+
+- **"Missing Supabase environment variables"**: Ensure `.env` file exists and restart dev server
+- **"Invalid or inactive license token"**: Verify token exists in Supabase table and RLS policies are set
+- **"Network error"**: Check internet connection and Supabase project status
+- **"License already active on another device"**: This is expected - deactivate on other device first
+
+### Service Worker Issues
+
+- Ensure service worker file is accessible
+- Check console for errors
+- Verify headers include `Service-Worker-Allowed: /`
+- Clear service worker cache in DevTools
+
+## Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start development server |
+| `npm run build` | Type check + production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint + Prettier |
+| `npm run test:unit` | Run Vitest unit tests |
+
 ## License
 
 MIT

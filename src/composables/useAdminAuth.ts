@@ -4,126 +4,84 @@ import type { User } from '@supabase/supabase-js'
 import { isAdminUser } from '@/utils/adminAuth'
 
 /**
- * Composable for admin authentication
- * Handles admin login, logout, session management, and role checking
+ * Admin Authentication Composable
+ * - Handles admin-only login
+ * - Validates role from user_metadata
+ * - Stable for local & production
  */
 export function useAdminAuth() {
   const user = ref<User | null>(null)
-  const loading = ref(true)
+  const loading = ref<boolean>(true)
   const error = ref<string | null>(null)
 
-  // Computed property to check if current user is admin
   const isAdmin = computed(() => isAdminUser(user.value))
 
   /**
-   * Initialize auth state - check for existing session
+   * Load current authenticated user
+   * Single source of truth
    */
-  async function initializeAuth() {
+  async function loadUser() {
     try {
       loading.value = true
       error.value = null
 
-      // Get current session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      const { data, error: userError } = await supabase.auth.getUser()
 
-      if (sessionError) {
-        throw sessionError
+      if (userError) throw userError
+
+      if (!data.user) {
+        user.value = null
+        return
       }
 
-      user.value = session?.user ?? null
-
-      // Verify session is valid
-      if (session) {
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser()
-
-        if (userError) {
-          throw userError
-        }
-
-        user.value = currentUser
+      if (!isAdminUser(data.user)) {
+        await supabase.auth.signOut()
+        user.value = null
+        throw new Error('Access denied. This account does not have administrator privileges.')
       }
+
+      user.value = data.user
     } catch (err) {
-      console.error('Auth initialization error:', err)
-      error.value = err instanceof Error ? err.message : 'Failed to initialize authentication'
       user.value = null
+      error.value =
+        err instanceof Error ? err.message : 'Failed to load admin session'
     } finally {
       loading.value = false
     }
   }
 
   /**
-   * Sign in with email and password
+   * Admin sign in
    */
   async function signIn(email: string, password: string) {
     try {
       loading.value = true
       error.value = null
 
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
 
-      if (signInError) {
-        throw signInError
-      }
+      if (signInError) throw signInError
 
-      if (!data.user) {
-        throw new Error('No user returned from sign in')
-      }
+      // IMPORTANT: fetch fresh user (metadata-safe)
+      await loadUser()
 
-      // Check if user is admin
-      if (!isAdminUser(data.user)) {
-        // Sign out if not admin
-        await supabase.auth.signOut()
+      if (!user.value) {
         throw new Error('Access denied. This account does not have administrator privileges.')
       }
 
-      user.value = data.user
-      return { success: true, user: data.user }
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Invalid credentials or you do not have administrator access'
-
-      error.value = errorMessage
-
-      // Handle specific Supabase auth errors
-      if (err && typeof err === 'object' && 'message' in err) {
-        const supabaseError = err as { message: string }
-        if (supabaseError.message.includes('Invalid login credentials')) {
-          error.value = 'Invalid email or password'
-        } else if (supabaseError.message.includes('Access denied')) {
-          error.value = supabaseError.message
-        }
-      }
-
-      user.value = null
-      return { success: false, error: error.value }
-    } finally {
-      loading.value = false
-    }
-  }
-
-  /**
-   * Sign out current user
-   */
-  async function signOut() {
-    try {
-      loading.value = true
-      error.value = null
-
-      const { error: signOutError } = await supabase.auth.signOut()
-
-      if (signOutError) {
-        throw signOutError
-      }
-
-      user.value = null
       return { success: true }
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to sign out'
+      error.value =
+        err instanceof Error
+          ? err.message
+          : 'Invalid credentials or no admin access'
+
+      await supabase.auth.signOut()
+      user.value = null
+
       return { success: false, error: error.value }
     } finally {
       loading.value = false
@@ -131,58 +89,35 @@ export function useAdminAuth() {
   }
 
   /**
-   * Refresh user session and re-check admin status
+   * Sign out admin
    */
-  async function refreshSession() {
-    try {
-      loading.value = true
-      error.value = null
-
-      const { data: { user: currentUser }, error: refreshError } = await supabase.auth.getUser()
-
-      if (refreshError) {
-        throw refreshError
-      }
-
-      user.value = currentUser
-
-      // Re-check admin status
-      if (currentUser && !isAdminUser(currentUser)) {
-        await signOut()
-        throw new Error('Your administrator privileges have been revoked.')
-      }
-
-      return { success: true, user: currentUser }
-    } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Failed to refresh session'
-      user.value = null
-      return { success: false, error: error.value }
-    } finally {
-      loading.value = false
-    }
+  async function signOut() {
+    await supabase.auth.signOut()
+    user.value = null
   }
 
-  // Listen to auth state changes
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_OUT' || !session) {
+  /**
+   * Listen auth changes (refresh-safe)
+   */
+  supabase.auth.onAuthStateChange((event) => {
+    if (event === 'SIGNED_OUT') {
       user.value = null
-    } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      user.value = session.user
+    }
+    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      loadUser()
     }
   })
 
-  // Initialize on first use
-  initializeAuth()
+  // Init on first use
+  loadUser()
 
   return {
     user,
+    isAdmin,
     loading,
     error,
-    isAdmin,
     signIn,
     signOut,
-    refreshSession,
-    initializeAuth,
+    reload: loadUser,
   }
 }
-
