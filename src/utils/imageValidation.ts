@@ -77,8 +77,8 @@ export async function detectBlur(imageSrc: string): Promise<{ isBlurred: boolean
       }
       variance /= laplacian.length
 
-      // Threshold: variance < 50 is considered blurred (more lenient - adjusted for sampling)
-      const isBlurred = variance < 50 // Lowered from 80 to reduce false positives
+      // Threshold: variance < 80 is considered blurred (adjusted for sampling)
+      const isBlurred = variance < 80
 
       resolve({ isBlurred, variance })
     }
@@ -121,8 +121,8 @@ export async function detectLowLight(imageSrc: string): Promise<{ isLowLight: bo
       }
 
       const avgBrightness = totalBrightness / pixelCount
-      // Threshold: brightness < 50 is considered low light (more lenient - 0-255 scale)
-      const isLowLight = avgBrightness < 50 // Lowered from 80 to reduce false positives
+      // Threshold: brightness < 80 is considered low light (0-255 scale)
+      const isLowLight = avgBrightness < 80
 
       resolve({ isLowLight, brightness: avgBrightness })
     }
@@ -162,41 +162,45 @@ export function validateReceiptPattern(text: string): {
 
   // Check for price formats (Rp, IDR, numbers with currency symbols)
   const pricePatterns = [
-    /rp\s*\d/i, // Rp 10000
-    /idr\s*\d/i, // IDR 10000
+    /rp\s*\d/i,
+    /idr\s*\d/i,
     /\d+[.,]\d{3}/, // Indonesian number format: 1.000 or 1,000
-    /\d+[.,]\d{3}[.,]\d{3}/, // Larger numbers: 1.000.000
-    /\d{4,}/, // Large numbers (4+ digits, likely prices)
+    /\d+\.\d{2}/, // Decimal prices
     /total/i,
     /jumlah/i,
     /bayar/i,
   ]
   const hasPriceFormat = pricePatterns.some((pattern) => pattern.test(normalizedText))
 
-  // Check for financial keywords (Indonesian and English)
+  // Check for financial keywords
   const financialKeywords = [
-    'total', 'jumlah', 'bayar', 'pembayaran', 'total bayar',
-    'subtotal', 'sub total', 'sebelum pajak',
-    'pajak', 'ppn', 'pph', 'tax', 'vat',
-    'diskon', 'discount', 'potongan', 'promo',
-    'kembalian', 'change', 'tunai', 'cash',
-    'receipt', 'struk', 'nota', 'invoice', 'kwitansi',
-    'tanggal', 'date', 'waktu', 'time',
-    'kasir', 'cashier', 'teller',
+    'total',
+    'jumlah',
+    'bayar',
+    'pembayaran',
+    'subtotal',
+    'pajak',
+    'tax',
+    'diskon',
+    'discount',
+    'kembalian',
+    'change',
+    'receipt',
+    'struk',
+    'nota',
   ]
   const hasFinancialKeywords = financialKeywords.some((keyword) => normalizedText.includes(keyword))
 
-  // Check for minimum text length (more lenient - receipts can be short)
-  const hasEnoughText = normalizedText.length > 10 // Lowered from 20
+  // Check for minimum text length (receipts should have some text)
+  const hasEnoughText = normalizedText.length > 20
 
-  // Calculate confidence score (more lenient scoring)
+  // Calculate confidence score
   let confidence = 0
-  if (hasPriceFormat) confidence += 50 // Increased weight
+  if (hasPriceFormat) confidence += 40
   if (hasFinancialKeywords) confidence += 40
-  if (hasEnoughText) confidence += 10 // Lowered weight
+  if (hasEnoughText) confidence += 20
 
-  // Lower threshold for validation (more permissive)
-  const isValid = confidence >= 40 && hasEnoughText // Lowered from 50
+  const isValid = confidence >= 50 && hasEnoughText
 
   return {
     isValid,
@@ -270,8 +274,8 @@ export async function validateImageForReceipt(
       }
     }
 
-    // Check if text is too short (more lenient threshold)
-    if (ocrText.trim().length < 5) { // Lowered from 10
+    // Check if text is too short (might indicate unreadable text)
+    if (ocrText.trim().length < 10) {
       return {
         isValid: false,
         errorType: 'no-text',

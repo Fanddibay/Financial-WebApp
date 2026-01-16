@@ -9,28 +9,8 @@ import type { TransactionFormData } from '@/types/transaction'
 import { parseReceiptText, parseReceiptTextDetailed, type ReceiptParseResult } from '@/utils/receiptParser'
 import { validateImageForReceipt } from '@/utils/imageValidation'
 import { formatIDR } from '@/utils/currency'
-import { validateAndFixDate } from '@/utils/dateValidation'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-
-// Helper function to infer category (simplified version for component use)
-function inferCategory(text: string): string {
-  const lowerText = text.toLowerCase()
-  const categoryKeywords: Record<string, string[]> = {
-    Makanan: ['restaurant', 'cafe', 'food', 'grocery', 'market', 'warung', 'makan', 'minum', 'kopi', 'indomaret', 'alfamart'],
-    Transportasi: ['gas', 'fuel', 'bensin', 'taxi', 'grab', 'gojek', 'parking', 'parkir', 'toll'],
-    Belanja: ['store', 'shop', 'toko', 'mall', 'retail', 'clothing', 'pakaian'],
-    Tagihan: ['utility', 'listrik', 'air', 'internet', 'phone', 'pln', 'pdam'],
-    Hiburan: ['movie', 'cinema', 'bioskop', 'game', 'entertainment'],
-    Kesehatan: ['pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'klinik'],
-  }
-  for (const [category, keywords] of Object.entries(categoryKeywords)) {
-    if (keywords.some((keyword) => lowerText.includes(keyword))) {
-      return category
-    }
-  }
-  return 'Lainnya'
-}
 
 interface Props {
   isOpen: boolean
@@ -106,6 +86,37 @@ const formData = ref<TransactionFormData>({ ...defaultFormData })
 const multipleFormData = ref<TransactionFormData[]>([])
 const dateError = ref<string | null>(null)
 
+// Helper function to get today's date string
+function getTodayDateString(): string {
+  const dateStr = new Date().toISOString().split('T')[0]
+  return dateStr || new Date().toLocaleDateString('en-CA') // Fallback to YYYY-MM-DD format
+}
+
+// Helper function to validate date is not in the future
+function isDateInFuture(dateString: string): boolean {
+  if (!dateString) return false
+  const date = new Date(dateString)
+  const today = new Date()
+  today.setHours(23, 59, 59, 999) // End of today
+  return date > today
+}
+
+// Validate and fix date - returns corrected date and error message if any
+function validateAndFixDate(dateString: string): { date: string; error: string | null } {
+  if (!dateString) {
+    return { date: getTodayDateString(), error: null }
+  }
+
+  if (isDateInFuture(dateString)) {
+    return {
+      date: getTodayDateString(),
+      error: 'Tanggal yang terdeteksi dari struk adalah tanggal masa depan. Menggunakan tanggal hari ini sebagai gantinya.'
+    }
+  }
+
+  return { date: dateString, error: null }
+}
+
 function handleFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -175,9 +186,8 @@ async function processImage(file: File) {
     const TesseractInstance = await loadTesseract()
 
     // Perform OCR with progress tracking
-    // Use 'eng' (most reliable for receipts with numbers and common text)
     processingProgress.value = 40
-    const ocrResult = await TesseractInstance.recognize(file, 'eng', {
+    const { data: { text, confidence } } = await TesseractInstance.recognize(file, 'eng', {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       logger: (m: any) => {
         if (m.status === 'recognizing text') {
@@ -187,32 +197,21 @@ async function processImage(file: File) {
       },
     })
 
-    const { data: { text, confidence } } = ocrResult
-
     processingProgress.value = 95
 
-    // Validate OCR text for receipt patterns (more lenient)
-    // Only validate if we have substantial text
-    if (text.trim().length > 10) {
-      const postValidation = await validateImageForReceipt(imageSrc, text)
+    // Validate OCR text for receipt patterns
+    const postValidation = await validateImageForReceipt(imageSrc, text)
 
-      // Only fail if confidence is very low AND no numbers found
-      const hasNumbers = /\d{3,}/.test(text) // At least 3 consecutive digits
-
-      if (!postValidation.isValid && !hasNumbers) {
-        // Only fail if both validation fails AND no numbers detected
-        validationFailed.value = true
-        error.value = postValidation.errorMessage || 'Tidak dapat mendeteksi informasi struk dari gambar ini.'
-        errorType.value = postValidation.errorType || 'not-receipt'
-        processing.value = false
-        return
-      }
-      // If validation fails but numbers exist, continue anyway (more permissive)
+    if (!postValidation.isValid) {
+      validationFailed.value = true
+      error.value = postValidation.errorMessage || 'Tidak dapat mendeteksi informasi struk dari gambar ini.'
+      errorType.value = postValidation.errorType || 'not-receipt'
+      processing.value = false
+      return
     }
 
-    // Check OCR confidence (more lenient - only reject very poor quality)
-    // Lower threshold to allow more receipts through
-    if (confidence < 10) { // Lowered from 30 to be more permissive
+    // Check OCR confidence (very low confidence might indicate unreadable text)
+    if (confidence < 30) {
       validationFailed.value = true
       error.value = 'Teks pada gambar tidak terbaca dengan jelas. Pastikan foto jelas dan fokus pada struk. Coba ambil foto ulang.'
       errorType.value = 'no-text'
@@ -226,58 +225,51 @@ async function processImage(file: File) {
     const detailed = parseReceiptTextDetailed(text)
     detailedResult.value = detailed
 
-    // Always try to parse and show form - be more permissive
-    // Parse for form data regardless of detected amount
-    const parsed = parseReceiptText(text)
-    scannedData.value = parsed
+    // Only auto-fill if we have a valid detected amount
+    if (detailed.detectedAmount > 0) {
+      // Parse for form data
+      const parsed = parseReceiptText(text)
+      scannedData.value = parsed
 
-    // Check if multiple transactions were found
-    if (Array.isArray(parsed)) {
-      hasMultipleTransactions.value = true
-      // Validate and fix dates for all transactions
-      multipleFormData.value = parsed.map((item) => {
-        const dateValidation = validateAndFixDate(item.date || '')
-        if (dateValidation.error && !dateError.value) {
+      // Check if multiple transactions were found
+      if (Array.isArray(parsed)) {
+        hasMultipleTransactions.value = true
+        // Validate and fix dates for all transactions
+        multipleFormData.value = parsed.map((item) => {
+          const dateValidation = validateAndFixDate(item.date || '')
+          if (dateValidation.error && !dateError.value) {
+            dateError.value = dateValidation.error
+          }
+          return {
+            ...defaultFormData,
+            ...item,
+            date: dateValidation.date,
+          }
+        })
+      } else {
+        hasMultipleTransactions.value = false
+        // Validate and fix date for single transaction
+        const dateValidation = validateAndFixDate(parsed.date || '')
+        if (dateValidation.error) {
           dateError.value = dateValidation.error
         }
-        return {
-          ...defaultFormData,
-          ...item,
-          date: dateValidation.date,
-        }
-      })
-      showPreview.value = true
-    } else {
-      hasMultipleTransactions.value = false
-      // Validate and fix date for single transaction
-      const dateValidation = validateAndFixDate(parsed.date || '')
-      if (dateValidation.error) {
-        dateError.value = dateValidation.error
-      }
-
-      // If amount detected, use it; otherwise show form with merchant info
-      if (detailed.detectedAmount > 0) {
         // Merge parsed data with default form data
         formData.value = {
           ...defaultFormData,
           ...parsed,
           date: dateValidation.date,
         }
-      } else {
-        // No amount detected but we have text - show form with available info
-        formData.value = {
-          ...defaultFormData,
-          description: parsed.description || detailed.merchant || 'Receipt Transaction',
-          category: parsed.category || (detailed.merchant ? inferCategory(detailed.merchant) : 'Lainnya'),
-          date: dateValidation.date,
-          amount: 0, // Let user fill manually
-        }
-        // Show warning but don't block
-        if (text.trim().length > 10) {
-          dateError.value = 'Total pembayaran tidak terdeteksi otomatis. Silakan masukkan jumlah secara manual.'
-        }
       }
+
       showPreview.value = true
+    } else {
+      // No amount detected - show form but don't auto-fill
+      validationFailed.value = true
+      error.value = 'Tidak dapat mendeteksi total pembayaran dari struk. Silakan masukkan informasi secara manual.'
+      errorType.value = 'not-receipt'
+      // Reset form to defaults (no auto-fill)
+      formData.value = { ...defaultFormData }
+      showPreview.value = true // Still show preview so user can see the image
     }
   } catch (err) {
     validationFailed.value = true

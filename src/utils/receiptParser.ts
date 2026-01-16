@@ -20,279 +20,187 @@ export interface ReceiptItem {
   quantity?: number
 }
 
-// ============================================================================
-// CONSTANTS & CONFIGURATION
-// ============================================================================
+/**
+ * Normalize OCR output:
+ * - Remove extra spaces & symbols
+ * - Standardize number formats (58,000, 58.000 → 58000)
+ */
+function normalizeOcrText(text: string): string {
+  return text
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
+    .replace(/[^\w\s\d.,:/-]/g, '') // Remove special symbols except common ones
+    .trim()
+}
 
-const MIN_AMOUNT_THRESHOLD = 100 // Minimum valid amount in IDR (lowered for better detection)
-const MAX_AMOUNT_THRESHOLD = 1000000000 // Maximum reasonable amount (1 billion IDR)
-const ITEM_SUM_TOLERANCE = 0.25 // 25% tolerance for item sum vs total (more flexible)
+/**
+ * Normalize number string to pure digits
+ * Handles: 58,000, 58.000, 58 000 → 58000
+ */
+function normalizeNumber(numStr: string): string {
+  return numStr
+    .replace(/[,\s]/g, '') // Remove commas and spaces
+    .replace(/\.(?=\d{3})/g, '') // Remove dots used as thousand separators (but keep decimal dots)
+    .replace(/[^\d]/g, '') // Remove all non-digits
+}
 
-// Indonesian receipt keywords - ordered by priority
-const TOTAL_KEYWORDS = [
-  { pattern: /\b(total\s*bayar|bayar\s*total)\b/i, weight: 1.0, label: 'TOTAL BAYAR' },
-  { pattern: /\b(grand\s*total|total\s*grand)\b/i, weight: 0.95, label: 'GRAND TOTAL' },
-  { pattern: /\b(total\s*akhir)\b/i, weight: 0.93, label: 'TOTAL AKHIR' },
-  { pattern: /\b(total\s*)\b/i, weight: 0.9, label: 'TOTAL' },
-  { pattern: /\b(jumlah\s*bayar|bayar)\b/i, weight: 0.88, label: 'JUMLAH BAYAR' },
-  { pattern: /\b(jumlah)\b/i, weight: 0.85, label: 'JUMLAH' },
-  { pattern: /\b(pembayaran)\b/i, weight: 0.8, label: 'PEMBAYARAN' },
-  { pattern: /\b(kembalian)\b/i, weight: 0.3, label: 'KEMBALIAN' }, // Low priority, usually not total
-]
-
-const NON_PRICE_PATTERNS = [
-  /:\d{1,2}(?:\s*[ap]m)?/i, // Time: 14:30, 14:30 PM
-  /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/, // Date: 01/01/2024
-  /\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/, // Date: 2024/01/01
-  /\d+\s*x\s*\d+/i, // Quantity: 2x, 3x
-  /\b(no|bil|panggil|pos|csh|queue|antrian|kasir|kas|kassa)\s*[:\s]*\d+/i,
-  /\b\d+\s*(no|bil|panggil|pos|csh|queue|antrian|kasir|kas|kassa)\b/i,
-  /\b(meja|table)\s*\d+/i, // Table number
-  /\b\d+\s*(meja|table)\b/i,
-]
-
-const SUPPORTING_AMOUNT_PATTERNS = [
-  /\b(subtotal|sub\s*total|sebelum\s*pajak|before\s*tax|harga\s*sebelum)\b/i,
-  /\b(pajak|ppn|pph|tax|vat)\b/i,
-  /\b(service|servis|layanan|biaya\s*layanan)\b/i,
-  /\b(discount|diskon|potongan|promo)\b/i,
-  /\b(tip|tips)\b/i,
-]
-
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
+/**
+ * Extract numbers from text with their context
+ */
 interface NumberMatch {
   value: number
   original: string
   line: string
   lineIndex: number
   position: number
-  context: string // Surrounding text for better classification
 }
 
-type NumberCategory = 'non-price' | 'supporting' | 'target' | 'item-price' | 'unknown'
-
-interface TotalDetectionResult {
-  amount: number
-  confidence: 'high' | 'medium' | 'low'
-  keyword?: string
-  method: 'keyword' | 'largest' | 'context'
-}
-
-// ============================================================================
-// TEXT NORMALIZATION
-// ============================================================================
-
-/**
- * Normalize OCR output for better parsing
- */
-function normalizeOcrText(text: string): string {
-  return text
-    .replace(/\r\n/g, '\n') // Normalize line endings
-    .replace(/\r/g, '\n')
-    .replace(/\s+/g, ' ') // Multiple spaces to single space
-    .replace(/[^\w\s\d.,:/-]/g, '') // Remove special symbols except common ones
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .join('\n')
-    .trim()
-}
-
-/**
- * Normalize number string to pure digits
- * Handles Indonesian formats: 58.000, 58,000, 58 000 → 58000
- */
-function normalizeNumber(numStr: string): string {
-  // Remove currency symbols
-  let cleaned = numStr.replace(/[RpIDR\s]/gi, '')
-  
-  // Handle Indonesian thousand separators (dot or comma)
-  // Pattern: digits.digits or digits,digits (where digits after separator are 3 digits)
-  cleaned = cleaned.replace(/(\d{1,3})[.,](\d{3})/g, '$1$2')
-  
-  // Remove remaining dots and commas (might be decimal separators in some formats)
-  cleaned = cleaned.replace(/[.,]/g, '')
-  
-  // Extract only digits
-  return cleaned.replace(/[^\d]/g, '')
-}
-
-// ============================================================================
-// NUMBER EXTRACTION
-// ============================================================================
-
-/**
- * Extract all numbers from text with context
- */
 function extractNumbers(text: string): NumberMatch[] {
   const lines = text.split('\n')
   const numbers: NumberMatch[] = []
 
   lines.forEach((line, lineIndex) => {
-    // Enhanced pattern: matches various Indonesian number formats (more flexible)
-    const patterns = [
-      /(?:Rp|IDR|RP|rp)\s*(\d{1,3}(?:[.,]\s?\d{3})*(?:\.\d{2})?)/gi, // With currency prefix: Rp 10.000
-      /(\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?)/g, // Number with separators: 10.000 or 10,000
-      /(\d{1,3}\s+\d{3}(?:\s+\d{3})*)/g, // Space-separated: 10 000 000
-      /(\d{3,})/g, // Numbers with 3+ digits (lowered from 4+ for better detection)
-    ]
+    // Match numbers with various formats: 10000, 10.000, 10,000, Rp 10000, etc.
+    const numberPattern = /(?:Rp\s?)?(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)/gi
+    const matches = Array.from(line.matchAll(numberPattern))
 
-    patterns.forEach(pattern => {
-      const matches = Array.from(line.matchAll(pattern))
-      matches.forEach((match) => {
-        if (match.index !== undefined) {
-          const normalized = normalizeNumber(match[1] || match[0])
-          const value = parseFloat(normalized)
-          
-          // Accept any positive number, filter later by threshold
-          if (!isNaN(value) && value > 0 && value <= MAX_AMOUNT_THRESHOLD) {
-            // Get context (20 chars before and after)
-            const start = Math.max(0, match.index - 20)
-            const end = Math.min(line.length, match.index + match[0].length + 20)
-            const context = line.substring(start, end).toLowerCase()
-
-            numbers.push({
-              value,
-              original: match[0],
-              line: line.trim(),
-              lineIndex,
-              position: match.index,
-              context,
-            })
-          }
+    matches.forEach((match) => {
+      if (match.index !== undefined) {
+        const normalized = normalizeNumber(match[1])
+        const value = parseFloat(normalized)
+        if (!isNaN(value) && value > 0) {
+          numbers.push({
+            value,
+            original: match[0],
+            line: line.trim(),
+            lineIndex,
+            position: match.index,
+          })
         }
-      })
+      }
     })
   })
 
-  // Remove duplicates (same value in same position)
-  const uniqueNumbers: NumberMatch[] = []
-  const seen = new Set<string>()
-  
-  numbers.forEach(num => {
-    const key = `${num.lineIndex}-${num.position}-${num.value}`
-    if (!seen.has(key)) {
-      seen.add(key)
-      uniqueNumbers.push(num)
-    }
-  })
-
-  return uniqueNumbers.sort((a, b) => b.value - a.value) // Sort by value descending
+  return numbers
 }
 
-// ============================================================================
-// NUMBER CLASSIFICATION
-// ============================================================================
-
 /**
- * Classify a number into categories based on context
+ * Classify numbers into categories:
+ * ❌ Non-price: date, time, bill number, queue number, qty (1x, 250x)
+ * ⚠️ Supporting amounts: subtotal, tax
+ * ✅ Target amount: TOTAL
  */
+type NumberCategory = 'non-price' | 'supporting' | 'target' | 'item-price' | 'unknown'
+
 function classifyNumber(
   number: NumberMatch,
+  line: string,
   allNumbers: NumberMatch[]
 ): NumberCategory {
-  const lowerLine = number.line.toLowerCase()
-  const context = number.context
+  const lowerLine = line.toLowerCase()
 
-  // ❌ Non-price: date, time, bill number, queue number, qty
-  for (const pattern of NON_PRICE_PATTERNS) {
-    if (pattern.test(lowerLine) || pattern.test(context)) {
+  // ❌ Non-price indicators
+  const nonPricePatterns = [
+    /:\d{1,2}/, // Time pattern (e.g., 14:30)
+    /\d{1,2}\/\d{1,2}\/\d{2,4}/, // Date pattern
+    /\d+x/, // Quantity pattern (e.g., 1x, 250x)
+    /\b(no|bil|panggil|pos|csh|queue|antrian)\s*\d+/i, // Keywords with numbers
+    /\b\d+\s*(no|bil|panggil|pos|csh|queue|antrian)/i,
+  ]
+
+  for (const pattern of nonPricePatterns) {
+    if (pattern.test(lowerLine)) {
       return 'non-price'
     }
   }
 
-  // ✅ Target amount: TOTAL keywords
-  for (const { pattern } of TOTAL_KEYWORDS) {
-    if (pattern.test(lowerLine) || pattern.test(context)) {
-      return 'target'
-    }
-  }
+  // ⚠️ Supporting amounts (subtotal, tax, etc.)
+  const supportingPatterns = [
+    /\b(subtotal|sub\s*total|sebelum\s*pajak|before\s*tax)/i,
+    /\b(tax|pajak|ppn|pph)/i,
+    /\b(service|servis|layanan)/i,
+    /\b(discount|diskon|potongan)/i,
+  ]
 
-  // ⚠️ Supporting amounts: subtotal, tax, etc.
-  for (const pattern of SUPPORTING_AMOUNT_PATTERNS) {
-    if (pattern.test(lowerLine) || pattern.test(context)) {
+  for (const pattern of supportingPatterns) {
+    if (pattern.test(lowerLine)) {
       return 'supporting'
     }
   }
 
-  // Check if it's likely an item price
-  // Item prices are usually smaller and not near total keywords
+  // ✅ Target amount (TOTAL)
+  const targetPatterns = [
+    /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran)\b/i,
+  ]
+
+  for (const pattern of targetPatterns) {
+    if (pattern.test(lowerLine)) {
+      return 'target'
+    }
+  }
+
+  // Check if it's likely an item price (smaller amounts, not near total keywords)
+  const isLargeAmount = number.value >= 1000
   const hasTotalNearby = allNumbers.some(
     (n) =>
       n.lineIndex === number.lineIndex &&
-      Math.abs(n.position - number.position) < 30 &&
-      TOTAL_KEYWORDS.some(kw => kw.pattern.test(n.line.toLowerCase()))
+      Math.abs(n.position - number.position) < 20 &&
+      /total|bayar|jumlah/i.test(n.line)
   )
 
-  if (!hasTotalNearby && number.value < 1000000) {
-    return 'item-price'
+  if (isLargeAmount && !hasTotalNearby) {
+    // Could be item price or total - will be determined by context
+    return 'unknown'
   }
 
   return 'unknown'
 }
 
-// ============================================================================
-// TOTAL AMOUNT DETECTION
-// ============================================================================
-
 /**
- * Tier 1: Detect total using keyword matching (highest priority)
+ * Tier 1: Detect keywords (TOTAL, TOTAL BAYAR, GRAND TOTAL, JUMLAH)
+ * Extract nearest valid number
  */
-function detectTotalByKeyword(text: string, numbers: NumberMatch[]): TotalDetectionResult | null {
+function detectTotalTier1(text: string, numbers: NumberMatch[]): {
+  amount: number
+  confidence: 'high' | 'medium' | 'low'
+  keyword?: string
+} | null {
   const lines = text.split('\n')
+  const targetKeywords = [
+    { pattern: /\b(total\s*bayar|bayar)\b/i, weight: 1.0 },
+    { pattern: /\b(grand\s*total)\b/i, weight: 0.95 },
+    { pattern: /\b(total)\b/i, weight: 0.9 },
+    { pattern: /\b(jumlah)\b/i, weight: 0.85 },
+    { pattern: /\b(pembayaran)\b/i, weight: 0.8 },
+  ]
+
   let bestMatch: {
     amount: number
     confidence: 'high' | 'medium' | 'low'
     keyword: string
     distance: number
-    weight: number
   } | null = null
 
   lines.forEach((line, lineIndex) => {
     const lowerLine = line.toLowerCase()
 
-    for (const { pattern, weight, label } of TOTAL_KEYWORDS) {
+    for (const { pattern, weight } of targetKeywords) {
       const keywordMatch = lowerLine.match(pattern)
-      if (keywordMatch && keywordMatch.index !== undefined) {
-        // Find numbers in this line or next 2 lines (more flexible threshold)
+      if (keywordMatch) {
+        // Find numbers in this line or nearby lines
         const nearbyNumbers = numbers.filter(
-          (n) => 
-            Math.abs(n.lineIndex - lineIndex) <= 2 && 
-            n.value >= 100 && // Lower threshold for keyword-based detection
-            classifyNumber(n, numbers) !== 'non-price'
+          (n) => Math.abs(n.lineIndex - lineIndex) <= 1 && n.value >= 1000
         )
 
         for (const num of nearbyNumbers) {
-          // Calculate distance (line distance + character distance)
-          const lineDistance = Math.abs(num.lineIndex - lineIndex)
-          const charDistance = Math.abs(num.position - keywordMatch.index)
-          const distance = lineDistance * 50 + charDistance
+          const distance = Math.abs(num.lineIndex - lineIndex) * 10 + Math.abs(num.position - (keywordMatch.index || 0))
+          const confidence: 'high' | 'medium' | 'low' = weight > 0.9 ? 'high' : weight > 0.85 ? 'medium' : 'low'
 
-          // Determine confidence based on weight and distance
-          let confidence: 'high' | 'medium' | 'low'
-          if (weight >= 0.9 && distance < 50) {
-            confidence = 'high'
-          } else if (weight >= 0.85 && distance < 100) {
-            confidence = 'medium'
-          } else {
-            confidence = 'low'
-          }
-
-          // Prefer closer matches with higher weight
-          if (
-            !bestMatch ||
-            (weight > bestMatch.weight && distance < bestMatch.distance * 2) ||
-            (distance < bestMatch.distance && weight >= bestMatch.weight * 0.9)
-          ) {
+          if (!bestMatch || distance < bestMatch.distance || (distance === bestMatch.distance && weight > (targetKeywords.find((k) => k.pattern.test(bestMatch!.keyword))?.weight || 0))) {
             bestMatch = {
               amount: num.value,
               confidence,
-              keyword: label,
+              keyword: keywordMatch[0],
               distance,
-              weight,
             }
           }
         }
@@ -305,7 +213,6 @@ function detectTotalByKeyword(text: string, numbers: NumberMatch[]): TotalDetect
       amount: bestMatch.amount,
       confidence: bestMatch.confidence,
       keyword: bestMatch.keyword,
-      method: 'keyword',
     }
   }
 
@@ -313,81 +220,24 @@ function detectTotalByKeyword(text: string, numbers: NumberMatch[]): TotalDetect
 }
 
 /**
- * Tier 2: Detect total by context analysis
- * Looks for patterns like: "TOTAL: Rp 50.000" or "Bayar: 50000"
+ * Tier 2: Select the largest valid number (> threshold, e.g. IDR 1,000)
  */
-function detectTotalByContext(text: string, numbers: NumberMatch[]): TotalDetectionResult | null {
-  const lines = text.split('\n')
-  
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].toLowerCase()
-    
-    // Look for colon-separated patterns: "TOTAL: 50000" or "Bayar : 50000"
-    const colonPattern = /(total|bayar|jumlah|pembayaran)\s*[:\-]\s*(\d+)/i
-    const match = line.match(colonPattern)
-    
-    if (match) {
-      const numStr = match[2]
-      const normalized = normalizeNumber(numStr)
-      const value = parseFloat(normalized)
-      
-      if (!isNaN(value) && value >= MIN_AMOUNT_THRESHOLD && value <= MAX_AMOUNT_THRESHOLD) {
-        // Find matching number in our extracted numbers
-        const matchingNumber = numbers.find(
-          n => Math.abs(n.value - value) < 100 && Math.abs(n.lineIndex - i) <= 1
-        )
-        
-        if (matchingNumber) {
-          return {
-            amount: matchingNumber.value,
-            confidence: 'medium',
-            keyword: match[1].toUpperCase(),
-            method: 'context',
-          }
-        }
-      }
-    }
-  }
-  
-  return null
-}
-
-/**
- * Tier 3: Select largest valid number (fallback)
- */
-function detectTotalByLargest(numbers: NumberMatch[]): TotalDetectionResult | null {
-  // Filter out non-price numbers and get valid candidates (more flexible)
+function detectTotalTier2(numbers: NumberMatch[], threshold: number = 1000): {
+  amount: number
+  confidence: 'low'
+} | null {
+  // Filter out non-price numbers
   const validNumbers = numbers
     .filter((n) => {
-      const category = classifyNumber(n, numbers)
-      return category !== 'non-price' && 
-             category !== 'supporting' &&
-             n.value >= 100 // Lower threshold for fallback detection
+      const category = classifyNumber(n, n.line, numbers)
+      return category !== 'non-price' && n.value >= threshold
     })
     .sort((a, b) => b.value - a.value)
 
   if (validNumbers.length > 0) {
-    const largest = validNumbers[0]
-    const secondLargest = validNumbers[1]
-    
-    // More flexible: if largest is bigger OR if there's only one number, use it
-    if (!secondLargest || largest.value > secondLargest.value * 1.2) { // Lowered from 1.5
-      return {
-        amount: largest.value,
-        confidence: 'low',
-        method: 'largest',
-      }
-    }
-    
-    // If numbers are close, prefer the one that appears later in receipt (usually total is at bottom)
-    if (secondLargest && largest.value <= secondLargest.value * 1.2) {
-      // Use the one that appears later (higher line index)
-      const laterNumber = largest.lineIndex > secondLargest.lineIndex ? largest : secondLargest
-      return {
-        amount: laterNumber.value,
-        confidence: 'low',
-        method: 'largest',
-      }
+    return {
+      amount: validNumbers[0].value,
+      confidence: 'low',
     }
   }
 
@@ -395,83 +245,50 @@ function detectTotalByLargest(numbers: NumberMatch[]): TotalDetectionResult | nu
 }
 
 /**
- * Main total detection function with priority logic
- */
-function detectTotal(text: string, numbers: NumberMatch[]): TotalDetectionResult | null {
-  // Tier 1: Keyword-based (highest priority)
-  const keywordResult = detectTotalByKeyword(text, numbers)
-  if (keywordResult) {
-    return keywordResult
-  }
-
-  // Tier 2: Context-based
-  const contextResult = detectTotalByContext(text, numbers)
-  if (contextResult) {
-    return contextResult
-  }
-
-  // Tier 3: Largest number (fallback)
-  const largestResult = detectTotalByLargest(numbers)
-  if (largestResult) {
-    return largestResult
-  }
-
-  return null
-}
-
-// ============================================================================
-// ITEM DETECTION
-// ============================================================================
-
-/**
- * Detect item lines from receipt
+ * Detect item lines (item name on left, price on right)
  */
 function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
   const lines = text.split('\n')
   const items: ReceiptItem[] = []
-  const processedNumbers = new Set<string>()
+  const processedNumbers = new Set<number>()
 
   lines.forEach((line, lineIndex) => {
     const trimmedLine = line.trim()
     if (trimmedLine.length < 3) return
 
-    // Get numbers in this line (more flexible for item detection)
-    const lineNumbers = numbers.filter(
-      (n) => n.lineIndex === lineIndex && 
-             n.value >= 100 && // Lower threshold for items
-             (classifyNumber(n, numbers) === 'item-price' || classifyNumber(n, numbers) === 'unknown')
-    )
+    // Look for item-price patterns
+    // Pattern: Item name ... price (price at end of line)
+    const lineNumbers = numbers.filter((n) => n.lineIndex === lineIndex && n.value >= 1000)
 
     for (const num of lineNumbers) {
-      const key = `${lineIndex}-${num.value}`
-      if (processedNumbers.has(key)) continue
+      if (processedNumbers.has(num.value)) continue
 
-      // Check if number is at the end of line (likely a price)
+      // Check if this number is at the end of the line (likely a price)
       const pricePosition = num.position + num.original.length
-      const isAtEnd = pricePosition >= trimmedLine.length - 8
+      const lineLength = trimmedLine.length
+      const isAtEnd = pricePosition >= lineLength - 5 // Within 5 chars of end
 
       if (isAtEnd) {
         // Extract item name (everything before the price)
         const itemName = trimmedLine.substring(0, num.position).trim()
 
-        // Validate item name
+        // Skip if item name is too short or contains total keywords
         if (
           itemName.length >= 2 &&
           itemName.length <= 100 &&
-          !TOTAL_KEYWORDS.some(kw => kw.pattern.test(itemName)) &&
-          !SUPPORTING_AMOUNT_PATTERNS.some(p => p.test(itemName))
+          !/total|bayar|jumlah|subtotal|tax|pajak/i.test(itemName)
         ) {
-          // Extract quantity if present
-          const qtyMatch = itemName.match(/(\d+)\s*x\s*$/i) || itemName.match(/^(\d+)\s*x\s*/i)
+          // Check for quantity (e.g., "1x", "2x")
+          const qtyMatch = itemName.match(/(\d+)\s*x\s*$/i)
           const quantity = qtyMatch ? parseInt(qtyMatch[1], 10) : 1
 
           items.push({
-            name: itemName.replace(/\d+\s*x\s*$/i, '').replace(/^\d+\s*x\s*/i, '').trim(),
+            name: itemName.replace(/\d+\s*x\s*$/i, '').trim(),
             price: num.value,
             quantity: quantity > 1 ? quantity : undefined,
           })
 
-          processedNumbers.add(key)
+          processedNumbers.add(num.value)
         }
       }
     }
@@ -479,10 +296,6 @@ function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
 
   return items
 }
-
-// ============================================================================
-// DATE EXTRACTION
-// ============================================================================
 
 /**
  * Get today's date string in YYYY-MM-DD format
@@ -498,21 +311,20 @@ function isDateInFuture(dateString: string): boolean {
   if (!dateString) return false
   const date = new Date(dateString)
   const today = new Date()
-  today.setHours(23, 59, 59, 999)
+  today.setHours(23, 59, 59, 999) // End of today
   return date > today
 }
 
 /**
- * Extract and validate date from receipt text
+ * Extract date from receipt text
+ * Returns today's date if extraction fails or date is in the future
  */
 function extractDate(text: string): string {
   const datePatterns = [
-    // DD/MM/YYYY or DD-MM-YYYY (Indonesian format)
+    // DD/MM/YYYY or DD-MM-YYYY
     /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,
     // YYYY/MM/DD or YYYY-MM-DD
     /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,
-    // DD MM YYYY (with spaces)
-    /(\d{1,2})\s+(\d{1,2})\s+(\d{2,4})/,
   ]
 
   for (const pattern of datePatterns) {
@@ -526,7 +338,7 @@ function extractDate(text: string): string {
         month = match[2].padStart(2, '0')
         day = match[3].padStart(2, '0')
       } else {
-        // DD/MM/YYYY format (Indonesian standard)
+        // DD/MM/YYYY or MM/DD/YYYY format (assume DD/MM for Indonesian receipts)
         day = match[1].padStart(2, '0')
         month = match[2].padStart(2, '0')
         year = match[3]
@@ -537,9 +349,7 @@ function extractDate(text: string): string {
 
       try {
         const dateObj = new Date(`${year}-${month}-${day}`)
-        if (!isNaN(dateObj.getTime()) && 
-            dateObj.getFullYear() >= 2020 && 
-            dateObj.getFullYear() <= 2100) {
+        if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
           const dateString = dateObj.toISOString().split('T')[0]
           // If date is in the future, return today instead
           if (isDateInFuture(dateString)) {
@@ -553,85 +363,111 @@ function extractDate(text: string): string {
     }
   }
 
+  // Default to today if no valid date found
   return getTodayDateString()
 }
 
-// ============================================================================
-// MERCHANT EXTRACTION
-// ============================================================================
-
 /**
- * Extract merchant/store name from receipt
+ * Extract merchant/store name
  */
 function extractMerchant(text: string): string | undefined {
-  const lines = text.split('\n').slice(0, 15) // Check first 15 lines
+  const lines = text.split('\n').slice(0, 10) // Check first 10 lines
 
   for (const line of lines) {
     const trimmed = line.trim()
-    
-    // Look for merchant name patterns:
-    // - All caps with reasonable length
-    // - Contains letters (not just numbers/symbols)
-    // - Doesn't contain receipt keywords
+    // Look for lines that are likely merchant names (all caps, reasonable length)
     if (
       trimmed.length >= 3 &&
-      trimmed.length <= 60 &&
-      /[A-Za-z]/.test(trimmed) && // Contains letters
-      !/^(TOTAL|RECEIPT|INVOICE|DATE|TIME|NO|BIL|PANGIL|POS|CSH)/i.test(trimmed) &&
-      !/\d{4,}/.test(trimmed) // Not just a long number
+      trimmed.length <= 50 &&
+      /^[A-Z\s&]+$/.test(trimmed) &&
+      !/TOTAL|RECEIPT|INVOICE|DATE|TIME/i.test(trimmed)
     ) {
-      // Prefer lines that are mostly uppercase (common for store names)
-      const upperCaseRatio = (trimmed.match(/[A-Z]/g) || []).length / trimmed.length
-      if (upperCaseRatio > 0.5 || trimmed.length < 20) {
-        return trimmed
-      }
+      return trimmed
     }
   }
 
   return undefined
 }
 
-// ============================================================================
-// CATEGORY INFERENCE
-// ============================================================================
+/**
+ * Main parsing function
+ * Parse OCR text from receipt to extract transaction data
+ */
+export function parseReceiptText(text: string): Partial<TransactionFormData> | Partial<TransactionFormData>[] {
+  // A1: Normalize OCR output
+  const normalizedText = normalizeOcrText(text)
+
+  // Extract all numbers with context
+  const numbers = extractNumbers(normalizedText)
+
+  // A2-A3: Detect total amount with priority logic
+  let detectedAmount = 0
+  let confidenceLevel: 'high' | 'medium' | 'low' = 'low'
+  let sourceKeyword: string | undefined
+
+  // Tier 1: Try keyword-based detection
+  const tier1Result = detectTotalTier1(normalizedText, numbers)
+  if (tier1Result) {
+    detectedAmount = tier1Result.amount
+    confidenceLevel = tier1Result.confidence
+    sourceKeyword = tier1Result.keyword
+  } else {
+    // Tier 2: Fallback to largest number
+    const tier2Result = detectTotalTier2(numbers, 1000)
+    if (tier2Result) {
+      detectedAmount = tier2Result.amount
+      confidenceLevel = tier2Result.confidence
+    }
+  }
+
+  // Extract additional metadata (extractDate now always returns a valid date, defaulting to today)
+  const date = extractDate(normalizedText)
+  const merchant = extractMerchant(normalizedText)
+
+  // B1: Detect items (optional, for multi-item receipts)
+  const items = detectItems(normalizedText, numbers)
+
+  // B2: If multiple items detected and total matches, return array
+  if (items.length > 1 && detectedAmount > 0) {
+    // Calculate sum of items
+    const itemsSum = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0)
+
+    // If items sum is close to detected total (within 10%), return items
+    if (Math.abs(itemsSum - detectedAmount) / detectedAmount < 0.1) {
+      return items.map((item) => ({
+        type: 'expense' as const,
+        amount: item.price * (item.quantity || 1),
+        description: item.quantity && item.quantity > 1 ? `${item.name} (${item.quantity}x)` : item.name,
+        category: inferCategory(item.name),
+        date,
+      }))
+    }
+  }
+
+  // Single transaction fallback
+  const result: Partial<TransactionFormData> = {
+    type: 'expense',
+    amount: detectedAmount,
+    description: merchant || 'Receipt Transaction',
+    category: merchant ? inferCategory(merchant) : 'Lainnya',
+    date,
+  }
+
+  return result
+}
 
 /**
- * Infer category from text using keyword matching
+ * Infer category from text
  */
 function inferCategory(text: string): string {
   const lowerText = text.toLowerCase()
-  
   const categoryKeywords: Record<string, string[]> = {
-    Makanan: [
-      'restaurant', 'cafe', 'food', 'grocery', 'market', 'supermarket', 'warung', 
-      'makan', 'minum', 'kopi', 'bakso', 'nasi', 'ayam', 'sate', 'mie', 'bubur',
-      'indomaret', 'alfamart', 'superindo', 'carrefour', 'hypermart', 'transmart',
-      'kfc', 'mcd', 'pizza', 'burger', 'fried chicken'
-    ],
-    Transportasi: [
-      'gas', 'fuel', 'bensin', 'solar', 'pertamax', 'taxi', 'uber', 'grab', 'gojek',
-      'parking', 'parkir', 'toll', 'tol', 'ojek', 'angkot', 'bus', 'kereta', 'train',
-      'go-ride', 'go-car', 'grabcar', 'bluebird'
-    ],
-    Belanja: [
-      'store', 'shop', 'toko', 'mall', 'retail', 'clothing', 'pakaian', 'shoes', 'sepatu',
-      'baju', 'celana', 'kaos', 'jaket', 'tas', 'elektronik', 'electronic', 'handphone',
-      'laptop', 'komputer', 'unilever', 'wardah', 'sariayu'
-    ],
-    Tagihan: [
-      'utility', 'listrik', 'air', 'internet', 'phone', 'telepon', 'cable', 'bill', 
-      'tagihan', 'pln', 'pdam', 'indihome', 'first media', 'biznet', 'xl', 'telkomsel',
-      'tri', 'smartfren', 'by.u', 'kartu', 'pulsa', 'paket data'
-    ],
-    Hiburan: [
-      'movie', 'cinema', 'bioskop', 'theater', 'game', 'entertainment', 'netflix',
-      'spotify', 'youtube', 'disney', 'vidi', 'iflix', 'tiket', 'concert', 'konser'
-    ],
-    Kesehatan: [
-      'pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'rumah sakit', 'clinic', 
-      'klinik', 'doctor', 'dokter', 'kimia farma', 'guardian', 'century', 'viva',
-      'halodoc', 'alodokter', 'vitamin', 'suplemen'
-    ],
+    Makanan: ['restaurant', 'cafe', 'food', 'grocery', 'market', 'supermarket', 'warung', 'makan', 'minum', 'kopi', 'bakso', 'nasi'],
+    Transportasi: ['gas', 'fuel', 'bensin', 'taxi', 'uber', 'grab', 'gojek', 'parking', 'parkir', 'toll', 'tol'],
+    Belanja: ['store', 'shop', 'toko', 'mall', 'retail', 'clothing', 'pakaian', 'shoes', 'sepatu'],
+    Tagihan: ['utility', 'listrik', 'air', 'internet', 'phone', 'telepon', 'cable', 'bill', 'tagihan'],
+    Hiburan: ['movie', 'cinema', 'bioskop', 'theater', 'game', 'entertainment'],
+    Kesehatan: ['pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'rumah sakit', 'clinic', 'klinik', 'doctor', 'dokter'],
   }
 
   for (const [category, keywords] of Object.entries(categoryKeywords)) {
@@ -643,74 +479,6 @@ function inferCategory(text: string): string {
   return 'Lainnya'
 }
 
-// ============================================================================
-// MAIN PARSING FUNCTIONS
-// ============================================================================
-
-/**
- * Main parsing function - extracts transaction data from OCR text
- */
-export function parseReceiptText(text: string): Partial<TransactionFormData> | Partial<TransactionFormData>[] {
-  // Normalize OCR output
-  const normalizedText = normalizeOcrText(text)
-
-  // Extract all numbers with context
-  const numbers = extractNumbers(normalizedText)
-
-  if (numbers.length === 0) {
-    // No numbers found - return default
-    return {
-      type: 'expense',
-      amount: 0,
-      description: 'Receipt Transaction',
-      category: 'Lainnya',
-      date: getTodayDateString(),
-    }
-  }
-
-  // Detect total amount with priority logic
-  const totalResult = detectTotal(normalizedText, numbers)
-  const detectedAmount = totalResult?.amount || 0
-  const confidenceLevel = totalResult?.confidence || 'low'
-  const sourceKeyword = totalResult?.keyword
-
-  // Extract metadata
-  const date = extractDate(normalizedText)
-  const merchant = extractMerchant(normalizedText)
-
-  // Detect items (for multi-item receipts)
-  const items = detectItems(normalizedText, numbers)
-
-  // If multiple items detected and sum matches total, return array
-  if (items.length > 1 && detectedAmount > 0) {
-    const itemsSum = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0)
-    const difference = Math.abs(itemsSum - detectedAmount)
-    const tolerance = detectedAmount * ITEM_SUM_TOLERANCE
-
-    // If items sum is close to detected total (within tolerance), return items
-    if (difference <= tolerance) {
-      return items.map((item) => ({
-        type: 'expense' as const,
-        amount: item.price * (item.quantity || 1),
-        description: item.quantity && item.quantity > 1 
-          ? `${item.name} (${item.quantity}x)` 
-          : item.name,
-        category: inferCategory(item.name),
-        date,
-      }))
-    }
-  }
-
-  // Single transaction
-  return {
-    type: 'expense',
-    amount: detectedAmount,
-    description: merchant || 'Receipt Transaction',
-    category: merchant ? inferCategory(merchant) : 'Lainnya',
-    date,
-  }
-}
-
 /**
  * Parse receipt with detailed result (for debugging and advanced features)
  */
@@ -718,16 +486,28 @@ export function parseReceiptTextDetailed(text: string): ReceiptParseResult {
   const normalizedText = normalizeOcrText(text)
   const numbers = extractNumbers(normalizedText)
 
-  // Detect total
-  const totalResult = detectTotal(normalizedText, numbers)
-  const detectedAmount = totalResult?.amount || 0
-  const confidenceLevel = totalResult?.confidence || 'low'
-  const sourceKeyword = totalResult?.keyword
+  let detectedAmount = 0
+  let confidenceLevel: 'high' | 'medium' | 'low' = 'low'
+  let sourceKeyword: string | undefined
 
-  // Extract metadata
+  const tier1Result = detectTotalTier1(normalizedText, numbers)
+  if (tier1Result) {
+    detectedAmount = tier1Result.amount
+    confidenceLevel = tier1Result.confidence
+    sourceKeyword = tier1Result.keyword
+  } else {
+    const tier2Result = detectTotalTier2(numbers, 1000)
+    if (tier2Result) {
+      detectedAmount = tier2Result.amount
+      confidenceLevel = tier2Result.confidence
+    }
+  }
+
   const items = detectItems(normalizedText, numbers)
   const extractedDate = extractDate(normalizedText)
-  const date = isDateInFuture(extractedDate) ? getTodayDateString() : extractedDate
+  // Validate date is not in future (extractDate already handles this, but double-check)
+  const today = getTodayDateString()
+  const date = isDateInFuture(extractedDate) ? today : extractedDate
   const merchant = extractMerchant(normalizedText)
 
   return {
