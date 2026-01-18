@@ -91,6 +91,14 @@ interface SpeechRecognitionErrorEvent {
 
 const recognition = ref<SpeechRecognition | null>(null)
 const isSpeechSupported = ref(false)
+const accumulatedTranscript = ref('') // Store all recognized text during recording
+const recordingError = ref<string | null>(null) // Store recording error messages
+const isCheckingPermission = ref(false) // Track permission check state
+const speechRecognitionRetryCount = ref(0) // Track retry attempts for speech recognition
+const MAX_SPEECH_RETRIES = 2 // Maximum retry attempts (reduced to prevent loops)
+const isRetryingSpeechRecognition = ref(false) // Flag to prevent multiple retries
+const hasNetworkError = ref(false) // Flag to track network errors
+const speechRecognitionDisabled = ref(false) // Flag to permanently disable speech recognition if it fails too many times
 
 const exampleTexts = [
   'Beli bakso hari ini 20 ribu',
@@ -317,7 +325,7 @@ function handleClose() {
   // This ensures no data persists or gets auto-saved
   
   // Stop recording if active
-  if (isRecording.value) {
+  if (isRecording.value || isCheckingPermission.value) {
     stopRecording()
   }
   
@@ -330,52 +338,118 @@ function handleClose() {
   showUsageGuide.value = false // Reset to default closed
   showExamples.value = false // Reset to default closed
   recordingDuration.value = 0
+  recordingError.value = null // Clear any recording errors
+  isCheckingPermission.value = false
 
   // Emit close event
   emit('close')
 }
 
 // Check for Speech Recognition support
+// Note: Web Speech API has network dependency and can be unreliable
+// We'll make it optional and gracefully degrade if it fails
 onMounted(() => {
   const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   if (SpeechRecognition) {
-    isSpeechSupported.value = true
-    recognition.value = new SpeechRecognition()
-    recognition.value.continuous = true
-    recognition.value.interimResults = true
-    recognition.value.lang = 'id-ID' // Indonesian language
-    
-    recognition.value.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = ''
+    try {
+      isSpeechSupported.value = true
+      recognition.value = new SpeechRecognition()
+      recognition.value.continuous = true
+      recognition.value.interimResults = true
+      recognition.value.lang = 'id-ID' // Indonesian language
       
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript + ' '
+      recognition.value.onresult = (event: SpeechRecognitionEvent) => {
+        // Only process if not disabled
+        if (speechRecognitionDisabled.value) {
+          return
+        }
+        
+        // Build complete transcript from all results (both final and interim)
+        let completeTranscript = ''
+        
+        // Process all results from the beginning to get complete transcript
+        for (let i = 0; i < event.results.length; i++) {
+          const result = event.results[i]
+          const transcript = result[0].transcript
+          
+          if (result.isFinal) {
+            // Final results - add with space
+            completeTranscript += transcript + ' '
+            // Also accumulate final results separately
+            if (i >= event.resultIndex) {
+              accumulatedTranscript.value += transcript + ' '
+            }
+          } else {
+            // Interim results - add without space for real-time display
+            completeTranscript += transcript
+          }
+        }
+        
+        // Update input text immediately with complete transcript
+        if (completeTranscript.trim()) {
+          inputText.value = completeTranscript.trim()
         }
       }
       
-      // Update input text with recognized speech (only final results)
-      // This automatically saves the text as it's recognized
-      if (finalTranscript) {
-        accumulatedTranscript.value += finalTranscript
-        inputText.value += finalTranscript
+      recognition.value.onend = () => {
+        // Don't auto-restart if disabled or retrying
+        if (speechRecognitionDisabled.value || isRetryingSpeechRecognition.value || !isRecording.value) {
+          return
+        }
+        
+        // Only restart if still recording and no errors
+        if (isRecording.value && recognition.value) {
+          // Reset retry count on successful end
+          if (!hasNetworkError.value) {
+            speechRecognitionRetryCount.value = 0
+          }
+          
+          // Delay before restart
+          setTimeout(() => {
+            if (isRecording.value && recognition.value && !speechRecognitionDisabled.value && !isRetryingSpeechRecognition.value) {
+              try {
+                recognition.value.start()
+              } catch (e: any) {
+                // Silently handle errors - don't spam console
+                if (e.name !== 'InvalidStateError' && !e.message?.includes('already started')) {
+                  // Disable on persistent errors
+                  speechRecognitionDisabled.value = true
+                }
+              }
+            }
+          }, 500)
+        }
       }
-    }
-    
-    recognition.value.onend = () => {
-      // Restart recognition if still recording
-      if (isRecording.value && recognition.value) {
+      
+      recognition.value.onerror = (event: SpeechRecognitionErrorEvent) => {
+        // Silently disable speech recognition on any error to prevent loops
+        // This is a graceful degradation - recording continues without speech-to-text
+        
+        if (speechRecognitionDisabled.value) {
+          return
+        }
+        
+        // Disable immediately on any error (except no-speech which is normal)
+        if (event.error === 'no-speech') {
+          // Normal - no speech detected yet, don't disable
+          return
+        }
+        
+        // Disable on all other errors to prevent error loops
+        speechRecognitionDisabled.value = true
+        
+        // Stop recognition to prevent further errors
         try {
-          recognition.value.start()
+          recognition.value?.stop()
         } catch (e) {
-          // Ignore errors if already started
+          // Ignore stop errors
         }
       }
-    }
-    
-    recognition.value.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error('Speech recognition error:', event.error)
+    } catch (error) {
+      // If initialization fails, disable speech recognition
+      console.warn('Speech recognition initialization failed:', error)
+      isSpeechSupported.value = false
+      speechRecognitionDisabled.value = true
     }
   }
 })
@@ -457,17 +531,117 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
   return parseResult.value.confidence[field]
 }
 
+// Check browser support for recording features
+function checkBrowserSupport(): { supported: boolean; errors: string[] } {
+  const errors: string[] = []
+  
+  // Check for getUserMedia support
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    errors.push('Browser tidak mendukung akses mikrofon (getUserMedia tidak tersedia)')
+  }
+  
+  // Check for MediaRecorder support
+  if (!window.MediaRecorder) {
+    errors.push('Browser tidak mendukung MediaRecorder API')
+  }
+  
+  // Check for Web Audio API support
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+  if (!AudioContext) {
+    errors.push('Browser tidak mendukung Web Audio API')
+  }
+  
+  return {
+    supported: errors.length === 0,
+    errors
+  }
+}
+
 // Voice recording functions
 async function startRecording() {
+  // Clear previous errors
+  recordingError.value = null
+  isCheckingPermission.value = true
+  
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    // Check browser support first
+    const support = checkBrowserSupport()
+    if (!support.supported) {
+      recordingError.value = support.errors.join('. ') + '. Silakan gunakan browser yang lebih baru atau perbarui browser Anda.'
+      isCheckingPermission.value = false
+      return
+    }
     
-    // Setup MediaRecorder
+    // Check if we're on HTTPS or localhost (required for getUserMedia)
+    const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    if (!isSecureContext) {
+      recordingError.value = 'Akses mikrofon memerlukan koneksi HTTPS. Silakan akses aplikasi melalui HTTPS.'
+      isCheckingPermission.value = false
+      return
+    }
+    
+    // Request microphone access with better error handling
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      })
+    } catch (getUserMediaError: any) {
+      isCheckingPermission.value = false
+      
+      // Handle specific error types
+      if (getUserMediaError.name === 'NotAllowedError' || getUserMediaError.name === 'PermissionDeniedError') {
+        recordingError.value = 'Izin mikrofon ditolak. Silakan berikan izin mikrofon di pengaturan browser atau perangkat Anda, lalu coba lagi.'
+      } else if (getUserMediaError.name === 'NotFoundError' || getUserMediaError.name === 'DevicesNotFoundError') {
+        recordingError.value = 'Tidak ada mikrofon yang terdeteksi. Pastikan mikrofon terhubung dan coba lagi.'
+      } else if (getUserMediaError.name === 'NotReadableError' || getUserMediaError.name === 'TrackStartError') {
+        recordingError.value = 'Mikrofon sedang digunakan oleh aplikasi lain. Tutup aplikasi lain yang menggunakan mikrofon dan coba lagi.'
+      } else if (getUserMediaError.name === 'OverconstrainedError' || getUserMediaError.name === 'ConstraintNotSatisfiedError') {
+        recordingError.value = 'Pengaturan mikrofon tidak didukung. Silakan coba lagi dengan pengaturan default.'
+      } else {
+        recordingError.value = `Tidak dapat mengakses mikrofon: ${getUserMediaError.message || 'Error tidak diketahui'}. Pastikan izin mikrofon sudah diberikan.`
+      }
+      console.error('getUserMedia error:', getUserMediaError)
+      return
+    }
+    
+    // Setup MediaRecorder with error handling
+    let recorder: MediaRecorder
+    try {
+      // Check for MediaRecorder support for audio
+      const mimeTypes = [
+        'audio/webm',
+        'audio/webm;codecs=opus',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/mpeg'
+      ]
+      
+      let selectedMimeType = ''
+      for (const mimeType of mimeTypes) {
+        if (MediaRecorder.isTypeSupported(mimeType)) {
+          selectedMimeType = mimeType
+          break
+        }
+      }
+      
+      const options: MediaRecorderOptions = selectedMimeType ? { mimeType: selectedMimeType } : {}
+      recorder = new MediaRecorder(stream, options)
+    } catch (recorderError: any) {
+      stream.getTracks().forEach(track => track.stop())
+      isCheckingPermission.value = false
+      recordingError.value = `Tidak dapat membuat MediaRecorder: ${recorderError.message || 'Error tidak diketahui'}. Browser mungkin tidak mendukung format audio yang diperlukan.`
+      console.error('MediaRecorder error:', recorderError)
+      return
+    }
+    
+    // Setup MediaRecorder event handlers
     const chunks: Blob[] = []
     audioChunks.value = chunks
-    
-    const recorder = new MediaRecorder(stream)
-    mediaRecorder.value = recorder
     
     recorder.ondataavailable = (event) => {
       if (event.data.size > 0) {
@@ -475,75 +649,160 @@ async function startRecording() {
       }
     }
     
+    recorder.onerror = (event: any) => {
+      console.error('MediaRecorder error event:', event)
+      recordingError.value = 'Terjadi error saat merekam audio. Silakan coba lagi.'
+    }
+    
     recorder.onstop = () => {
       stream.getTracks().forEach(track => track.stop())
     }
     
+    mediaRecorder.value = recorder
+    
     // Setup Web Audio API for spectrum visualization
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-    const ctx = new AudioContext()
-    audioContext.value = ctx
-    
-    const source = ctx.createMediaStreamSource(stream)
-    const analyserNode = ctx.createAnalyser()
-    analyserNode.fftSize = 256
-    analyser.value = analyserNode
-    source.connect(analyserNode)
-    
-    const bufferLength = analyserNode.frequencyBinCount
-    const dataArrayBuffer = new Uint8Array(bufferLength)
-    dataArray.value = dataArrayBuffer
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+      const ctx = new AudioContext()
+      audioContext.value = ctx
+      
+      // Resume audio context if suspended (required for some browsers)
+      if (ctx.state === 'suspended') {
+        await ctx.resume()
+      }
+      
+      const source = ctx.createMediaStreamSource(stream)
+      const analyserNode = ctx.createAnalyser()
+      analyserNode.fftSize = 256
+      analyser.value = analyserNode
+      source.connect(analyserNode)
+      
+      const bufferLength = analyserNode.frequencyBinCount
+      const dataArrayBuffer = new Uint8Array(bufferLength)
+      dataArray.value = dataArrayBuffer
+    } catch (audioError: any) {
+      console.error('Web Audio API error:', audioError)
+      // Continue without spectrum visualization if audio context fails
+      recordingError.value = 'Visualisasi audio tidak tersedia, tetapi rekaman tetap berjalan.'
+    }
     
     // Reset accumulated transcript for new recording
     accumulatedTranscript.value = ''
+    speechRecognitionRetryCount.value = 0 // Reset retry count
+    isRetryingSpeechRecognition.value = false // Reset retry flag
+    hasNetworkError.value = false // Reset network error flag
+    speechRecognitionDisabled.value = false // Re-enable for new recording
     
     // Start recording
-    recorder.start()
-    isRecording.value = true
-    recordingDuration.value = 0
-    
-    // Start timer
-    recordingTimer.value = window.setInterval(() => {
-      recordingDuration.value++
-    }, 1000)
-    
-    // Start speech recognition if available
-    if (recognition.value && isSpeechSupported.value) {
-      recognition.value.start()
+    try {
+      recorder.start(100) // Collect data every 100ms
+      isRecording.value = true
+      recordingDuration.value = 0
+      isCheckingPermission.value = false
+      
+      // Start timer
+      recordingTimer.value = window.setInterval(() => {
+        recordingDuration.value++
+      }, 1000)
+      
+      // Start speech recognition if available and not disabled
+      // Use a small delay to ensure audio stream is ready
+      if (recognition.value && isSpeechSupported.value && !speechRecognitionDisabled.value) {
+        setTimeout(() => {
+          if (isRecording.value && recognition.value && !speechRecognitionDisabled.value) {
+            try {
+              // Ensure recognition is stopped first
+              try {
+                recognition.value.stop()
+              } catch (stopError) {
+                // Ignore if already stopped or not started
+              }
+              
+              // Small delay before starting
+              setTimeout(() => {
+                if (isRecording.value && recognition.value && !speechRecognitionDisabled.value) {
+                  try {
+                    recognition.value.start()
+                    speechRecognitionRetryCount.value = 0 // Reset on successful start
+                  } catch (speechError: any) {
+                    // Silently disable on error to prevent loops
+                    if (speechError.name !== 'InvalidStateError' && !speechError.message?.includes('already started')) {
+                      speechRecognitionDisabled.value = true
+                    }
+                  }
+                }
+              }, 100)
+            } catch (e: any) {
+              // Silently disable on setup error
+              speechRecognitionDisabled.value = true
+            }
+          }
+        }, 300) // Small delay to ensure stream is ready
+      }
+      
+      // Start spectrum visualization (wait for next tick to ensure canvas is rendered)
+      nextTick(() => {
+        // Small delay to ensure DOM is fully updated
+        setTimeout(() => {
+          drawSpectrum()
+        }, 100)
+      })
+    } catch (startError: any) {
+      stream.getTracks().forEach(track => track.stop())
+      isRecording.value = false
+      isCheckingPermission.value = false
+      recordingError.value = `Tidak dapat memulai rekaman: ${startError.message || 'Error tidak diketahui'}.`
+      console.error('Recording start error:', startError)
     }
-    
-    // Start spectrum visualization (wait for next tick to ensure canvas is rendered)
-    nextTick(() => {
-      // Small delay to ensure DOM is fully updated
-      setTimeout(() => {
-        drawSpectrum()
-      }, 100)
-    })
-  } catch (error) {
-    console.error('Error starting recording:', error)
-    alert('Tidak dapat mengakses mikrofon. Pastikan izin mikrofon sudah diberikan.')
+  } catch (error: any) {
+    console.error('Unexpected error starting recording:', error)
+    isCheckingPermission.value = false
+    recordingError.value = `Terjadi error yang tidak terduga: ${error.message || 'Error tidak diketahui'}. Silakan coba lagi atau hubungi support jika masalah berlanjut.`
   }
 }
 
 function stopRecording() {
-  if (!isRecording.value) {
+  if (!isRecording.value && !isCheckingPermission.value) {
     return
   }
+  
+  // Reset retry count and flags
+  speechRecognitionRetryCount.value = 0
+  isRetryingSpeechRecognition.value = false
+  hasNetworkError.value = false
+  speechRecognitionDisabled.value = false // Re-enable for next recording
   
   // Stop speech recognition first to ensure all final transcripts are captured
   // The onresult handler already adds text to inputText.value in real-time,
   // so by the time we stop, all recognized text should already be saved
   if (recognition.value && isSpeechSupported.value) {
     try {
-      recognition.value.stop()
+      // Give a moment for final results to be processed
+      setTimeout(() => {
+        if (recognition.value) {
+          try {
+            recognition.value.stop()
+          } catch (e) {
+            // Ignore errors if already stopped
+            console.warn('Error stopping speech recognition:', e)
+          }
+        }
+      }, 200)
     } catch (e) {
       // Ignore errors if already stopped
+      console.warn('Error stopping speech recognition:', e)
     }
   }
   
   // Stop MediaRecorder
   if (mediaRecorder.value) {
-    mediaRecorder.value.stop()
+    try {
+      if (mediaRecorder.value.state !== 'inactive') {
+        mediaRecorder.value.stop()
+      }
+    } catch (e) {
+      console.error('Error stopping MediaRecorder:', e)
+    }
   }
   
   // Stop timer
@@ -560,8 +819,23 @@ function stopRecording() {
   
   // Close audio context
   if (audioContext.value) {
-    audioContext.value.close()
+    try {
+      if (audioContext.value.state !== 'closed') {
+        audioContext.value.close()
+      }
+    } catch (e) {
+      console.error('Error closing audio context:', e)
+    }
     audioContext.value = null
+  }
+  
+  // Stop all media tracks
+  if (mediaRecorder.value) {
+    // Tracks are stopped in onstop handler, but ensure they're stopped
+    const stream = (mediaRecorder.value as any).stream
+    if (stream) {
+      stream.getTracks().forEach((track: MediaStreamTrack) => track.stop())
+    }
   }
   
   // Reset recording state
@@ -569,6 +843,7 @@ function stopRecording() {
   // The text is automatically appended during recording via onresult handler
   // So the text is already saved and ready for the user to click "Lanjutkan"
   isRecording.value = false
+  isCheckingPermission.value = false
   analyser.value = null
   dataArray.value = null
   
@@ -591,8 +866,8 @@ function drawSpectrum() {
   const container = canvas.parentElement
   if (container) {
     const rect = container.getBoundingClientRect()
-    canvas.width = rect.width - 24 // Account for padding
-    canvas.height = 96 // h-24 = 96px
+    canvas.width = rect.width - 16 // Account for padding
+    canvas.height = 48 // h-12 = 48px (smaller and cleaner)
   }
   
   const width = canvas.width
@@ -612,16 +887,16 @@ function drawSpectrum() {
     ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, width, height)
     
-    // Draw spectrum bars with smooth animation
-    const barCount = 60
+    // Draw spectrum bars with smooth animation (smaller and cleaner)
+    const barCount = 40 // Fewer bars for cleaner look
     const barWidth = width / barCount
-    const barGap = 2
+    const barGap = 1.5
     const centerY = height / 2
     
     for (let i = 0; i < barCount; i++) {
       const dataIndex = Math.floor((i / barCount) * dataArray.value.length)
       const normalizedValue = dataArray.value[dataIndex] / 255
-      const barHeight = Math.max(4, normalizedValue * height * 0.85)
+      const barHeight = Math.max(2, normalizedValue * height * 0.9) // Smaller bars
       
       // Create vibrant gradient for bars
       const x = i * barWidth + barGap
@@ -1055,6 +1330,38 @@ function formatDuration(seconds: number): string {
 
     <template #footer>
       <div v-if="!showPreview" class="space-y-3">
+        <!-- Recording Error Message -->
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 translate-y-2"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 translate-y-2"
+        >
+          <div v-if="recordingError" class="rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 p-4">
+            <div class="flex items-start gap-3">
+              <div class="flex-shrink-0 mt-0.5">
+                <font-awesome-icon :icon="['fas', 'exclamation-circle']" class="h-5 w-5 text-red-600 dark:text-red-400" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">
+                  Error Rekaman
+                </p>
+                <p class="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+                  {{ recordingError }}
+                </p>
+                <button
+                  @click="recordingError = null"
+                  class="mt-2 text-xs font-medium text-red-800 dark:text-red-200 hover:text-red-900 dark:hover:text-red-100 underline"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+        
         <!-- Recording UI - Modern & Clean Design -->
         <Transition
           enter-active-class="transition-all duration-300 ease-out"
@@ -1091,25 +1398,30 @@ function formatDuration(seconds: number): string {
                 size="sm"
                 class="!px-4 !py-2 shadow-md hover:shadow-lg transition-all duration-200"
               >
-                <font-awesome-icon :icon="['fas', 'stop']" class="mr-2" />
-                Berhenti
+                <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
+                Selesai
               </BaseButton>
             </div>
             
             <!-- Spectrum Visualization -->
-            <div class="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
+            <div class="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-lg p-2 border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
               <canvas
                 ref="spectrumCanvasRef"
-                class="w-full h-24 rounded-lg"
+                class="w-full h-12 rounded"
                 style="display: block;"
               ></canvas>
               <!-- Decorative gradient overlay -->
-              <div class="absolute inset-0 rounded-lg bg-gradient-to-t from-transparent via-transparent to-red-500/5 pointer-events-none"></div>
+              <div class="absolute inset-0 rounded bg-gradient-to-t from-transparent via-transparent to-red-500/5 pointer-events-none"></div>
             </div>
             
             <!-- Helper Text -->
             <p class="text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
-              Berbicara sekarang, teks akan muncul otomatis
+              <span v-if="!speechRecognitionDisabled && isSpeechSupported">
+                Berbicara sekarang, teks akan muncul otomatis
+              </span>
+              <span v-else>
+                Rekaman audio sedang berjalan. Input teks secara manual setelah selesai.
+              </span>
             </p>
           </div>
         </Transition>
@@ -1122,7 +1434,7 @@ function formatDuration(seconds: number): string {
           <div class="flex items-center gap-2">
             <!-- Voice Note Button -->
             <BaseButton
-              v-if="!isRecording"
+              v-if="!isRecording && !isCheckingPermission"
               variant="secondary"
               @click="startRecording"
               :disabled="isProcessing"
@@ -1131,6 +1443,17 @@ function formatDuration(seconds: number): string {
               class="!px-4 !min-w-[48px]"
             >
               <font-awesome-icon :icon="['fas', 'microphone']" class="text-brand text-lg" />
+            </BaseButton>
+            
+            <!-- Loading State for Permission Check -->
+            <BaseButton
+              v-if="isCheckingPermission"
+              variant="secondary"
+              disabled
+              size="md"
+              class="!px-4 !min-w-[48px]"
+            >
+              <font-awesome-icon :icon="['fas', 'spinner']" class="text-brand text-lg animate-spin" />
             </BaseButton>
             
             <!-- Continue Button -->
