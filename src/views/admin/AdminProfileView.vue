@@ -155,7 +155,8 @@ function togglePasswordChangeForm() {
 <template>
   <div class="min-h-screen bg-slate-50 pb-20 dark:bg-slate-900">
     <!-- Header -->
-    <div class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
+    <div
+      class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
       <div class="mx-auto max-w-[430px] px-4 py-4">
         <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
           Admin Profile
@@ -169,13 +170,15 @@ function togglePasswordChangeForm() {
     <!-- Content -->
     <div class="mx-auto max-w-[430px] px-4 py-4">
       <!-- Account Info Card -->
-      <div class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div
+        class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <h2 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Account Information</h2>
 
         <div class="space-y-3">
           <div>
             <label class="text-xs font-medium text-slate-600 dark:text-slate-400">Email</label>
-            <div class="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-700/50">
+            <div
+              class="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-700/50">
               <FontAwesomeIcon :icon="['fas', 'envelope']" class="text-sm text-slate-400" />
               <span class="text-sm text-slate-900 dark:text-slate-100">{{ user?.email }}</span>
             </div>
@@ -183,7 +186,8 @@ function togglePasswordChangeForm() {
 
           <div>
             <label class="text-xs font-medium text-slate-600 dark:text-slate-400">Role</label>
-            <div class="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-700/50">
+            <div
+              class="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-700/50">
               <FontAwesomeIcon :icon="['fas', 'key']" class="text-sm text-slate-400" />
               <span class="text-sm text-slate-900 dark:text-slate-100">
                 {{ user?.user_metadata?.role || 'Admin (whitelist)' }}
@@ -194,56 +198,34 @@ function togglePasswordChangeForm() {
       </div>
 
       <!-- Password Change Card -->
-      <div class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div
+        class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div class="mb-4 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Security</h2>
-          <BaseButton
-            variant="ghost"
-            size="sm"
-            @click="togglePasswordChangeForm">
-            <FontAwesomeIcon
-              :icon="['fas', showPasswordChangeForm ? 'chevron-up' : 'chevron-down']"
-              class="text-sm" />
+          <BaseButton variant="ghost" size="sm" @click="togglePasswordChangeForm">
+            <FontAwesomeIcon :icon="['fas', showPasswordChangeForm ? 'chevron-up' : 'chevron-down']" class="text-sm" />
             <span>{{ showPasswordChangeForm ? 'Cancel' : 'Change Password' }}</span>
           </BaseButton>
         </div>
 
         <!-- Password Change Form -->
         <div v-if="showPasswordChangeForm" class="space-y-4">
-          <BaseInput
-            v-model="currentPassword"
-            type="password"
-            label="Current Password"
-            placeholder="Enter current password"
-            :error="passwordErrors.current"
-            autocomplete="current-password" />
+          <BaseInput v-model="currentPassword" type="password" label="Current Password"
+            placeholder="Enter current password" :error="passwordErrors.current" autocomplete="current-password" />
 
-          <BaseInput
-            v-model="newPassword"
-            type="password"
-            label="New Password"
-            placeholder="Enter new password (min. 6 characters)"
-            :error="passwordErrors.new"
+          <BaseInput v-model="newPassword" type="password" label="New Password"
+            placeholder="Enter new password (min. 6 characters)" :error="passwordErrors.new"
             autocomplete="new-password" />
 
-          <BaseInput
-            v-model="confirmPassword"
-            type="password"
-            label="Confirm New Password"
-            placeholder="Confirm new password"
-            :error="passwordErrors.confirm"
-            autocomplete="new-password" />
+          <BaseInput v-model="confirmPassword" type="password" label="Confirm New Password"
+            placeholder="Confirm new password" :error="passwordErrors.confirm" autocomplete="new-password" />
 
-          <div v-if="error" class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
+          <div v-if="error"
+            class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/20">
             <p class="text-sm text-red-800 dark:text-red-400">{{ error }}</p>
           </div>
 
-          <BaseButton
-            variant="primary"
-            size="lg"
-            :loading="loading"
-            :disabled="loading"
-            class="w-full"
+          <BaseButton variant="primary" size="lg" :loading="loading" :disabled="loading" class="w-full"
             @click="showPasswordChangeConfirm = true">
             <span v-if="!loading">Change Password</span>
             <span v-else class="flex items-center gap-2">
@@ -260,11 +242,7 @@ function togglePasswordChangeForm() {
         <p class="mb-4 text-sm text-red-800 dark:text-red-400">
           Sign out of your admin account. You'll need to log in again to access the admin panel.
         </p>
-        <BaseButton
-          variant="danger"
-          size="lg"
-          class="w-full"
-          @click="showSignOutConfirm = true">
+        <BaseButton variant="danger" size="lg" class="w-full" @click="showSignOutConfirm = true">
           <FontAwesomeIcon :icon="['fas', 'right-from-bracket']" />
           <span>Sign Out</span>
         </BaseButton>
@@ -272,27 +250,14 @@ function togglePasswordChangeForm() {
     </div>
 
     <!-- Confirm Modals -->
-    <ConfirmModal
-      :is-open="showSignOutConfirm"
-      title="Sign Out"
+    <ConfirmModal :is-open="showSignOutConfirm" title="Sign Out"
       message="Are you sure you want to sign out? You'll need to log in again to access the admin panel."
-      confirm-text="Sign Out"
-      cancel-text="Cancel"
-      variant="warning"
-      :icon="['fas', 'sign-out-alt']"
-      @confirm="handleSignOut"
-      @close="showSignOutConfirm = false" />
+      confirm-text="Sign Out" cancel-text="Cancel" variant="warning" :icon="['fas', 'sign-out-alt']"
+      @confirm="handleSignOut" @close="showSignOutConfirm = false" />
 
-    <ConfirmModal
-      :is-open="showPasswordChangeConfirm"
-      title="Change Password"
+    <ConfirmModal :is-open="showPasswordChangeConfirm" title="Change Password"
       message="Are you sure you want to change your password? You'll need to use the new password for future logins."
-      confirm-text="Change Password"
-      cancel-text="Cancel"
-      variant="info"
-      :icon="['fas', 'key']"
-      @confirm="confirmPasswordChange"
-      @close="showPasswordChangeConfirm = false" />
+      confirm-text="Change Password" cancel-text="Cancel" variant="info" :icon="['fas', 'key']"
+      @confirm="confirmPasswordChange" @close="showPasswordChangeConfirm = false" />
   </div>
 </template>
-

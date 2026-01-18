@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseModal from '@/components/ui/BaseModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -36,6 +36,61 @@ const limitError = ref<string | null>(null)
 const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+// Voice recording state
+const isRecording = ref(false)
+const recordingDuration = ref(0)
+const audioChunks = ref<Blob[]>([])
+const mediaRecorder = ref<MediaRecorder | null>(null)
+const audioContext = ref<AudioContext | null>(null)
+const analyser = ref<AnalyserNode | null>(null)
+const dataArray = ref<Uint8Array | null>(null)
+const animationFrameId = ref<number | null>(null)
+const spectrumCanvasRef = ref<HTMLCanvasElement | null>(null)
+const recordingTimer = ref<number | null>(null)
+// Type definitions for Speech Recognition API
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean
+  interimResults: boolean
+  lang: string
+  start(): void
+  stop(): void
+  abort(): void
+  onresult: ((event: SpeechRecognitionEvent) => void) | null
+  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+}
+
+interface SpeechRecognitionEvent {
+  resultIndex: number
+  results: SpeechRecognitionResultList
+}
+
+interface SpeechRecognitionResultList {
+  length: number
+  item(index: number): SpeechRecognitionResult
+  [index: number]: SpeechRecognitionResult
+}
+
+interface SpeechRecognitionResult {
+  length: number
+  item(index: number): SpeechRecognitionAlternative
+  [index: number]: SpeechRecognitionAlternative
+  isFinal: boolean
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string
+  confidence: number
+}
+
+interface SpeechRecognitionErrorEvent {
+  error: string
+  message: string
+}
+
+const recognition = ref<SpeechRecognition | null>(null)
+const isSpeechSupported = ref(false)
 
 const exampleTexts = [
   'Beli bakso hari ini 20 ribu',
@@ -260,6 +315,12 @@ function handleExampleClick(example: string) {
 function handleClose() {
   // CRITICAL: When closing modal, completely reset all state
   // This ensures no data persists or gets auto-saved
+  
+  // Stop recording if active
+  if (isRecording.value) {
+    stopRecording()
+  }
+  
   inputText.value = ''
   parseResult.value = null
   showPreview.value = false
@@ -268,10 +329,64 @@ function handleClose() {
   showWarnings.value = true
   showUsageGuide.value = false // Reset to default closed
   showExamples.value = false // Reset to default closed
+  recordingDuration.value = 0
 
   // Emit close event
   emit('close')
 }
+
+// Check for Speech Recognition support
+onMounted(() => {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  if (SpeechRecognition) {
+    isSpeechSupported.value = true
+    recognition.value = new SpeechRecognition()
+    recognition.value.continuous = true
+    recognition.value.interimResults = true
+    recognition.value.lang = 'id-ID' // Indonesian language
+    
+    recognition.value.onresult = (event: SpeechRecognitionEvent) => {
+      let finalTranscript = ''
+      
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + ' '
+        }
+      }
+      
+      // Update input text with recognized speech (only final results)
+      // This automatically saves the text as it's recognized
+      if (finalTranscript) {
+        accumulatedTranscript.value += finalTranscript
+        inputText.value += finalTranscript
+      }
+    }
+    
+    recognition.value.onend = () => {
+      // Restart recognition if still recording
+      if (isRecording.value && recognition.value) {
+        try {
+          recognition.value.start()
+        } catch (e) {
+          // Ignore errors if already started
+        }
+      }
+    }
+    
+    recognition.value.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error)
+    }
+  }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  stopRecording()
+  if (recognition.value) {
+    recognition.value.stop()
+  }
+})
 
 // Auto-focus textarea when modal opens
 watch(() => props.isOpen, (isOpen) => {
@@ -279,6 +394,11 @@ watch(() => props.isOpen, (isOpen) => {
     nextTick(() => {
       textareaRef.value?.focus()
     })
+  } else if (!isOpen) {
+    // Stop recording if modal closes
+    if (isRecording.value) {
+      stopRecording()
+    }
   }
 })
 
@@ -335,6 +455,192 @@ const confidenceColors = {
 function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
   if (!parseResult.value) return 'none'
   return parseResult.value.confidence[field]
+}
+
+// Voice recording functions
+async function startRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    
+    // Setup MediaRecorder
+    const chunks: Blob[] = []
+    audioChunks.value = chunks
+    
+    const recorder = new MediaRecorder(stream)
+    mediaRecorder.value = recorder
+    
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        chunks.push(event.data)
+      }
+    }
+    
+    recorder.onstop = () => {
+      stream.getTracks().forEach(track => track.stop())
+    }
+    
+    // Setup Web Audio API for spectrum visualization
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
+    const ctx = new AudioContext()
+    audioContext.value = ctx
+    
+    const source = ctx.createMediaStreamSource(stream)
+    const analyserNode = ctx.createAnalyser()
+    analyserNode.fftSize = 256
+    analyser.value = analyserNode
+    source.connect(analyserNode)
+    
+    const bufferLength = analyserNode.frequencyBinCount
+    const dataArrayBuffer = new Uint8Array(bufferLength)
+    dataArray.value = dataArrayBuffer
+    
+    // Reset accumulated transcript for new recording
+    accumulatedTranscript.value = ''
+    
+    // Start recording
+    recorder.start()
+    isRecording.value = true
+    recordingDuration.value = 0
+    
+    // Start timer
+    recordingTimer.value = window.setInterval(() => {
+      recordingDuration.value++
+    }, 1000)
+    
+    // Start speech recognition if available
+    if (recognition.value && isSpeechSupported.value) {
+      recognition.value.start()
+    }
+    
+    // Start spectrum visualization (wait for next tick to ensure canvas is rendered)
+    nextTick(() => {
+      drawSpectrum()
+    })
+  } catch (error) {
+    console.error('Error starting recording:', error)
+    alert('Tidak dapat mengakses mikrofon. Pastikan izin mikrofon sudah diberikan.')
+  }
+}
+
+function stopRecording() {
+  if (!isRecording.value) {
+    return
+  }
+  
+  // Stop speech recognition first to ensure all final transcripts are captured
+  // The onresult handler already adds text to inputText.value in real-time,
+  // so by the time we stop, all recognized text should already be saved
+  if (recognition.value && isSpeechSupported.value) {
+    try {
+      recognition.value.stop()
+    } catch (e) {
+      // Ignore errors if already stopped
+    }
+  }
+  
+  // Stop MediaRecorder
+  if (mediaRecorder.value) {
+    mediaRecorder.value.stop()
+  }
+  
+  // Stop timer
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+    recordingTimer.value = null
+  }
+  
+  // Stop spectrum visualization
+  if (animationFrameId.value) {
+    cancelAnimationFrame(animationFrameId.value)
+    animationFrameId.value = null
+  }
+  
+  // Close audio context
+  if (audioContext.value) {
+    audioContext.value.close()
+    audioContext.value = null
+  }
+  
+  // Reset recording state
+  // Note: inputText.value already contains all recognized text from speech recognition
+  // The text is automatically appended during recording via onresult handler
+  // So the text is already saved and ready for the user to click "Lanjutkan"
+  isRecording.value = false
+  analyser.value = null
+  dataArray.value = null
+  
+  // Optional: Trim the input text to remove any trailing spaces
+  if (inputText.value) {
+    inputText.value = inputText.value.trim()
+  }
+}
+
+function drawSpectrum() {
+  if (!analyser.value || !dataArray.value || !spectrumCanvasRef.value) {
+    return
+  }
+  
+  const canvas = spectrumCanvasRef.value
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  
+  // Set canvas size based on container
+  const container = canvas.parentElement
+  if (container) {
+    const rect = container.getBoundingClientRect()
+    canvas.width = rect.width - 16 // Account for padding
+    canvas.height = 80
+  }
+  
+  const width = canvas.width
+  const height = canvas.height
+  
+  const draw = () => {
+    if (!isRecording.value || !analyser.value || !dataArray.value) {
+      return
+    }
+    
+    analyser.value.getByteFrequencyData(dataArray.value)
+    
+    // Clear canvas with semi-transparent background
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'
+    ctx.fillRect(0, 0, width, height)
+    
+    // Draw spectrum bars
+    const barCount = 50
+    const barWidth = width / barCount
+    const barGap = 1
+    
+    for (let i = 0; i < barCount; i++) {
+      const dataIndex = Math.floor((i / barCount) * dataArray.value.length)
+      const normalizedValue = dataArray.value[dataIndex] / 255
+      const barHeight = Math.max(2, normalizedValue * height * 0.9) // Minimum height of 2px
+      
+      // Create gradient for bars (red to orange for recording)
+      const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight)
+      gradient.addColorStop(0, '#ef4444') // red-500
+      gradient.addColorStop(0.5, '#f97316') // orange-500
+      gradient.addColorStop(1, '#fb923c') // orange-400
+      
+      ctx.fillStyle = gradient
+      ctx.fillRect(
+        i * barWidth + barGap,
+        height - barHeight,
+        barWidth - barGap * 2,
+        barHeight
+      )
+    }
+    
+    animationFrameId.value = requestAnimationFrame(draw)
+  }
+  
+  draw()
+}
+
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
 }
 </script>
 
@@ -707,14 +1013,62 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
     </div>
 
     <template #footer>
-      <div v-if="!showPreview" class="flex items-center justify-between gap-3">
-        <BaseButton variant="secondary" @click="handleClose">
-          Tutup
-        </BaseButton>
-        <BaseButton @click="handleParse" :loading="isProcessing" :disabled="!inputText.trim()">
-          <font-awesome-icon :icon="['fas', 'magic']" class="mr-2" />
-          Lanjutkan
-        </BaseButton>
+      <div v-if="!showPreview" class="space-y-3">
+        <!-- Recording UI -->
+        <div v-if="isRecording" class="rounded-xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-300 dark:border-red-700 p-4">
+          <div class="flex items-center justify-between gap-4 mb-3">
+            <div class="flex items-center gap-3">
+              <div class="relative">
+                <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                <div class="absolute inset-0 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75"></div>
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-red-900 dark:text-red-200">Sedang Merekam</p>
+                <p class="text-xs text-red-700 dark:text-red-300">Durasi: {{ formatDuration(recordingDuration) }}</p>
+              </div>
+            </div>
+            <BaseButton variant="danger" @click="stopRecording" size="sm">
+              <font-awesome-icon :icon="['fas', 'stop']" class="mr-2" />
+              Berhenti
+            </BaseButton>
+          </div>
+          
+          <!-- Spectrum Visualization -->
+          <div class="bg-white dark:bg-slate-800 rounded-lg p-2 border border-red-200 dark:border-red-800">
+            <canvas
+              ref="spectrumCanvasRef"
+              class="w-full h-20 rounded"
+              style="display: block;"
+            ></canvas>
+          </div>
+        </div>
+        
+        <!-- Footer Buttons -->
+        <div class="flex items-center justify-between gap-3">
+          <BaseButton variant="secondary" @click="handleClose">
+            Tutup
+          </BaseButton>
+          <div class="flex items-center gap-2">
+            <!-- Voice Note Button -->
+            <BaseButton
+              v-if="!isRecording"
+              variant="ghost"
+              @click="startRecording"
+              :disabled="isProcessing"
+              class="!px-3"
+              size="md"
+              title="Rekam Suara"
+            >
+              <font-awesome-icon :icon="['fas', 'microphone']" class="text-brand" />
+            </BaseButton>
+            
+            <!-- Continue Button -->
+            <BaseButton @click="handleParse" :loading="isProcessing" :disabled="!inputText.trim() || isRecording">
+              <font-awesome-icon :icon="['fas', 'magic']" class="mr-2" />
+              Lanjutkan
+            </BaseButton>
+          </div>
+        </div>
       </div>
     </template>
   </BaseModal>
