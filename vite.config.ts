@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg'],
       manifest: {
         name: 'Financial Tracker',
         short_name: 'Finance',
