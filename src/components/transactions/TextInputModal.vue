@@ -514,7 +514,10 @@ async function startRecording() {
     
     // Start spectrum visualization (wait for next tick to ensure canvas is rendered)
     nextTick(() => {
-      drawSpectrum()
+      // Small delay to ensure DOM is fully updated
+      setTimeout(() => {
+        drawSpectrum()
+      }, 100)
     })
   } catch (error) {
     console.error('Error starting recording:', error)
@@ -588,8 +591,8 @@ function drawSpectrum() {
   const container = canvas.parentElement
   if (container) {
     const rect = container.getBoundingClientRect()
-    canvas.width = rect.width - 16 // Account for padding
-    canvas.height = 80
+    canvas.width = rect.width - 24 // Account for padding
+    canvas.height = 96 // h-24 = 96px
   }
   
   const width = canvas.width
@@ -602,33 +605,71 @@ function drawSpectrum() {
     
     analyser.value.getByteFrequencyData(dataArray.value)
     
-    // Clear canvas with semi-transparent background
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)'
+    // Clear canvas with gradient background
+    const bgGradient = ctx.createLinearGradient(0, 0, 0, height)
+    bgGradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)')
+    bgGradient.addColorStop(1, 'rgba(239, 68, 68, 0.05)')
+    ctx.fillStyle = bgGradient
     ctx.fillRect(0, 0, width, height)
     
-    // Draw spectrum bars
-    const barCount = 50
+    // Draw spectrum bars with smooth animation
+    const barCount = 60
     const barWidth = width / barCount
-    const barGap = 1
+    const barGap = 2
+    const centerY = height / 2
     
     for (let i = 0; i < barCount; i++) {
       const dataIndex = Math.floor((i / barCount) * dataArray.value.length)
       const normalizedValue = dataArray.value[dataIndex] / 255
-      const barHeight = Math.max(2, normalizedValue * height * 0.9) // Minimum height of 2px
+      const barHeight = Math.max(4, normalizedValue * height * 0.85)
       
-      // Create gradient for bars (red to orange for recording)
-      const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight)
-      gradient.addColorStop(0, '#ef4444') // red-500
-      gradient.addColorStop(0.5, '#f97316') // orange-500
-      gradient.addColorStop(1, '#fb923c') // orange-400
+      // Create vibrant gradient for bars
+      const x = i * barWidth + barGap
+      const gradient = ctx.createLinearGradient(x, height - barHeight, x, height)
+      
+      // Dynamic gradient based on bar height (more vibrant for higher bars)
+      if (normalizedValue > 0.7) {
+        gradient.addColorStop(0, '#ef4444') // red-500
+        gradient.addColorStop(0.3, '#f97316') // orange-500
+        gradient.addColorStop(0.6, '#fb923c') // orange-400
+        gradient.addColorStop(1, '#fbbf24') // amber-400
+      } else if (normalizedValue > 0.4) {
+        gradient.addColorStop(0, '#f97316') // orange-500
+        gradient.addColorStop(0.5, '#fb923c') // orange-400
+        gradient.addColorStop(1, '#fbbf24') // amber-400
+      } else {
+        gradient.addColorStop(0, '#fb923c') // orange-400
+        gradient.addColorStop(1, '#fbbf24') // amber-400
+      }
       
       ctx.fillStyle = gradient
-      ctx.fillRect(
-        i * barWidth + barGap,
-        height - barHeight,
-        barWidth - barGap * 2,
-        barHeight
-      )
+      
+      // Draw bar with rounded top corners
+      const barX = i * barWidth + barGap
+      const barY = height - barHeight
+      const barW = barWidth - barGap * 2
+      const barH = barHeight
+      const radius = 3
+      
+      // Draw rounded rectangle
+      ctx.beginPath()
+      ctx.moveTo(barX + radius, barY)
+      ctx.lineTo(barX + barW - radius, barY)
+      ctx.quadraticCurveTo(barX + barW, barY, barX + barW, barY + radius)
+      ctx.lineTo(barX + barW, barY + barH)
+      ctx.lineTo(barX, barY + barH)
+      ctx.lineTo(barX, barY + radius)
+      ctx.quadraticCurveTo(barX, barY, barX + radius, barY)
+      ctx.closePath()
+      ctx.fill()
+      
+      // Add subtle glow effect for active bars
+      if (normalizedValue > 0.5) {
+        ctx.shadowBlur = 6
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.4)'
+        ctx.fill()
+        ctx.shadowBlur = 0
+      }
     }
     
     animationFrameId.value = requestAnimationFrame(draw)
@@ -1014,34 +1055,64 @@ function formatDuration(seconds: number): string {
 
     <template #footer>
       <div v-if="!showPreview" class="space-y-3">
-        <!-- Recording UI -->
-        <div v-if="isRecording" class="rounded-xl bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-2 border-red-300 dark:border-red-700 p-4">
-          <div class="flex items-center justify-between gap-4 mb-3">
-            <div class="flex items-center gap-3">
-              <div class="relative">
-                <div class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
-                <div class="absolute inset-0 w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75"></div>
+        <!-- Recording UI - Modern & Clean Design -->
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 translate-y-2 scale-95"
+          enter-to-class="opacity-100 translate-y-0 scale-100"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 translate-y-0 scale-100"
+          leave-to-class="opacity-0 translate-y-2 scale-95"
+        >
+          <div v-if="isRecording" class="rounded-2xl bg-gradient-to-br from-red-500/10 via-orange-500/10 to-pink-500/10 dark:from-red-500/20 dark:via-orange-500/20 dark:to-pink-500/20 backdrop-blur-sm border border-red-200/50 dark:border-red-500/30 shadow-lg shadow-red-500/10 dark:shadow-red-500/20 p-5 space-y-4">
+            <!-- Header Section -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <!-- Animated Recording Indicator -->
+                <div class="relative flex-shrink-0">
+                  <div class="w-4 h-4 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></div>
+                  <div class="absolute inset-0 w-4 h-4 bg-red-500 rounded-full animate-ping opacity-60"></div>
+                  <div class="absolute inset-0 w-4 h-4 bg-red-500/30 rounded-full animate-ping" style="animation-delay: 0.5s;"></div>
+                </div>
+                <div>
+                  <p class="text-sm font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                    Sedang Merekam
+                  </p>
+                  <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">
+                    {{ formatDuration(recordingDuration) }}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p class="text-sm font-semibold text-red-900 dark:text-red-200">Sedang Merekam</p>
-                <p class="text-xs text-red-700 dark:text-red-300">Durasi: {{ formatDuration(recordingDuration) }}</p>
-              </div>
+              
+              <!-- Stop Button -->
+              <BaseButton
+                variant="danger"
+                @click="stopRecording"
+                size="sm"
+                class="!px-4 !py-2 shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <font-awesome-icon :icon="['fas', 'stop']" class="mr-2" />
+                Berhenti
+              </BaseButton>
             </div>
-            <BaseButton variant="danger" @click="stopRecording" size="sm">
-              <font-awesome-icon :icon="['fas', 'stop']" class="mr-2" />
-              Berhenti
-            </BaseButton>
+            
+            <!-- Spectrum Visualization -->
+            <div class="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm rounded-xl p-3 border border-slate-200/50 dark:border-slate-700/50 shadow-inner">
+              <canvas
+                ref="spectrumCanvasRef"
+                class="w-full h-24 rounded-lg"
+                style="display: block;"
+              ></canvas>
+              <!-- Decorative gradient overlay -->
+              <div class="absolute inset-0 rounded-lg bg-gradient-to-t from-transparent via-transparent to-red-500/5 pointer-events-none"></div>
+            </div>
+            
+            <!-- Helper Text -->
+            <p class="text-xs text-center text-slate-500 dark:text-slate-400 font-medium">
+              Berbicara sekarang, teks akan muncul otomatis
+            </p>
           </div>
-          
-          <!-- Spectrum Visualization -->
-          <div class="bg-white dark:bg-slate-800 rounded-lg p-2 border border-red-200 dark:border-red-800">
-            <canvas
-              ref="spectrumCanvasRef"
-              class="w-full h-20 rounded"
-              style="display: block;"
-            ></canvas>
-          </div>
-        </div>
+        </Transition>
         
         <!-- Footer Buttons -->
         <div class="flex items-center justify-between gap-3">
@@ -1052,14 +1123,14 @@ function formatDuration(seconds: number): string {
             <!-- Voice Note Button -->
             <BaseButton
               v-if="!isRecording"
-              variant="ghost"
+              variant="secondary"
               @click="startRecording"
               :disabled="isProcessing"
-              class="!px-3"
               size="md"
               title="Rekam Suara"
+              class="!px-4 !min-w-[48px]"
             >
-              <font-awesome-icon :icon="['fas', 'microphone']" class="text-brand" />
+              <font-awesome-icon :icon="['fas', 'microphone']" class="text-brand text-lg" />
             </BaseButton>
             
             <!-- Continue Button -->
