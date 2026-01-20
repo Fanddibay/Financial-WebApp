@@ -7,7 +7,6 @@ import { useTokenStore } from '@/stores/token'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
 import ExportModal from '@/components/settings/ExportModal.vue'
 import ImportModal from '@/components/settings/ImportModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
@@ -48,7 +47,6 @@ const licenseError = ref<string | null>(null)
 const isVerifyingLicense = ref(false)
 const showDeactivateConfirm = ref(false)
 const isDeactivating = ref(false)
-const showCheckoutOverlay = ref(false)
 
 async function handlePasteLicense() {
   try {
@@ -120,25 +118,8 @@ async function handleDeactivateLicense() {
 }
 
 function handleOpenCheckout() {
-  showCheckoutOverlay.value = true
-  // Load Lemon Squeezy script if not already loaded
-  if (!document.querySelector('script[src="https://assets.lemonsqueezy.com/lemon.js"]')) {
-    const script = document.createElement('script')
-    script.src = 'https://assets.lemonsqueezy.com/lemon.js'
-    script.defer = true
-    document.head.appendChild(script)
-  }
-  // Re-initialize Lemon Squeezy buttons after a short delay to ensure script is loaded
-  setTimeout(() => {
-    const lemonSqueezy = (window as unknown as { LemonSqueezy?: { Setup?: () => void } }).LemonSqueezy
-    if (lemonSqueezy && typeof lemonSqueezy.Setup === 'function') {
-      lemonSqueezy.Setup()
-    }
-  }, 100)
-}
-
-function handleCloseCheckout() {
-  showCheckoutOverlay.value = false
+  // Direct redirect to Lemon Squeezy checkout
+  window.open('https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe', '_blank')
 }
 
 async function confirmDeactivateLicense() {
@@ -760,52 +741,5 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       confirm-text="Deactivate" cancel-text="Cancel" variant="warning" :icon="['fas', 'unlink']"
       @confirm="confirmDeactivateLicense" @close="showDeactivateConfirm = false" />
 
-    <!-- Checkout Overlay -->
-    <BaseModal :is-open="showCheckoutOverlay" size="xl" @close="handleCloseCheckout">
-      <template #header>
-        <div class="flex items-center justify-between w-full">
-          <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10">
-              <font-awesome-icon :icon="['fas', 'shopping-cart']" class="text-brand" />
-            </div>
-            <div>
-              <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('license.getTokenTitle') }}</h2>
-              <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                {{ t('license.getTokenDesc') }}
-              </p>
-            </div>
-          </div>
-          <button @click="handleCloseCheckout"
-            class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300 transition-colors">
-            <font-awesome-icon :icon="['fas', 'xmark']" class="text-lg" />
-          </button>
-        </div>
-      </template>
-
-      <div class="space-y-4">
-        <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
-          <div class="flex items-start gap-3">
-            <font-awesome-icon :icon="['fas', 'circle-info']"
-              class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <p class="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
-                {{ t('license.afterPayment') }}
-              </p>
-              <p class="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-                {{ t('license.afterPaymentDesc') }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
-          <div id="lemonsqueezy-checkout" class="w-full">
-            <a href="https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe?embed=1"
-              class="lemonsqueezy-button w-full">Buy Fanplanner – Self-Service Personal Finance Web App</a>
-          </div>
-        </div>
-      </div>
-    </BaseModal>
   </div>
 </template>
