@@ -14,7 +14,9 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
 import type { TransactionFormData } from '@/types/transaction'
 import { getCategoryIcon } from '@/utils/categoryIcons'
+import { useI18n } from 'vue-i18n'
 
+const { t, locale } = useI18n()
 const router = useRouter()
 const route = useRoute()
 const {
@@ -48,11 +50,11 @@ const colors = [
 const newTransaction = ref<TransactionFormData | null>(null)
 const showTransactionNotification = ref(false)
 
-const typeOptions = [
-  { value: 'all', label: 'Semua' },
-  { value: 'income', label: 'Income' },
-  { value: 'expense', label: 'Expense' },
-]
+const typeOptions = computed(() => [
+  { value: 'all', label: t('common.all') },
+  { value: 'income', label: t('transaction.incomeLabel') },
+  { value: 'expense', label: t('transaction.expenseLabel') },
+])
 
 // All categories (for display in breakdown)
 const allCategories = computed(() => {
@@ -65,11 +67,11 @@ const allCategories = computed(() => {
     const combined = [
       ...incomeTransactionsByCategory.value.map(item => ({
         ...item,
-        category: `${item.category} (Income)`,
+        category: `${item.category} (${t('transaction.incomeLabel')})`,
       })),
       ...transactionsByCategory.value.map(item => ({
         ...item,
-        category: `${item.category} (Expense)`,
+        category: `${item.category} (${t('transaction.expenseLabel')})`,
       })),
     ]
     return combined.sort((a, b) => b.total - a.total)
@@ -92,11 +94,13 @@ const totalAmount = computed(() => {
     return visibleTotal
   } else {
     // For 'all', we need to recalculate balance considering hidden categories
+    const incomeLabel = `(${t('transaction.incomeLabel')})`
+    const expenseLabel = `(${t('transaction.expenseLabel')})`
     const visibleIncome = filteredTransactionsByCategory.value
-      .filter(item => item.category.includes('(Income)'))
+      .filter(item => item.category.includes(incomeLabel))
       .reduce((sum, item) => sum + item.total, 0)
     const visibleExpense = filteredTransactionsByCategory.value
-      .filter(item => item.category.includes('(Expense)'))
+      .filter(item => item.category.includes(expenseLabel))
       .reduce((sum, item) => sum + item.total, 0)
     return visibleIncome - visibleExpense
   }
@@ -119,11 +123,13 @@ const getCategoryColor = (index: number) => {
 // Helper function to get category icon
 function getCategoryIconForDisplay(category: string): string {
   // Check if it's combined format "Category (Income)" or "Category (Expense)"
-  if (category.includes('(Income)')) {
-    const baseCategory = category.replace(' (Income)', '').trim()
+  const incomeLabel = `(${t('transaction.incomeLabel')})`
+  const expenseLabel = `(${t('transaction.expenseLabel')})`
+  if (category.includes(incomeLabel)) {
+    const baseCategory = category.replace(` ${incomeLabel}`, '').trim()
     return getCategoryIcon(baseCategory, 'income')
-  } else if (category.includes('(Expense)')) {
-    const baseCategory = category.replace(' (Expense)', '').trim()
+  } else if (category.includes(expenseLabel)) {
+    const baseCategory = category.replace(` ${expenseLabel}`, '').trim()
     return getCategoryIcon(baseCategory, 'expense')
   }
   
@@ -158,21 +164,21 @@ const isChartDisabled = computed(() => {
 })
 
 const chartTitle = computed(() => {
-  if (selectedType.value === 'income') return 'Rincian Income'
-  if (selectedType.value === 'expense') return 'Rincian Expense'
-  return 'Rincian Keuangan'
+  if (selectedType.value === 'income') return t('home.chartTitleIncome')
+  if (selectedType.value === 'expense') return t('home.chartTitleExpense')
+  return t('home.chartTitleAll')
 })
 
 const chartSubtitle = computed(() => {
-  if (selectedType.value === 'income') return 'Lihat dari mana uang kamu masuk'
-  if (selectedType.value === 'expense') return 'Lihat kemana uang kamu keluar'
-  return 'Lihat income dan expense kamu'
+  if (selectedType.value === 'income') return t('home.chartSubtitleIncome')
+  if (selectedType.value === 'expense') return t('home.chartSubtitleExpense')
+  return t('home.chartSubtitleAll')
 })
 
 const totalLabel = computed(() => {
-  if (selectedType.value === 'income') return 'Total income'
-  if (selectedType.value === 'expense') return 'Total expense'
-  return 'Saldo'
+  if (selectedType.value === 'income') return t('home.totalIncome')
+  if (selectedType.value === 'expense') return t('home.totalExpense')
+  return t('home.balance')
 })
 
 const displayTotal = computed(() => (showTotals.value ? formatIDR(totalAmount.value) : '••••••••'))
@@ -282,7 +288,8 @@ watch(
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
-  return date.toLocaleDateString('id-ID', {
+  const dateLocale = locale.value === 'id' ? 'id-ID' : 'en-US'
+  return date.toLocaleDateString(dateLocale, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -333,8 +340,8 @@ function confirmDelete() {
           class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
           <font-awesome-icon :icon="['fas', 'chart-pie']" class="text-2xl text-slate-400 dark:text-slate-500" />
         </div>
-        <p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">Belum ada transaksi</p>
-        <p class="text-xs text-slate-500 dark:text-slate-500">Tambahkan transaksi dulu untuk melihat rincian keuangan
+        <p class="text-sm font-medium text-slate-600 dark:text-slate-400 mb-1">{{ t('home.noTransactions') }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-500">{{ t('home.noTransactionsDesc') }}
         </p>
       </div>
 
@@ -345,7 +352,7 @@ function confirmDelete() {
           <ExpenseChart
             :transactions-by-category="filteredTransactionsByCategory.length > 0 ? filteredTransactionsByCategory : []"
             :all-categories-for-color-mapping="allCategories"
-            :total-expenses="isChartDisabled ? 0 : totalAmount" :label="selectedType === 'all' ? 'Saldo' : totalLabel"
+            :total-expenses="isChartDisabled ? 0 : totalAmount" :label="selectedType === 'all' ? t('home.balance') : totalLabel"
             :is-negative="isBalanceNegative" :is-expense="selectedType === 'expense'"
             :hidden-categories="hiddenCategories" :disabled="isChartDisabled" />
 
@@ -353,7 +360,7 @@ function confirmDelete() {
           <div v-if="isChartDisabled" class="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div class="bg-white/90 dark:bg-slate-800/90 rounded-lg px-4 py-2 shadow-sm">
               <p class="text-xs font-medium text-slate-500 dark:text-slate-400 text-center">
-                Tidak ada data yang dipilih oleh filter
+                {{ t('home.noDataSelected') }}
               </p>
             </div>
           </div>
@@ -378,7 +385,7 @@ function confirmDelete() {
           <button
             class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-brand/40"
             type="button" @click="showTotals = !showTotals"
-            :aria-label="showTotals ? 'Sembunyikan saldo' : 'Tampilkan saldo'">
+            :aria-label="showTotals ? t('home.hideBalance') : t('home.showBalance')">
             <font-awesome-icon :icon="['fas', showTotals ? 'eye-slash' : 'eye']" class="h-5 w-5" />
           </button>
         </div>
@@ -386,14 +393,14 @@ function confirmDelete() {
         <!-- Category Breakdown - Always visible and interactive when there are transactions -->
         <div v-if="allCategories.length > 0" class="space-y-3">
           <div class="flex items-center justify-between">
-            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Rincian Kategori</p>
+            <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ t('home.categoryBreakdown') }}</p>
             <button v-if="hiddenCategories.size > 0" @click="hiddenCategories = new Set()"
               class="text-xs text-brand hover:underline font-medium" type="button">
-              Tampilkan Semua
+              {{ t('home.showAll') }}
             </button>
             <button v-else-if="allFiltersHidden" @click="hiddenCategories = new Set()"
               class="text-xs text-slate-500 hover:text-brand hover:underline font-medium" type="button">
-              Reset Filter
+              {{ t('home.resetFilter') }}
             </button>
           </div>
           <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -453,18 +460,18 @@ function confirmDelete() {
 
     <!-- Latest Transactions -->
     <div class="flex items-center justify-between">
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Transaksi Terbaru</h2>
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('home.latestTransactions') }}</h2>
       <router-link to="/transactions" class="text-sm text-brand hover:underline">
-        Lihat Semua
+        {{ t('home.viewAll') }}
       </router-link>
     </div>
 
     <div v-if="recentTransactions.length === 0" class="py-8 text-center text-slate-500 dark:text-slate-400">
-      <p>Belum ada transaksi nih. Yuk mulai catat transaksi pertama kamu!</p>
+      <p>{{ t('home.noRecentTransactions') }}</p>
       <router-link to="/transactions/new" class="mt-4 inline-block">
         <BaseButton>
           <font-awesome-icon :icon="['fas', 'plus']" class="mr-2" />
-          Tambah Transaksi
+          {{ t('home.addTransaction') }}
         </BaseButton>
       </router-link>
     </div>
@@ -475,9 +482,9 @@ function confirmDelete() {
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmModal :is-open="showDeleteConfirm" title="Hapus Transaksi"
-      message="Yakin mau hapus transaksi ini? Tindakan ini tidak bisa dibatalkan." confirm-text="Hapus"
-      cancel-text="Batal" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
+    <ConfirmModal :is-open="showDeleteConfirm" :title="t('home.deleteTransaction')"
+      :message="t('home.deleteTransactionConfirm')" :confirm-text="t('common.delete')"
+      :cancel-text="t('common.cancel')" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
       @close="showDeleteConfirm = false" />
 
     <!-- Transaction Success Notification -->
@@ -527,13 +534,13 @@ function confirmDelete() {
                   : 'text-red-800 dark:text-red-300',
               ]">
                 <span v-if="(newTransaction as any).source === 'scanner' && (newTransaction as any).count">
-                  {{ (newTransaction as any).count }} Transaksi Berhasil Ditambahkan dari Scanner!
+                  {{ t('home.transactionsAddedFromScanner', { count: (newTransaction as any).count }) }}
                 </span>
                 <span v-else-if="(newTransaction as any).source === 'scanner'">
-                  Transaksi Berhasil Ditambahkan dari Scanner!
+                  {{ t('home.transactionAddedFromScanner') }}
                 </span>
                 <span v-else>
-                  Transaksi {{ newTransaction.type === 'income' ? 'Income' : 'Expense' }} Berhasil Ditambahkan!
+                  {{ newTransaction.type === 'income' ? t('home.transactionAddedIncome') : t('home.transactionAddedExpense') }}
                 </span>
               </h3>
               <button @click="closeNotification" :class="[
@@ -561,7 +568,7 @@ function confirmDelete() {
                 <span v-if="(newTransaction as any).source === 'scanner'" class="flex items-center gap-1">
                   <span>•</span>
                   <font-awesome-icon :icon="['fas', 'camera']" class="h-3 w-3" />
-                  <span>Scanner</span>
+                  <span>{{ t('home.scanner') }}</span>
                 </span>
               </div>
             </div>

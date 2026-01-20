@@ -8,6 +8,9 @@ import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
 import TextInputModal from '@/components/transactions/TextInputModal.vue'
 import type { TransactionFormData } from '@/types/transaction'
 import { useTransactions } from '@/composables/useTransactions'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   isOpen: boolean
@@ -152,10 +155,10 @@ function handleTextInputSubmit() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" title="Tambah Transaksi" size="md" @close="handleClose">
+  <BaseModal :is-open="isOpen" :title="t('transaction.addTransaction')" size="md" @close="handleClose">
     <div class="space-y-4 py-2">
       <p class="text-sm text-slate-600 dark:text-slate-400">
-        Pilih cara untuk menambahkan transaksi baru
+        {{ t('transaction.addTransactionDesc') }}
       </p>
 
       <div class="space-y-3">
@@ -166,8 +169,8 @@ function handleTextInputSubmit() {
               <font-awesome-icon :icon="['fas', 'edit']" class="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div class="flex-1">
-              <h3 class="font-semibold text-slate-900 dark:text-slate-100">Tambah via Form</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">Masukkan detail transaksi secara manual</p>
+              <h3 class="font-semibold text-slate-900 dark:text-slate-100">{{ t('transaction.addViaForm') }}</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('transaction.addViaFormDesc') }}</p>
             </div>
             <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
           </button>
@@ -180,8 +183,8 @@ function handleTextInputSubmit() {
               <font-awesome-icon :icon="['fas', 'camera']" class="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div class="flex-1">
-              <h3 class="font-semibold text-slate-900 dark:text-slate-100">Scan Receipt</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">Ekstrak otomatis dari struk</p>
+              <h3 class="font-semibold text-slate-900 dark:text-slate-100">{{ t('transaction.scanReceipt') }}</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('transaction.scanReceiptDesc') }}</p>
             </div>
             <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
           </button>
@@ -194,8 +197,8 @@ function handleTextInputSubmit() {
               <font-awesome-icon :icon="['fas', 'keyboard']" class="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div class="flex-1">
-              <h3 class="font-semibold text-slate-900 dark:text-slate-100">Input Teks</h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">Ketik transaksi dalam bahasa natural</p>
+              <h3 class="font-semibold text-slate-900 dark:text-slate-100">{{ t('transaction.textInput') }}</h3>
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('transaction.textInputDesc') }}</p>
             </div>
             <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
           </button>
@@ -205,7 +208,7 @@ function handleTextInputSubmit() {
 
     <template #footer>
       <div class="flex justify-end">
-        <BaseButton variant="secondary" @click="handleClose">Batal</BaseButton>
+        <BaseButton variant="secondary" @click="handleClose">{{ t('common.cancel') }}</BaseButton>
       </div>
     </template>
 

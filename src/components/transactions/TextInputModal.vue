@@ -10,6 +10,9 @@ import type { TransactionFormData } from '@/types/transaction'
 import { useTransactions } from '@/composables/useTransactions'
 import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
+import { useI18n } from 'vue-i18n'
+
+const { t, locale } = useI18n()
 
 interface Props {
   isOpen: boolean
@@ -37,16 +40,29 @@ const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-
-const exampleTexts = [
-  'Beli bakso hari ini 20 ribu',
-  'Gaji masuk 5 juta',
-  'Bayar tagihan listrik kemarin 500rb',
-  'Ngopi pagi ini 15k',
-  'Transfer masuk dari bank 2 juta',
-  'Beli dispenser 1 juta 520 ribu',
-  'Belanja bulanan 2 juta 300 ribu',
-]
+const exampleTexts = computed(() => {
+  if (locale.value === 'id') {
+    return [
+      'Beli bakso hari ini 20 ribu',
+      'Gaji masuk 5 juta',
+      'Bayar tagihan listrik kemarin 500rb',
+      'Ngopi pagi ini 15k',
+      'Transfer masuk dari bank 2 juta',
+      'Beli dispenser 1 juta 520 ribu',
+      'Belanja bulanan 2 juta 300 ribu',
+    ]
+  } else {
+    return [
+      'Buy lunch today 20 thousand',
+      'Salary received 5 million',
+      'Pay electricity bill yesterday 500k',
+      'Coffee this morning 15k',
+      'Bank transfer received 2 million',
+      'Buy dispenser 1 million 520 thousand',
+      'Monthly shopping 2 million 300 thousand',
+    ]
+  }
+})
 
 function handleInput() {
   // Clear previous result when user types
@@ -63,7 +79,7 @@ function handleParse() {
 
   // Check license/usage limit
   if (!tokenStore.canUseTextInput()) {
-    limitError.value = `Text input limit reached (${tokenStore.MAX_BASIC_USAGE} uses per day). Activate a license to unlock unlimited text input.`
+    limitError.value = t('textInput.limitReached', { max: tokenStore.MAX_BASIC_USAGE })
     return
   }
 
@@ -261,7 +277,7 @@ function handleExampleClick(example: string) {
 function handleClose() {
   // CRITICAL: When closing modal, completely reset all state
   // This ensures no data persists or gets auto-saved
-  
+
   inputText.value = ''
   parseResult.value = null
   showPreview.value = false
@@ -322,10 +338,10 @@ const hasLowConfidenceFields = computed(() => {
 })
 
 const confidenceLabels = {
-  high: 'Tinggi',
-  medium: 'Sedang',
-  low: 'Rendah',
-  none: 'Tidak terdeteksi',
+  high: t('textInput.confidenceHigh'),
+  medium: t('textInput.confidenceMedium'),
+  low: t('textInput.confidenceLow'),
+  none: t('textInput.confidenceNone'),
 }
 
 const confidenceColors = {
@@ -342,7 +358,8 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="showPreview ? 'Preview Transaksi' : 'Input Teks'" size="md" @close="handleClose">
+  <BaseModal :is-open="isOpen" :title="showPreview ? t('textInput.previewTitle') : t('textInput.title')" size="md"
+    @close="handleClose">
     <div class="space-y-4 py-2">
       <!-- Input Section -->
       <div v-if="!showPreview" class="space-y-4">
@@ -354,13 +371,14 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
             <div class="flex-1">
               <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
-                Basic Account Limit
+                {{ t('textInput.basicAccountLimit') }}
               </p>
               <p class="text-xs text-amber-700 dark:text-amber-400">
-                You have {{ tokenStore.getRemainingUsage('text') }} of {{ tokenStore.MAX_BASIC_USAGE }} uses remaining
-                today.
-                <button @click="router.push('/profile')" class="underline font-medium">Activate license</button> for
-                unlimited text input.
+                {{ t('textInput.basicAccountLimitDesc', {
+                  remaining: tokenStore.getRemainingUsage('text'), max:
+                    tokenStore.MAX_BASIC_USAGE }) }}
+                <button @click="router.push('/profile')" class="underline font-medium">{{ t('textInput.activateLicense')
+                  }}</button> {{ t('textInput.activateLicenseForUnlimited') }}
               </p>
             </div>
           </div>
@@ -382,7 +400,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                 <font-awesome-icon :icon="['fas', 'lightbulb']" class="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <p class="text-sm font-medium text-blue-900 dark:text-blue-200">
-                Cara Menggunakan
+                {{ t('textInput.howToUse') }}
               </p>
             </div>
             <font-awesome-icon :icon="['fas', showUsageGuide ? 'chevron-up' : 'chevron-down']"
@@ -393,8 +411,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             leave-from-class="opacity-100 max-h-32" leave-to-class="opacity-0 max-h-0">
             <div v-show="showUsageGuide" class="px-4 pb-4 pt-0 overflow-hidden">
               <p class="text-xs text-blue-700 dark:text-blue-300">
-                Ketik transaksi dalam bahasa natural, seperti "Beli bakso hari ini 20 ribu" atau "Gaji masuk 5 juta".
-                Aplikasi akan otomatis mengisi form untuk Anda.
+                {{ t('textInput.howToUseDesc') }}
               </p>
             </div>
           </Transition>
@@ -403,16 +420,16 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
         <!-- Input Field - Enhanced UI/UX -->
         <div class="space-y-2">
           <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">
-            Masukkan Transaksi
+            {{ t('textInput.enterTransaction') }}
           </label>
           <div class="relative">
-            <textarea ref="textareaRef" v-model="inputText"
-              placeholder="Contoh: Beli bakso hari ini 20 ribu atau Gaji masuk 5 juta" rows="8"
+            <textarea ref="textareaRef" v-model="inputText" :placeholder="t('textInput.enterTransactionPlaceholder')"
+              rows="8"
               class="w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:ring-brand/20 resize-none shadow-sm focus:shadow-md"
               @input="handleInput" @keydown.ctrl.enter.exact.prevent="handleParse"
               @keydown.meta.enter.exact.prevent="handleParse" />
             <div v-if="inputText.trim()" class="absolute bottom-2 right-2 text-xs text-slate-400 dark:text-slate-500">
-              {{ inputText.length }} karakter
+              {{ inputText.length }} {{ t('textInput.characters') }}
             </div>
           </div>
           <!-- <p class="text-xs text-slate-500 dark:text-slate-400">
@@ -430,7 +447,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             <div class="flex items-center gap-2">
               <font-awesome-icon :icon="['fas', 'lightbulb']" class="h-4 w-4 text-slate-500 dark:text-slate-400" />
               <p class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Lihat Contoh
+                {{ t('textInput.seeExamples') }}
               </p>
             </div>
             <font-awesome-icon :icon="['fas', showExamples ? 'chevron-up' : 'chevron-down']"
@@ -463,7 +480,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-red-900 dark:text-red-200 mb-2">
-                Terjadi Kesalahan
+                {{ t('textInput.errors') }}
               </p>
               <ul class="space-y-1">
                 <li v-for="(error, index) in parseResult?.errors" :key="index"
@@ -485,10 +502,10 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <div class="flex-1 min-w-0 space-y-2">
                 <div>
                   <p class="text-sm font-medium text-green-900 dark:text-green-200 mb-1">
-                    Transaksi Berhasil Diparse!
+                    {{ t('textInput.parseSuccess') }}
                   </p>
                   <p class="text-xs text-green-700 dark:text-green-300">
-                    Periksa detail di bawah ini sebelum menyimpan.
+                    {{ t('textInput.parseSuccessDesc') }}
                   </p>
                 </div>
 
@@ -502,13 +519,13 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                       <font-awesome-icon :icon="['fas', showWarnings ? 'chevron-down' : 'chevron-right']"
                         class="h-3 w-3 transition-transform" />
                       <span v-if="hasWarnings && hasLowConfidenceFields">
-                        Peringatan & Info ({{ parseResult?.warnings?.length || 0 }})
+                        {{ t('textInput.warningsAndInfo') }} ({{ parseResult?.warnings?.length || 0 }})
                       </span>
                       <span v-else-if="hasWarnings">
-                        Peringatan ({{ parseResult?.warnings?.length || 0 }})
+                        {{ t('textInput.warningsCount', { count: parseResult?.warnings?.length || 0 }) }}
                       </span>
                       <span v-else>
-                        Info Keyakinan Rendah
+                        {{ t('textInput.lowConfidenceInfo') }}
                       </span>
                     </span>
                   </button>
@@ -524,7 +541,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                         <p
                           class="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1.5 flex items-center gap-1.5">
                           <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="h-3.5 w-3.5" />
-                          Peringatan:
+                          {{ t('textInput.warnings') }}:
                         </p>
                         <ul class="space-y-1 ml-5">
                           <li v-for="(warning, index) in parseResult?.warnings" :key="index"
@@ -538,11 +555,10 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                       <div v-if="hasLowConfidenceFields" class="text-xs">
                         <p class="font-medium text-orange-800 dark:text-orange-200 mb-1 flex items-center gap-1.5">
                           <font-awesome-icon :icon="['fas', 'info-circle']" class="h-3.5 w-3.5" />
-                          Beberapa field memiliki keyakinan rendah
+                          {{ t('textInput.lowConfidenceFields') }}
                         </p>
                         <p class="text-orange-700 dark:text-orange-300 ml-5">
-                          Disarankan untuk menggunakan tombol "Edit" untuk memverifikasi dan memperbaiki data sebelum
-                          menyimpan.
+                          {{ t('textInput.lowConfidenceDesc') }}
                         </p>
                       </div>
                     </div>
@@ -556,13 +572,13 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
           <BaseCard>
             <div class="space-y-4">
               <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
-                Detail Transaksi
+                {{ t('textInput.transactionDetails') }}
               </h4>
 
               <!-- Type -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Tipe
+                  {{ t('textInput.type') }}
                   <span v-if="getFieldStatus('type') === 'low' || getFieldStatus('type') === 'none'"
                     class="ml-1 text-orange-600 dark:text-orange-400">
                     ⚠️
@@ -576,7 +592,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                       : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
                     (getFieldStatus('type') === 'low' || getFieldStatus('type') === 'none') && 'ring-2 ring-orange-300 dark:ring-orange-700',
                   ]">
-                    {{ parseResult.data.type === 'income' ? 'Income' : 'Expense' }}
+                    {{ parseResult.data.type === 'income' ? t('textInput.income') : t('textInput.expense') }}
                   </span>
                   <span :class="['text-xs', confidenceColors[getFieldStatus('type')]]">
                     ({{ confidenceLabels[getFieldStatus('type')] }})
@@ -587,7 +603,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <!-- Amount -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Jumlah
+                  {{ t('textInput.amount') }}
                   <span v-if="getFieldStatus('amount') === 'low' || getFieldStatus('amount') === 'none'"
                     class="ml-1 text-orange-600 dark:text-orange-400">
                     ⚠️
@@ -609,7 +625,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <!-- Description -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Deskripsi
+                  {{ t('textInput.description') }}
                 </p>
                 <p class="text-sm text-slate-900 dark:text-slate-100">
                   {{ parseResult.data.description || '-' }}
@@ -619,7 +635,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <!-- Category -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Kategori
+                  {{ t('textInput.category') }}
                   <span v-if="getFieldStatus('category') === 'low' || getFieldStatus('category') === 'none'"
                     class="ml-1 text-orange-600 dark:text-orange-400">
                     ⚠️
@@ -641,7 +657,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <!-- Date -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Tanggal
+                  {{ t('textInput.date') }}
                   <span v-if="getFieldStatus('date') === 'low' || getFieldStatus('date') === 'none'"
                     class="ml-1 text-orange-600 dark:text-orange-400">
                     ⚠️
@@ -654,7 +670,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                   ]">
                     {{
                       parseResult.data.date
-                        ? new Date(parseResult.data.date).toLocaleDateString('id-ID', {
+                        ? new Date(parseResult.data.date).toLocaleDateString(locale.value === 'id' ? 'id-ID' : 'en-US', {
                           day: 'numeric',
                           month: 'long',
                           year: 'numeric',
@@ -676,16 +692,16 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
 
               <BaseButton variant="secondary" @click="handleEdit" class="w-full">
                 <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
-                Edit
+                {{ t('textInput.edit') }}
               </BaseButton>
               <BaseButton @click="handleSubmit" :disabled="!canSubmit" :loading="isSubmitting" class="w-full" size="lg">
                 <font-awesome-icon :icon="['fas', 'check']" class="mr-2" />
-                Simpan
+                {{ t('textInput.save') }}
               </BaseButton>
             </div>
             <BaseButton variant="danger" @click="handleCancel" class="w-full">
               <font-awesome-icon :icon="['fas', 'times']" class="mr-2" />
-              Batal
+              {{ t('textInput.cancel') }}
             </BaseButton>
           </div>
         </div>
@@ -694,15 +710,14 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
         <div v-else class="space-y-4">
           <div class="rounded-lg bg-slate-100 dark:bg-slate-800/50 p-4 text-center">
             <p class="text-sm text-slate-700 dark:text-slate-300 mb-2">
-              Tidak dapat memparse teks dengan baik. Silakan coba lagi dengan format yang lebih jelas.
+              {{ t('textInput.parseFailed') }}
             </p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Pastikan teks mengandung jumlah (misalnya: "20 ribu", "Rp 20.000") dan jenis transaksi (misalnya: "beli",
-              "gaji").
+              {{ t('textInput.parseFailedDesc') }}
             </p>
             <BaseButton variant="secondary" @click="handleCancel" class="w-full">
               <font-awesome-icon :icon="['fas', 'redo']" class="mr-2" />
-              Coba Lagi
+              {{ t('textInput.tryAgain') }}
             </BaseButton>
           </div>
         </div>
@@ -714,11 +729,11 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
         <!-- Footer Buttons -->
         <div class="flex items-center justify-between gap-3">
           <BaseButton variant="secondary" @click="handleClose">
-            Tutup
+            {{ t('textInput.close') }}
           </BaseButton>
           <BaseButton @click="handleParse" :loading="isProcessing" :disabled="!inputText.trim()">
             <font-awesome-icon :icon="['fas', 'magic']" class="mr-2" />
-            Lanjutkan
+            {{ t('textInput.continue') }}
           </BaseButton>
         </div>
       </div>

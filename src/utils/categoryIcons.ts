@@ -3,26 +3,44 @@
  */
 
 // Mapping kategori expense (pengeluaran) ke emoji
+// Support both Indonesian and English category names
 const expenseCategoryIcons: Record<string, string> = {
-  Makanan: '🌭',
+  // Indonesian
+  Makanan: '🍽️',
   Transportasi: '🚗',
-  Belanja: '🛒',
-  Tagihan: '📄',
-  Hiburan: '🎬',
-  Kesehatan: '💊',
-  Investasi: '💰',
-  Invest: '💰',
+  Belanja: '🛍️',
+  Tagihan: '📋',
+  Hiburan: '🎮',
+  Kesehatan: '🏥',
+  Investasi: '📈',
+  Invest: '📈',
   Lainnya: '📦',
+  // English
+  Food: '🍽️',
+  Transportation: '🚗',
+  Shopping: '🛍️',
+  Bills: '📋',
+  Entertainment: '🎮',
+  Health: '🏥',
+  Investment: '📈',
+  Other: '📦',
 }
 
 // Mapping kategori income (pemasukan) ke emoji
+// Support both Indonesian and English category names
 const incomeCategoryIcons: Record<string, string> = {
+  // Indonesian
   Gaji: '💵',
   Freelance: '💼',
   Investasi: '💰',
   Invest: '💰',
   Hadiah: '🎁',
   Lainnya: '📦',
+  // English
+  Salary: '💵',
+  Investment: '💰',
+  Gift: '🎁',
+  Other: '📦',
 }
 
 /**
@@ -34,19 +52,53 @@ const incomeCategoryIcons: Record<string, string> = {
 export function getCategoryIcon(category: string, type: 'income' | 'expense'): string {
   const categoryIcons = type === 'income' ? incomeCategoryIcons : expenseCategoryIcons
   
+  // Trim whitespace
+  const trimmedCategory = category.trim()
+  
   // Cari exact match
-  if (categoryIcons[category]) {
-    return categoryIcons[category]
+  if (categoryIcons[trimmedCategory]) {
+    return categoryIcons[trimmedCategory]
   }
   
   // Case-insensitive search
-  const lowerCategory = category.toLowerCase()
+  const lowerCategory = trimmedCategory.toLowerCase()
   const matchedKey = Object.keys(categoryIcons).find(
     key => key.toLowerCase() === lowerCategory
   )
   
   if (matchedKey) {
     return categoryIcons[matchedKey]
+  }
+  
+  // Try to match common variations
+  const variations: Record<string, string> = {
+    // Expense variations
+    'food': '🍽️',
+    'makanan': '🍽️',
+    'transportation': '🚗',
+    'transportasi': '🚗',
+    'shopping': '🛍️',
+    'belanja': '🛍️',
+    'bills': '📋',
+    'tagihan': '📋',
+    'entertainment': '🎮',
+    'hiburan': '🎮',
+    'health': '🏥',
+    'kesehatan': '🏥',
+    'other': '📦',
+    'lainnya': '📦',
+    // Income variations
+    'salary': '💵',
+    'gaji': '💵',
+    'freelance': '💼',
+    'investment': '📈',
+    'investasi': '📈',
+    'gift': '🎁',
+    'hadiah': '🎁',
+  }
+  
+  if (variations[lowerCategory]) {
+    return variations[lowerCategory]
   }
   
   // Default icon berdasarkan type

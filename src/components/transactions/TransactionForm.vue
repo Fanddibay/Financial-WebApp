@@ -7,6 +7,9 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import CurrencyInput from '@/components/ui/CurrencyInput.vue'
 import { getCategoryWithIcon } from '@/utils/categoryIcons'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   modelValue: TransactionFormData
@@ -34,49 +37,69 @@ const formData = computed({
 
 const errors = ref<Partial<Record<keyof TransactionFormData, string>>>({})
 
-const typeOptions = [
-  { value: 'income', label: 'Income' },
-  { value: 'expense', label: 'Expense' },
-]
+const typeOptions = computed(() => [
+  { value: 'income', label: t('transaction.incomeLabel') },
+  { value: 'expense', label: t('transaction.expenseLabel') },
+])
 
 const categoryOptions = computed(() => {
-  const defaultCategories =
+  // Use consistent keys for default categories
+  const defaultCategoryKeys =
     props.modelValue.type === 'income'
-      ? ['Gaji', 'Freelance', 'Investasi', 'Hadiah', 'Lainnya']
-      : ['Makanan', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan', 'Kesehatan', 'Lainnya']
+      ? ['categorySalary', 'categoryFreelance', 'categoryInvestment', 'categoryGift', 'categoryOther']
+      : ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryOther']
+
+  // Map keys to translated labels
+  const defaultCategories = defaultCategoryKeys.map((key) => ({
+    key,
+    value: t(`transaction.${key}`),
+    label: getCategoryWithIcon(t(`transaction.${key}`), props.modelValue.type),
+  }))
+
+  // Get translated values for comparison
+  const defaultCategoryValues = defaultCategories.map((cat) => cat.value)
+  const defaultCategoryKeysLower = defaultCategoryKeys.map((k) => k.toLowerCase())
 
   // Filter custom categories untuk menghindari duplikasi dan kategori yang tidak sesuai
   const customCategories = props.categories
     .filter((cat) => {
-      // Exclude kategori yang sudah ada di default
-      if (defaultCategories.includes(cat)) return false
-      
+      // Exclude kategori yang sudah ada di default (check both translated and original)
+      if (defaultCategoryValues.includes(cat)) return false
+
+      // Check if category matches any default category key (case-insensitive)
+      const lowerCat = cat.toLowerCase().trim()
+      const catMatchesDefault = defaultCategoryKeysLower.some((key) => {
+        const translatedValue = t(`transaction.${key}`).toLowerCase()
+        return lowerCat === translatedValue || lowerCat === key.toLowerCase().replace('category', '')
+      })
+      if (catMatchesDefault) return false
+
       // Untuk expense, exclude "Gaji" (karena itu kategori income)
       if (props.modelValue.type === 'expense') {
-        const lowerCat = cat.toLowerCase().trim()
-        if (lowerCat === 'gaji' || lowerCat === 'salary') return false
-        
+        if (lowerCat === 'gaji' || lowerCat === 'salary' || lowerCat === t('transaction.categorySalary').toLowerCase()) return false
+
         // Exclude "Other" dan variasi lainnya jika sudah ada "Lainnya"
-        if (lowerCat === 'other' || lowerCat === 'lain-lain' || lowerCat === 'lain lain') return false
+        if (lowerCat === 'other' || lowerCat === 'lain-lain' || lowerCat === 'lain lain' || lowerCat === t('transaction.categoryOther').toLowerCase()) return false
       }
-      
+
       // Untuk income, exclude kategori expense yang tidak sesuai
       if (props.modelValue.type === 'income') {
-        const lowerCat = cat.toLowerCase().trim()
-        // Bisa tambahkan filter untuk income jika diperlukan
+        const expenseCategories = ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth']
+        const expenseValues = expenseCategories.map((k) => t(`transaction.${k}`).toLowerCase())
+        if (expenseValues.includes(lowerCat)) return false
       }
-      
+
       return true
     })
-    .map((cat) => ({ 
-      value: cat, 
-      label: getCategoryWithIcon(cat, props.modelValue.type) 
+    .map((cat) => ({
+      value: cat,
+      label: getCategoryWithIcon(cat, props.modelValue.type)
     }))
 
   return [
-    ...defaultCategories.map((cat) => ({ 
-      value: cat, 
-      label: getCategoryWithIcon(cat, props.modelValue.type) 
+    ...defaultCategories.map((cat) => ({
+      value: cat.value,
+      label: cat.label
     })),
     ...customCategories,
   ]
@@ -101,21 +124,21 @@ function validate(): boolean {
   errors.value = {}
 
   if (!formData.value.description.trim()) {
-    errors.value.description = 'Deskripsi wajib diisi'
+    errors.value.description = t('transaction.descriptionRequired')
   }
 
   if (formData.value.amount <= 0) {
-    errors.value.amount = 'Jumlah harus lebih dari 0'
+    errors.value.amount = t('transaction.amountRequired')
   }
 
   if (!formData.value.category) {
-    errors.value.category = 'Kategori wajib dipilih'
+    errors.value.category = t('transaction.categoryRequired')
   }
 
   if (!formData.value.date) {
-    errors.value.date = 'Tanggal wajib diisi'
+    errors.value.date = t('transaction.dateRequired')
   } else if (isDateInFuture(formData.value.date)) {
-    errors.value.date = 'Tanggal tidak boleh di masa depan. Silakan pilih tanggal hari ini atau sebelumnya.'
+    errors.value.date = t('transaction.dateFutureError')
   }
 
   return Object.keys(errors.value).length === 0
@@ -130,20 +153,22 @@ function handleSubmit() {
 
 <template>
   <form class="space-y-4" @submit.prevent="handleSubmit">
-    <BaseSelect v-model="formData.type" label="Tipe" :options="typeOptions" :error="errors.type" />
+    <BaseSelect v-model="formData.type" :label="t('transaction.type')" :options="typeOptions" :error="errors.type" />
 
-    <BaseInput v-model="formData.description" label="Deskripsi" :error="errors.description"
-      placeholder="Contoh: Beli makan siang" />
+    <BaseInput v-model="formData.description" :label="t('transaction.description')" :error="errors.description"
+      :placeholder="t('transaction.descriptionPlaceholder')" />
 
-    <CurrencyInput type="tel" v-model="formData.amount" label="Jumlah" :error="errors.amount" />
+    <CurrencyInput type="tel" v-model="formData.amount" :label="t('transaction.amount')" :error="errors.amount" />
 
-    <BaseSelect v-model="formData.category" label="Kategori" :options="categoryOptions" :error="errors.category" />
+    <BaseSelect v-model="formData.category" :label="t('transaction.category')" :options="categoryOptions"
+      :error="errors.category" />
 
-    <BaseDatePicker v-model="formData.date" label="Tanggal" :error="errors.date" :max-date="getTodayDateString()" />
+    <BaseDatePicker v-model="formData.date" :label="t('transaction.date')" :error="errors.date"
+      :max-date="getTodayDateString()" />
 
     <div v-if="!hideActions" class="flex justify-end gap-3 pt-4">
       <slot name="actions">
-        <BaseButton type="submit" :loading="loading"> Simpan </BaseButton>
+        <BaseButton type="submit" :loading="loading"> {{ t('common.save') }} </BaseButton>
       </slot>
     </div>
   </form>

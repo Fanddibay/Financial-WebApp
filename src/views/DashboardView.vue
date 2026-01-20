@@ -9,6 +9,9 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportSummaryToPDF } from '@/utils/export'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 type FilterType = 'all' | 'income' | 'expense'
 type ChartType = 'bar' | 'line' | 'doughnut'
@@ -43,29 +46,29 @@ function handleExportSummary() {
   exportSummaryToPDF(summary.value, filename)
 }
 
-const filterOptions = [
-  { value: 'all', label: 'All' },
-  { value: 'income', label: 'Income' },
-  { value: 'expense', label: 'Expense' },
-]
+const filterOptions = computed(() => [
+  { value: 'all', label: t('common.all') },
+  { value: 'income', label: t('transaction.incomeLabel') },
+  { value: 'expense', label: t('transaction.expenseLabel') },
+])
 
-const chartTypeOptions = [
-  { value: 'bar', label: 'Bar Chart' },
-  { value: 'line', label: 'Line Chart' },
-  { value: 'doughnut', label: 'Doughnut Chart' },
-]
+const chartTypeOptions = computed(() => [
+  { value: 'bar', label: t('dashboard.barChart') },
+  { value: 'line', label: t('dashboard.lineChart') },
+  { value: 'doughnut', label: t('dashboard.doughnutChart') },
+])
 </script>
 
 <template>
   <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Dashboard</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400">Pantau kesehatan keuangan kamu</p>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('dashboard.title') }}</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('dashboard.subtitle') }}</p>
       </div>
       <BaseButton variant="secondary" size="sm" @click="handleExportSummary">
         <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
-        Export
+        {{ t('dashboard.export') }}
       </BaseButton>
     </div>
 
@@ -75,20 +78,20 @@ const chartTypeOptions = [
       <template #header>
         <div class="sm:items-center sm:justify-between">
           <h2 class="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">
-            {{ filterType === 'all' ? 'Perbandingan Income & Expense' : 'Rincian Kategori' }}
+            {{ filterType === 'all' ? t('dashboard.comparisonTitle') : t('dashboard.categoryBreakdownTitle') }}
           </h2>
           <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <!-- Filter Dropdown with label -->
             <div class="w-full">
               <label class="block mb-1 text-xs font-medium text-slate-700 dark:text-slate-300" for="filterTypeSelect">
-                Pilih Jenis Transaksi
+                {{ t('dashboard.selectTransactionType') }}
               </label>
               <BaseSelect id="filterTypeSelect" v-model="filterType" :options="filterOptions" />
             </div>
             <!-- Chart Type Dropdown with label (only show when not 'all') -->
             <div v-if="filterType !== 'all'" class="w-full">
               <label class="block mb-1 text-xs font-medium text-slate-700 dark:text-slate-300" for="chartTypeSelect">
-                Tipe Chart
+                {{ t('dashboard.chartType') }}
               </label>
               <BaseSelect id="chartTypeSelect" v-model="chartType" :options="chartTypeOptions" />
             </div>
@@ -109,11 +112,11 @@ const chartTypeOptions = [
       <!-- Show empty state if no data -->
       <template v-else>
         <div class="py-12 text-center text-slate-500 dark:text-slate-400">
-          <p>Belum ada transaksi nih. Tambahkan transaksi dulu untuk lihat rinciannya!</p>
+          <p>{{ t('dashboard.noTransactions') }}</p>
           <router-link to="/transactions/new" class="mt-4 inline-block">
             <BaseButton>
               <font-awesome-icon :icon="['fas', 'plus']" class="mr-2" />
-              Tambah Transaksi
+              {{ t('dashboard.addTransaction') }}
             </BaseButton>
           </router-link>
         </div>

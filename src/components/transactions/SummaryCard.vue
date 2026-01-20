@@ -4,6 +4,9 @@ import type { TransactionSummary } from '@/types/transaction'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
     summary: TransactionSummary
@@ -32,9 +35,9 @@ const formattedBalance = computed(() => {
                     <font-awesome-icon :icon="['fas', 'arrow-up']" class="text-xl" />
                 </div>
                 <div>
-                    <p class="text-sm text-slate-600 dark:text-slate-400">Total Income</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.totalIncome') }}</p>
                     <p class="text-xl font-bold text-green-700 dark:text-green-400">{{ formattedIncome }}</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ summary.incomeCount }} transaksi</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ summary.incomeCount }} {{ t('dashboard.transactions') }}</p>
                 </div>
             </div>
         </BaseCard>
@@ -45,9 +48,9 @@ const formattedBalance = computed(() => {
                     <font-awesome-icon :icon="['fas', 'arrow-down']" class="text-xl" />
                 </div>
                 <div>
-                    <p class="text-sm text-slate-600 dark:text-slate-400">Total Expense</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.totalExpense') }}</p>
                     <p class="text-xl font-bold text-red-700 dark:text-red-400">{{ formattedExpenses }}</p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ summary.expenseCount }} transaksi</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ summary.expenseCount }} {{ t('dashboard.transactions') }}</p>
                 </div>
             </div>
         </BaseCard>
@@ -61,14 +64,14 @@ const formattedBalance = computed(() => {
                     <font-awesome-icon :icon="['fas', 'wallet']" class="text-xl" />
                 </div>
                 <div>
-                    <p class="text-sm text-slate-600 dark:text-slate-400">Saldo</p>
+                    <p class="text-sm text-slate-600 dark:text-slate-400">{{ t('dashboard.balance') }}</p>
                     <p :class="[
                         'text-xl font-bold',
                         summary.balance >= 0 ? 'text-blue-700 dark:text-blue-400' : 'text-orange-700 dark:text-orange-400',
                     ]">
                         {{ formattedBalance }}
                     </p>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">Jumlah bersih</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">{{ t('dashboard.netAmount') }}</p>
                 </div>
             </div>
         </BaseCard>

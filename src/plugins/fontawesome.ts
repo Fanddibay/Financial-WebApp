@@ -2,6 +2,7 @@ import type { App } from 'vue'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
+  faCircleInfo,
   faCopy,
   faSpinner,
   faKeyboard,
@@ -19,7 +20,6 @@ import {
   faChevronRight,
   faChevronUp,
   faChevronDown,
-  faCircleInfo,
   faComments,
   faDatabase,
   faEdit,
@@ -62,6 +62,7 @@ import {
 import { faVuejs } from '@fortawesome/free-brands-svg-icons'
 
 const icons = [
+  faCircleInfo,
   faCopy,
   faSpinner,
   faKeyboard,

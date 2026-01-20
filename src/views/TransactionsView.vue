@@ -14,7 +14,9 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportToXLSX, exportToPDF } from '@/utils/export'
 import type { TransactionFormData, TransactionType } from '@/types/transaction'
 import { getCategoryWithIcon } from '@/utils/categoryIcons'
+import { useI18n } from 'vue-i18n'
 
+const { t, locale } = useI18n()
 const router = useRouter()
 const toastStore = useToastStore()
 const {
@@ -42,14 +44,14 @@ const dateFilterType = ref<DateFilterType>('none')
 const customStartDate = ref('')
 const customEndDate = ref('')
 
-const typeOptions = [
-  { value: 'all', label: 'Semua' },
-  { value: 'income', label: 'Income' },
-  { value: 'expense', label: 'Expense' },
-]
+const typeOptions = computed(() => [
+  { value: 'all', label: t('common.all') },
+  { value: 'income', label: t('transaction.incomeLabel') },
+  { value: 'expense', label: t('transaction.expenseLabel') },
+])
 
 const categoryOptions = computed(() => {
-  const baseOptions = [{ value: '', label: 'Semua Kategori' }]
+  const baseOptions = [{ value: '', label: t('common.allCategories') }]
 
   if (filterType.value === 'all') {
     // Get unique categories from all transactions with their types
@@ -60,7 +62,7 @@ const categoryOptions = computed(() => {
         categoryMap.set(t.category, t.type)
       }
     })
-    
+
     // Normalize categories - replace "Other" with "Lainnya" if exists
     const normalizedCategories = Array.from(categoryMap.entries())
       .filter(([cat]) => {
@@ -73,12 +75,12 @@ const categoryOptions = computed(() => {
         const normalizedCat = cat.toLowerCase().trim() === 'other' ? 'Lainnya' : cat
         return [normalizedCat, type] as [string, 'income' | 'expense']
       })
-    
+
     return [
       ...baseOptions,
-      ...normalizedCategories.map(([cat, type]) => ({ 
-        value: cat, 
-        label: getCategoryWithIcon(cat, type) 
+      ...normalizedCategories.map(([cat, type]) => ({
+        value: cat,
+        label: getCategoryWithIcon(cat, type)
       })),
     ]
   } else if (filterType.value === 'income') {
@@ -93,9 +95,9 @@ const categoryOptions = computed(() => {
       })
     return [
       ...baseOptions,
-      ...Array.from(incomeCategories).map((cat) => ({ 
-        value: cat, 
-        label: getCategoryWithIcon(cat, 'income') 
+      ...Array.from(incomeCategories).map((cat) => ({
+        value: cat,
+        label: getCategoryWithIcon(cat, 'income')
       })),
     ]
   } else {
@@ -113,9 +115,9 @@ const categoryOptions = computed(() => {
       })
     return [
       ...baseOptions,
-      ...Array.from(expenseCategories).map((cat) => ({ 
-        value: cat, 
-        label: getCategoryWithIcon(cat, 'expense') 
+      ...Array.from(expenseCategories).map((cat) => ({
+        value: cat,
+        label: getCategoryWithIcon(cat, 'expense')
       })),
     ]
   }
@@ -212,20 +214,21 @@ const activeFiltersCount = computed(() => {
 const dateFilterLabel = computed(() => {
   switch (dateFilterType.value) {
     case 'today':
-      return 'Today'
+      return t('transactions.today')
     case 'last7days':
-      return 'Last 7 Days'
+      return t('transactions.last7Days')
     case 'last30days':
-      return 'Last 30 Days'
+      return t('transactions.last30Days')
     case 'custom':
       if (customStartDate.value && customEndDate.value) {
-        const start = new Date(customStartDate.value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        const end = new Date(customEndDate.value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        const dateLocale = locale.value === 'id' ? 'id-ID' : 'en-US'
+        const start = new Date(customStartDate.value).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
+        const end = new Date(customEndDate.value).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
         return `${start} - ${end}`
       }
-      return 'Custom Range'
+      return t('transactions.customRange')
     default:
-      return 'Date Range'
+      return t('transactions.dateRange')
   }
 })
 
@@ -280,10 +283,10 @@ async function confirmDelete() {
     try {
       await deleteTransaction(idToDelete)
       await nextTick()
-      toastStore.success('Transaksi berhasil dihapus!')
+      toastStore.success(t('transactions.deleteSuccess'))
     } catch (error) {
       console.error('Error deleting transaction:', error)
-      toastStore.error('Gagal menghapus transaksi. Silakan coba lagi.')
+      toastStore.error(t('transactions.deleteFailed'))
     }
   }
 }
@@ -336,8 +339,8 @@ onUnmounted(() => {
   <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Riwayat Transaksi</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400">Cari dan filter riwayat transaksi kamu</p>
+        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('transactions.title') }}</h1>
+        <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('transactions.subtitle') }}</p>
       </div>
       <!-- <div class="flex items-center gap-2">
         <BaseButton size="sm" variant="secondary" @click="showScanner = true">
@@ -356,13 +359,13 @@ onUnmounted(() => {
         <div class="relative">
           <font-awesome-icon :icon="['fas', 'search']"
             class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input v-model="searchQuery" type="text" placeholder="Cari transaksi..."
+          <input v-model="searchQuery" type="text" :placeholder="t('transactions.searchPlaceholder')"
             class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 py-2 pl-10 pr-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500" />
         </div>
         <div class="space-y-3">
           <BaseButton variant="secondary" class="w-full" @click="showFilterSection = !showFilterSection">
             <font-awesome-icon :icon="['fas', 'filter']" class="mr-2" />
-            Filter
+            {{ t('transactions.filter') }}
             <span v-if="activeFiltersCount > 0"
               class="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">
               {{ activeFiltersCount }}
@@ -379,7 +382,7 @@ onUnmounted(() => {
               <!-- Type Filter -->
               <div class="space-y-2">
                 <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Tipe Transaksi
+                  {{ t('transactions.transactionType') }}
                 </label>
                 <BaseSelect v-model="filterType" :options="typeOptions" />
               </div>
@@ -387,7 +390,7 @@ onUnmounted(() => {
               <!-- Category Filter -->
               <div class="space-y-2">
                 <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Kategori
+                  {{ t('transactions.category') }}
                 </label>
                 <BaseSelect v-model="filterCategory" :options="categoryOptions" />
               </div>
@@ -396,7 +399,7 @@ onUnmounted(() => {
               <div v-if="activeFiltersCount > 0" class="pt-2 border-t border-slate-200 dark:border-slate-700">
                 <BaseButton variant="ghost" size="sm" class="w-full" @click="resetFilters">
                   <font-awesome-icon :icon="['fas', 'redo']" class="mr-2" />
-                  Clear All Filters
+                  {{ t('transactions.clearAllFilters') }}
                 </BaseButton>
               </div>
             </div>
@@ -406,7 +409,7 @@ onUnmounted(() => {
         <!-- Date Filter Section (Always Visible) -->
         <div class="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
           <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Periode Waktu
+            {{ t('transactions.timePeriod') }}
           </label>
 
           <!-- Quick Date Filters -->
@@ -417,7 +420,7 @@ onUnmounted(() => {
                 ? 'bg-brand text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             ]">
-              Hari ini
+              {{ t('transactions.today') }}
             </button>
             <button type="button" @click="setDateFilter('last7days')" :class="[
               'rounded-lg px-3 py-2 text-xs font-medium transition',
@@ -425,7 +428,7 @@ onUnmounted(() => {
                 ? 'bg-brand text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             ]">
-              7 Hari
+              {{ t('transactions.last7Days') }}
             </button>
             <button type="button" @click="setDateFilter('last30days')" :class="[
               'rounded-lg px-3 py-2 text-xs font-medium transition',
@@ -433,7 +436,7 @@ onUnmounted(() => {
                 ? 'bg-brand text-white'
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             ]">
-              30 Hari
+              {{ t('transactions.last30Days') }}
             </button>
           </div>
 
@@ -446,15 +449,17 @@ onUnmounted(() => {
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
             ]">
               <font-awesome-icon :icon="['fas', 'calendar-days']" class="mr-2" />
-              Rentang Waktu
+              {{ t('transactions.customRange') }}
             </button>
 
             <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
               enter-to-class="opacity-100 max-h-[200px]" leave-active-class="transition-all duration-200 ease-in"
               leave-from-class="opacity-100 max-h-[200px]" leave-to-class="opacity-0 max-h-0">
               <div v-if="dateFilterType === 'custom'" class="overflow-hidden space-y-3 pt-2">
-                <BaseDatePicker v-model="customStartDate" label="Start Date" :max-date="customEndDate || undefined" />
-                <BaseDatePicker v-model="customEndDate" label="End Date" :min-date="customStartDate || undefined" />
+                <BaseDatePicker v-model="customStartDate" :label="t('transactions.startDate')"
+                  :max-date="customEndDate || undefined" />
+                <BaseDatePicker v-model="customEndDate" :label="t('transactions.endDate')"
+                  :min-date="customStartDate || undefined" />
               </div>
             </Transition>
           </div>
@@ -480,11 +485,11 @@ onUnmounted(() => {
     <div class="flex gap-2">
       <BaseButton variant="secondary" size="sm" class="flex-1" @click="handleExportXLSX">
         <font-awesome-icon :icon="['fas', 'file-excel']" class="mr-2" />
-        Excel
+        {{ t('transactions.exportExcel') }}
       </BaseButton>
       <BaseButton variant="secondary" size="sm" class="flex-1" @click="handleExportPDF">
         <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
-        PDF
+        {{ t('transactions.exportPDF') }}
       </BaseButton>
     </div>
 
@@ -492,8 +497,8 @@ onUnmounted(() => {
       <p>
         {{
           searchQuery || filterCategory || filterType !== 'all' || dateFilterType !== 'none'
-            ? 'Tidak ada transaksi yang sesuai dengan filter kamu.'
-            : 'Belum ada transaksi nih. Yuk tambahkan transaksi pertama kamu!'
+            ? t('transactions.noTransactionsFiltered')
+            : t('transactions.noTransactions')
         }}
       </p>
     </div>
@@ -507,9 +512,9 @@ onUnmounted(() => {
       @scan-complete="handleScanComplete" @scan-complete-multiple="handleScanCompleteMultiple" />
 
     <!-- Delete Confirmation Modal -->
-    <ConfirmModal :is-open="showDeleteConfirm" title="Hapus Transaksi"
-      message="Yakin mau hapus transaksi ini? Tindakan ini tidak bisa dibatalkan." confirm-text="Hapus"
-      cancel-text="Batal" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
+    <ConfirmModal :is-open="showDeleteConfirm" :title="t('transactions.deleteTransaction')"
+      :message="t('transactions.deleteTransactionConfirm')" :confirm-text="t('common.delete')"
+      :cancel-text="t('common.cancel')" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
       @close="showDeleteConfirm = false" />
 
     <!-- Scroll to Top Button -->

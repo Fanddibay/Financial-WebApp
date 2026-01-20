@@ -4,6 +4,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faHouse, faReceipt, faChartLine, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -44,7 +47,7 @@ function openAddModal() {
           : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
       ]" @click="navigate('/')">
         <font-awesome-icon :icon="faHouse" class="text-lg" />
-        <span class="text-xs font-medium">Beranda</span>
+        <span class="text-xs font-medium">{{ t('nav.home') }}</span>
       </button>
 
       <!-- Dashboard Button -->
@@ -55,7 +58,7 @@ function openAddModal() {
           : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
       ]" @click="navigate('/dashboard')">
         <font-awesome-icon :icon="faChartLine" class="text-lg" />
-        <span class="text-xs font-medium">Chart</span>
+        <span class="text-xs font-medium">{{ t('nav.dashboard') }}</span>
       </button>
 
       <!-- Add Button (Centered, Larger) -->
@@ -73,7 +76,7 @@ function openAddModal() {
           : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
       ]" @click="navigate('/transactions')">
         <font-awesome-icon :icon="faReceipt" class="text-lg" />
-        <span class="text-xs font-medium">Riwayat</span>
+        <span class="text-xs font-medium">{{ t('nav.transactions') }}</span>
       </button>
 
       <!-- Profile Button -->
@@ -84,7 +87,7 @@ function openAddModal() {
           : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
       ]" @click="navigate('/profile')">
         <font-awesome-icon :icon="faUser" class="text-lg" />
-        <span class="text-xs font-medium">Profil</span>
+        <span class="text-xs font-medium">{{ t('nav.profile') }}</span>
       </button>
     </div>
 

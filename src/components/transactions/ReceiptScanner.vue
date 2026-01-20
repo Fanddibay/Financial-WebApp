@@ -12,6 +12,9 @@ import { quickPreprocessImageForOCR } from '@/utils/imagePreprocessing'
 import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 interface Props {
   isOpen: boolean
@@ -111,7 +114,7 @@ function validateAndFixDate(dateString: string): { date: string; error: string |
   if (isDateInFuture(dateString)) {
     return {
       date: getTodayDateString(),
-      error: 'Tanggal yang terdeteksi dari struk adalah tanggal masa depan. Menggunakan tanggal hari ini sebagai gantinya.'
+      error: t('scanner.dateWarningDesc')
     }
   }
 
@@ -138,7 +141,7 @@ function handleCameraClick() {
 async function processImage(file: File) {
   // Check license/usage limit
   if (!tokenStore.canUseReceiptScan()) {
-    error.value = `Receipt scanning limit reached (${tokenStore.MAX_BASIC_USAGE} scans per day). Activate a license to unlock unlimited scans.`
+    error.value = t('scanner.limitReached', { max: tokenStore.MAX_BASIC_USAGE })
     errorType.value = 'limit-reached'
     return
   }
@@ -177,7 +180,7 @@ async function processImage(file: File) {
     // Only block if image is too small, allow blur/low-light to proceed
     if (preValidation.errorType === 'too-small') {
       validationFailed.value = true
-      error.value = preValidation.errorMessage || 'Gambar terlalu kecil untuk pemindaian.'
+      error.value = preValidation.errorMessage || t('scanner.imageTooSmall')
       errorType.value = preValidation.errorType
       processing.value = false
       return
@@ -221,7 +224,7 @@ async function processImage(file: File) {
     // Only fail if no numbers found at all (very strict)
     if (!postValidation.isValid && text.trim().length < 10) {
       validationFailed.value = true
-      error.value = postValidation.errorMessage || 'Tidak dapat membaca teks dari gambar. Pastikan foto jelas dan fokus pada struk.'
+      error.value = postValidation.errorMessage || t('scanner.cannotReadText')
       errorType.value = postValidation.errorType || 'no-text'
       processing.value = false
       return
@@ -231,7 +234,7 @@ async function processImage(file: File) {
     // Many receipts have mixed quality text, so we'll let the parser handle it
     if (confidence < 5 && text.trim().length < 20) {
       validationFailed.value = true
-      error.value = 'Teks pada gambar tidak terbaca dengan jelas. Silakan masukkan informasi secara manual atau coba ambil foto ulang.'
+      error.value = t('scanner.textNotClear')
       errorType.value = 'no-text'
       // Don't return - still show form for manual input
     }
@@ -307,13 +310,13 @@ async function processImage(file: File) {
 
       // Show warning but allow manual input
       validationFailed.value = true
-      error.value = 'Total pembayaran tidak terdeteksi otomatis. Silakan masukkan informasi secara manual.'
+      error.value = t('scanner.totalNotDetectedManual')
       errorType.value = 'not-receipt'
       showPreview.value = true // Show preview so user can see the image
     }
   } catch (err) {
     validationFailed.value = true
-    error.value = err instanceof Error ? err.message : 'Gagal memproses gambar. Pastikan tesseract.js terpasang dengan benar.'
+    error.value = err instanceof Error ? err.message : t('scanner.processingFailed')
     errorType.value = 'unknown'
     console.error('OCR Error:', err)
   } finally {
@@ -345,7 +348,7 @@ function handleSubmit() {
     }
 
     if (hasFutureDate) {
-      dateError.value = 'Beberapa transaksi memiliki tanggal masa depan. Tanggal telah diperbaiki menjadi hari ini.'
+      dateError.value = t('scanner.dateWarningMultiple')
     }
 
     if (validatedTransactions.length > 0) {
@@ -493,18 +496,23 @@ const detectionMessage = computed(() => {
   const { detectedAmount, confidenceLevel, sourceKeyword } = detailedResult.value
 
   if (detectedAmount === 0) {
-    return 'Total tidak terdeteksi. Silakan masukkan secara manual.'
+    return t('scanner.totalNotDetectedManual')
   }
 
   const confidenceText = {
-    high: 'Tinggi',
-    medium: 'Sedang',
-    low: 'Rendah',
+    high: t('scanner.confidenceHigh'),
+    medium: t('scanner.confidenceMedium'),
+    low: t('scanner.confidenceLow'),
   }[confidenceLevel]
 
   const keywordText = sourceKeyword ? ` (${sourceKeyword})` : ''
 
-  return `Total terdeteksi: ${formatIDR(detectedAmount)}${keywordText} - Keyakinan: ${confidenceText}`
+  // Build message manually since vue-i18n interpolation doesn't work well with formatted currency
+  const template = t('scanner.totalDetected')
+  return template
+    .replace('{{amount}}', formatIDR(detectedAmount))
+    .replace('{{keyword}}', keywordText)
+    .replace('{{confidence}}', confidenceText)
 })
 
 const hasItems = computed(() => {
@@ -532,7 +540,7 @@ const errorIcon = computed(() => {
 
 <template>
   <!-- Main Scanner Modal -->
-  <BaseModal :is-open="isOpen" title="Scan Receipt" size="lg" @close="handleClose">
+  <BaseModal :is-open="isOpen" :title="t('scanner.title')" size="lg" @close="handleClose">
     <div v-if="!showPreview" class="space-y-4">
       <!-- Usage Limit Warning -->
       <div v-if="!tokenStore.isLicenseActive"
@@ -542,13 +550,11 @@ const errorIcon = computed(() => {
             class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
           <div class="flex-1">
             <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
-              Basic Account Limit
+              {{ t('scanner.basicAccountLimit') }}
             </p>
             <p class="text-xs text-amber-700 dark:text-amber-400">
-              You have {{ tokenStore.getRemainingUsage('receipt') }} of {{ tokenStore.MAX_BASIC_USAGE }} scans remaining
-              today.
-              <button @click="router.push('/profile')" class="underline font-medium">Activate license</button> for
-              unlimited scans.
+              {{ t('scanner.basicAccountLimitDesc', { remaining: tokenStore.getRemainingUsage('receipt'), max: tokenStore.MAX_BASIC_USAGE }) }}
+              <button @click="router.push('/profile')" class="underline font-medium">{{ t('scanner.activateLicense') }}</button> {{ t('scanner.activateLicenseForUnlimited') }}
             </p>
           </div>
         </div>
@@ -556,7 +562,7 @@ const errorIcon = computed(() => {
 
       <div class="text-center">
         <p class="text-sm text-slate-600 dark:text-slate-400">
-          Take a photo or upload an image of your receipt to automatically extract transaction details
+          {{ t('scanner.takePhotoDesc') }}
         </p>
       </div>
 
@@ -574,7 +580,7 @@ const errorIcon = computed(() => {
                     fill="currentColor" />
                 </svg>
               </div>
-              <p class="text-sm font-medium">Processing receipt...</p>
+              <p class="text-sm font-medium">{{ t('scanner.processing') }}</p>
               <p class="mt-1 text-xs text-slate-300">{{ processingProgress }}%</p>
             </div>
           </div>
@@ -589,8 +595,8 @@ const errorIcon = computed(() => {
               <font-awesome-icon :icon="['fas', 'camera']" class="h-8 w-8" />
             </div>
             <div class="text-center">
-              <p class="font-medium text-slate-900 dark:text-slate-100">Take a Photo</p>
-              <p class="text-sm text-slate-500 dark:text-slate-400">Use your camera to capture the receipt</p>
+              <p class="font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhoto') }}</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('scanner.takePhotoSubtitle') }}</p>
             </div>
           </button>
         </BaseCard>
@@ -600,7 +606,7 @@ const errorIcon = computed(() => {
             <div class="w-full border-t border-slate-300 dark:border-slate-600"></div>
           </div>
           <div class="relative flex justify-center text-sm">
-            <span class="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">or</span>
+            <span class="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ t('scanner.or') }}</span>
           </div>
         </div>
 
@@ -611,8 +617,8 @@ const errorIcon = computed(() => {
               <font-awesome-icon :icon="['fas', 'upload']" class="h-8 w-8" />
             </div>
             <div class="text-center">
-              <p class="font-medium text-slate-900 dark:text-slate-100">Upload Image</p>
-              <p class="text-sm text-slate-500 dark:text-slate-400">Select an image from your device</p>
+              <p class="font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImage') }}</p>
+              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('scanner.uploadImageSubtitle') }}</p>
             </div>
             <input id="file-upload" type="file" accept="image/*" class="hidden" @change="handleFileSelect" />
           </label>
@@ -636,7 +642,7 @@ const errorIcon = computed(() => {
               <p class="font-medium mb-1" :class="validationFailed
                 ? 'text-red-800 dark:text-red-200'
                 : 'text-yellow-800 dark:text-yellow-200'">
-                {{ validationFailed ? 'Pemindaian Gagal' : 'Peringatan' }}
+                {{ validationFailed ? t('scanner.scanFailed') : t('scanner.warning') }}
               </p>
               <p class="text-sm" :class="validationFailed
                 ? 'text-red-700 dark:text-red-300'
@@ -652,10 +658,10 @@ const errorIcon = computed(() => {
           class="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-4">
           <div class="text-center mb-3">
             <p class="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-              Scan Ulang Struk
+              {{ t('scanner.rescanReceipt') }}
             </p>
             <p class="text-xs text-slate-600 dark:text-slate-400">
-              Coba ambil foto ulang atau upload gambar baru
+              {{ t('scanner.rescanReceiptDesc') }}
             </p>
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -664,14 +670,14 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">Ambil Foto</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton') }}</span>
             </button>
             <label for="file-upload-rescan"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm cursor-pointer">
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">Upload Gambar</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton') }}</span>
               <input id="file-upload-rescan" type="file" accept="image/*" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -695,7 +701,7 @@ const errorIcon = computed(() => {
           </div>
         </div>
         <p class="text-xs text-center text-slate-500 dark:text-slate-400 mt-1 px-2 pb-2">
-          Click image to view fullscreen
+          {{ t('scanner.clickImageFullscreen') }}
         </p>
       </div>
 
@@ -707,12 +713,12 @@ const errorIcon = computed(() => {
           : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
       ]">
         <p class="font-medium mb-1">
-          {{ detailedResult.detectedAmount > 0 ? '✓ Receipt scanned successfully!' : '⚠️ Total tidak terdeteksi' }}
+          {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') : t('scanner.totalNotDetected') }}
         </p>
         <p class="text-xs sm:text-sm">{{ detectionMessage }}</p>
         <div v-if="hasItems && !hasMultipleTransactions" class="mt-2">
           <BaseButton variant="secondary" size="sm" @click="showItemBreakdown = !showItemBreakdown" class="text-xs">
-            {{ showItemBreakdown ? 'Sembunyikan' : 'Lihat' }} Item Breakdown
+            {{ showItemBreakdown ? t('scanner.hideItemBreakdown') : t('scanner.viewItemBreakdown') }}
           </BaseButton>
         </div>
       </div>
@@ -726,7 +732,7 @@ const errorIcon = computed(() => {
             </div>
             <div class="flex-1 min-w-0">
               <p class="font-medium mb-1 text-red-800 dark:text-red-200">
-                Pemindaian Gagal
+                {{ t('scanner.scanFailed') }}
               </p>
               <p class="text-sm text-red-700 dark:text-red-300">
                 {{ error }}
@@ -740,10 +746,10 @@ const errorIcon = computed(() => {
           class="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800/50 p-4">
           <div class="text-center mb-3">
             <p class="text-sm font-medium text-slate-900 dark:text-slate-100 mb-1">
-              Scan Ulang Struk
+              {{ t('scanner.rescanReceipt') }}
             </p>
             <p class="text-xs text-slate-600 dark:text-slate-400">
-              Coba ambil foto ulang atau upload gambar baru untuk hasil yang lebih baik
+              {{ t('scanner.rescanReceiptDescPreview') }}
             </p>
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -752,14 +758,14 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">Ambil Foto</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton') }}</span>
             </button>
             <label for="file-upload-rescan-preview"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm active:scale-95 cursor-pointer">
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">Upload Gambar</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton') }}</span>
               <input id="file-upload-rescan-preview" type="file" accept="image/*" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -768,7 +774,7 @@ const errorIcon = computed(() => {
 
         <div class="rounded-lg bg-slate-100 dark:bg-slate-800/50 p-3">
           <p class="text-xs text-center text-slate-600 dark:text-slate-400">
-            Atau masukkan informasi transaksi secara manual di bawah ini
+            {{ t('scanner.manualInputDesc') }}
           </p>
         </div>
       </div>
@@ -777,14 +783,14 @@ const errorIcon = computed(() => {
       <div v-if="showItemBreakdown && detailedResult?.items && !hasMultipleTransactions && !validationFailed"
         class="space-y-2 flex-shrink-0">
         <BaseCard>
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Item Breakdown</h4>
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ t('scanner.itemBreakdown') }}</h4>
           <div class="space-y-2 max-h-48 overflow-y-auto">
             <div v-for="(item, index) in detailedResult.items" :key="index"
               class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
               <div class="flex-1 min-w-0 pr-2">
                 <p class="text-sm text-slate-900 dark:text-slate-100 truncate">{{ item.name }}</p>
                 <p v-if="item.quantity && item.quantity > 1" class="text-xs text-slate-500 dark:text-slate-400">
-                  Qty: {{ item.quantity }}x
+                  {{ t('scanner.quantity') }}: {{ item.quantity }}x
                 </p>
               </div>
               <p class="text-sm font-medium text-slate-900 dark:text-slate-100 whitespace-nowrap">
@@ -801,7 +807,7 @@ const errorIcon = computed(() => {
           <BaseCard v-for="(transaction, index) in multipleFormData" :key="index"
             class="border-2 border-slate-200 dark:border-slate-700">
             <div class="mb-2 flex items-center justify-between">
-              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Item {{ index + 1 }}</h4>
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('scanner.item') }} {{ index + 1 }}</h4>
             </div>
             <TransactionForm :model-value="transaction" :categories="categories" :hide-actions="true"
               @update:model-value="updateMultipleFormData(index, $event)" />
@@ -819,7 +825,7 @@ const errorIcon = computed(() => {
           </div>
           <div class="flex-1 min-w-0">
             <p class="font-medium mb-1 text-yellow-800 dark:text-yellow-200">
-              Peringatan Tanggal
+              {{ t('scanner.dateWarning') }}
             </p>
             <p class="text-sm text-yellow-700 dark:text-yellow-300">
               {{ dateError }}
@@ -839,13 +845,13 @@ const errorIcon = computed(() => {
     <template #footer>
       <div class="flex flex-wrap justify-end gap-2 sm:gap-3">
         <BaseButton variant="secondary" @click="handleClose" class="flex-1 sm:flex-none">
-          Cancel
+          {{ t('scanner.cancel') }}
         </BaseButton>
         <BaseButton v-if="showPreview" :disabled="hasMultipleTransactions
           ? multipleFormData.some((t) => !t.description.trim())
           : !formData.description.trim()
           " @click="handleSubmit" class="flex-1 sm:flex-none">
-          {{ hasMultipleTransactions ? `Submit ${multipleFormData.length} Item(s)` : 'Submit' }}
+          {{ hasMultipleTransactions ? t('scanner.submitMultiple', { count: multipleFormData.length }) : t('scanner.submit') }}
         </BaseButton>
       </div>
     </template>

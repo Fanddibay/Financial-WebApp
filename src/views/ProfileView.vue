@@ -7,21 +7,26 @@ import { useTokenStore } from '@/stores/token'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import BaseModal from '@/components/ui/BaseModal.vue'
 import ExportModal from '@/components/settings/ExportModal.vue'
 import ImportModal from '@/components/settings/ImportModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { importData } from '@/utils/dataExport'
 import { usePWAInstall } from '@/composables/usePWAInstall'
+import { useI18n } from 'vue-i18n'
+import { saveLanguage } from '@/i18n'
 
 const profileStore = useProfileStore()
 const themeStore = useThemeStore()
 const transactionStore = useTransactionStore()
 const tokenStore = useTokenStore()
 const { isInstallable, isInstalled, isInstalling, install } = usePWAInstall()
+const { t, locale } = useI18n()
 
 const isEditing = ref(false)
 const editName = ref(profileStore.profile.name)
+const isPWAInstallOpen = ref(false)
 
 // Export/Import modals
 const showExportModal = ref(false)
@@ -43,6 +48,7 @@ const licenseError = ref<string | null>(null)
 const isVerifyingLicense = ref(false)
 const showDeactivateConfirm = ref(false)
 const isDeactivating = ref(false)
+const showCheckoutOverlay = ref(false)
 
 async function handlePasteLicense() {
   try {
@@ -111,6 +117,28 @@ async function handleVerifyLicense() {
 
 async function handleDeactivateLicense() {
   showDeactivateConfirm.value = true
+}
+
+function handleOpenCheckout() {
+  showCheckoutOverlay.value = true
+  // Load Lemon Squeezy script if not already loaded
+  if (!document.querySelector('script[src="https://assets.lemonsqueezy.com/lemon.js"]')) {
+    const script = document.createElement('script')
+    script.src = 'https://assets.lemonsqueezy.com/lemon.js'
+    script.defer = true
+    document.head.appendChild(script)
+  }
+  // Re-initialize Lemon Squeezy buttons after a short delay to ensure script is loaded
+  setTimeout(() => {
+    const lemonSqueezy = (window as unknown as { LemonSqueezy?: { Setup?: () => void } }).LemonSqueezy
+    if (lemonSqueezy && typeof lemonSqueezy.Setup === 'function') {
+      lemonSqueezy.Setup()
+    }
+  }, 100)
+}
+
+function handleCloseCheckout() {
+  showCheckoutOverlay.value = false
 }
 
 async function confirmDeactivateLicense() {
@@ -227,16 +255,22 @@ const displayName = computed(() => profileStore.profile.name || 'User')
 async function handleInstall() {
   const success = await install()
   if (success) {
-    showNotification('success', 'Aplikasi berhasil diinstal!')
+    showNotification('success', t('pwa.successTitle'))
   }
+}
+
+function handleLanguageChange(newLocale: 'id' | 'en') {
+  locale.value = newLocale
+  saveLanguage(newLocale)
+  showNotification('success', t('settings.languageHelper'))
 }
 </script>
 
 <template>
   <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">Profil</h1>
-      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Kelola pengaturan akun kamu</p>
+      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('profile.title') }}</h1>
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('profile.subtitle') }}</p>
     </div>
 
     <!-- Profile Info -->
@@ -257,29 +291,29 @@ async function handleInstall() {
                 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                 : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400',
             ]">
-              {{ tokenStore.isLicenseActive ? 'License Active' : 'Basic Account' }}
+              {{ tokenStore.isLicenseActive ? t('profile.licenseActive') : t('profile.basicAccount') }}
             </span>
           </div>
         </div>
 
         <!-- Edit Form -->
         <div v-if="isEditing" class="space-y-4">
-          <BaseInput v-model="editName" label="Nama" placeholder="Masukkan nama kamu" />
+          <BaseInput v-model="editName" :label="t('profile.name')" :placeholder="t('profile.name')" />
           <div class="flex gap-3 pt-2">
-            <BaseButton variant="secondary" class="flex-1" @click="handleCancel">Batal</BaseButton>
-            <BaseButton class="flex-1" @click="handleSave">Simpan</BaseButton>
+            <BaseButton variant="secondary" class="flex-1" @click="handleCancel">{{ t('common.cancel') }}</BaseButton>
+            <BaseButton class="flex-1" @click="handleSave">{{ t('common.save') }}</BaseButton>
           </div>
         </div>
 
         <!-- View Mode -->
         <div v-else class="space-y-4">
           <div>
-            <label class="text-sm font-medium text-slate-600 dark:text-slate-400">Nama</label>
+            <label class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ t('profile.name') }}</label>
             <p class="mt-1 text-slate-900 dark:text-slate-100">{{ displayName }}</p>
           </div>
           <BaseButton variant="secondary" class="w-full" @click="isEditing = true">
             <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
-            Edit Profil
+            {{ t('profile.editProfile') }}
           </BaseButton>
         </div>
       </div>
@@ -287,7 +321,7 @@ async function handleInstall() {
 
     <!-- Token & License -->
     <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Token & License</h3>
+      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
       <div class="space-y-4">
         <!-- Activate License Card -->
         <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
@@ -296,10 +330,9 @@ async function handleInstall() {
               <font-awesome-icon :icon="['fas', 'key']" class="text-brand" />
             </div>
             <div class="flex-1">
-              <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">Activate License</h4>
+              <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">{{ t('license.activateLicense') }}</h4>
               <p class="text-sm text-slate-600 dark:text-slate-400">
-                Enter your license key to unlock all premium features such as receipt scanning, smart text input, and
-                unlimited chatbot access. Your license key will be automatically formatted.
+                {{ t('license.activateLicenseDesc') }}
               </p>
             </div>
           </div>
@@ -310,15 +343,16 @@ async function handleInstall() {
             <div class="space-y-2">
               <div class="flex items-center gap-2">
                 <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
-                <p class="text-sm font-medium text-green-800 dark:text-green-300">License Status: Active</p>
+                <p class="text-sm font-medium text-green-800 dark:text-green-300">{{ t('license.licenseStatus') }}: {{
+                  t('license.active') }}</p>
               </div>
               <div class="flex items-center gap-2">
                 <font-awesome-icon :icon="['fas', 'mobile-screen-button']"
                   class="text-green-600 dark:text-green-400 text-xs" />
-                <p class="text-xs text-green-700 dark:text-green-400">Device: This device</p>
+                <p class="text-xs text-green-700 dark:text-green-400">{{ t('license.device') }}</p>
               </div>
               <p class="text-xs text-green-700 dark:text-green-400 mt-1">
-                All premium features are unlocked. Activated on
+                {{ t('license.activatedOn') }}
                 {{ new Date(tokenStore.tokenState.licenseActivatedAt || '').toLocaleDateString() }}
               </p>
             </div>
@@ -335,7 +369,7 @@ async function handleInstall() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
                 </path>
               </svg>
-              <p class="text-sm font-medium text-blue-800 dark:text-blue-300">Checking license status...</p>
+              <p class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ t('license.checking') }}</p>
             </div>
           </div>
 
@@ -344,10 +378,10 @@ async function handleInstall() {
             class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
             <div class="flex items-center gap-2">
               <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 dark:text-red-400" />
-              <p class="text-sm font-medium text-red-800 dark:text-red-300">License Status: Error</p>
+              <p class="text-sm font-medium text-red-800 dark:text-red-300">{{ t('license.error') }}</p>
             </div>
             <p class="text-xs text-red-700 dark:text-red-400 mt-1">
-              Unable to verify license status. Please check your connection and try again.
+              {{ t('license.errorDesc') }}
             </p>
           </div>
 
@@ -356,22 +390,44 @@ async function handleInstall() {
             class="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 mb-4">
             <div class="flex items-center gap-2">
               <font-awesome-icon :icon="['fas', 'circle-info']" class="text-slate-600 dark:text-slate-400" />
-              <p class="text-sm font-medium text-slate-700 dark:text-slate-300">License Status: Basic</p>
+              <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('license.basic') }}</p>
             </div>
+          </div>
+
+          <!-- Get Token CTA (only show when license is not active) -->
+          <div v-if="!tokenStore.isLicenseActive"
+            class="rounded-lg bg-gradient-to-br from-brand/5 via-brand/10 to-brand/15 dark:from-brand/10 dark:via-brand/15 dark:to-brand/20 border border-brand/20 dark:border-brand/30 p-4 mb-4">
+            <div class="flex items-start gap-3 mb-3">
+              <div
+                class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/20 dark:bg-brand/30 flex-shrink-0">
+                <font-awesome-icon :icon="['fas', 'sparkles']" class="text-brand text-lg" />
+              </div>
+              <div class="flex-1">
+                <h4 class="mb-1 font-semibold text-slate-900 dark:text-slate-100">{{ t('license.upgradeToPremium') }}
+                </h4>
+                <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {{ t('license.upgradeDesc') }}
+                </p>
+              </div>
+            </div>
+            <BaseButton class="w-full" size="md" @click="handleOpenCheckout">
+              <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
+              {{ t('license.getToken') }}
+            </BaseButton>
           </div>
 
           <!-- Activate License Form (only show when license is not active) -->
           <div v-if="!tokenStore.isLicenseActive" class="space-y-3">
             <div class="flex gap-2">
               <div class="flex-1">
-                <input v-model="licenseTokenInput" type="text" placeholder="Paste your license key here"
+                <input v-model="licenseTokenInput" type="text" :placeholder="t('license.pastePlaceholder')"
                   class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2.5 text-sm font-mono focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                   :disabled="isVerifyingLicense" @input="handleLicenseInput" />
               </div>
               <BaseButton variant="secondary" size="sm" :disabled="isVerifyingLicense" @click="handlePasteLicense"
                 class="shrink-0">
                 <font-awesome-icon :icon="['fas', 'paste']" class="mr-1" />
-                Paste
+                {{ t('license.paste') }}
               </BaseButton>
             </div>
 
@@ -394,7 +450,7 @@ async function handleInstall() {
             <BaseButton :loading="isVerifyingLicense" :disabled="isVerifyingLicense || !licenseTokenInput.trim()"
               class="w-full" @click="handleVerifyLicense">
               <font-awesome-icon v-if="!isVerifyingLicense" :icon="['fas', 'check']" class="mr-2" />
-              {{ isVerifyingLicense ? 'Activating...' : 'Activate License' }}
+              {{ isVerifyingLicense ? t('license.activating') : t('license.activate') }}
             </BaseButton>
           </div>
 
@@ -402,7 +458,7 @@ async function handleInstall() {
           <BaseButton v-if="tokenStore.isLicenseActive" variant="secondary" size="sm" class="w-full mt-3"
             @click="handleDeactivateLicense">
             <font-awesome-icon :icon="['fas', 'unlink']" class="mr-2" />
-            Deactivate License
+            {{ t('license.deactivate') }}
           </BaseButton>
         </div>
       </div>
@@ -410,21 +466,21 @@ async function handleInstall() {
 
     <!-- Settings -->
     <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Pengaturan</h3>
+      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
       <div class="space-y-4">
         <!-- Notifications -->
         <div class="relative">
           <div class="flex items-center justify-between">
             <div class="flex-1">
               <div class="flex items-center gap-2 mb-1">
-                <h4 class="font-medium text-slate-900 dark:text-slate-100">Notifikasi</h4>
+                <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.notifications') }}</h4>
                 <span
                   class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                  Fitur yang akan datang
+                  {{ t('settings.comingSoon') }}
                 </span>
               </div>
               <p class="text-sm text-slate-500 dark:text-slate-400">
-                Aktifkan notifikasi push untuk mendapatkan pembaruan penting
+                {{ t('settings.notificationsDesc') }}
               </p>
             </div>
             <div class="relative">
@@ -441,22 +497,55 @@ async function handleInstall() {
                 class="mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
               <div class="flex-1">
                 <p class="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">
-                  Fitur Sedang Dikembangkan
+                  {{ t('settings.featureInDevelopment') }}
                 </p>
                 <p class="text-xs text-blue-700 dark:text-blue-400">
-                  Kami sedang mengembangkan fitur notifikasi push. Fitur ini akan segera hadir dalam update berikutnya.
+                  {{ t('settings.featureInDevelopmentDesc') }}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
+        <!-- Language Switcher -->
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.language') }}</h4>
+            </div>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              {{ t('settings.languageDesc') }}
+            </p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              {{ t('settings.languageHelper') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" @click="handleLanguageChange('id')" :class="[
+            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
+            locale === 'id'
+              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
+          ]">
+            🇮🇩 {{ t('settings.indonesian') }}
+          </button>
+          <button type="button" @click="handleLanguageChange('en')" :class="[
+            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
+            locale === 'en'
+              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
+          ]">
+            🇬🇧 {{ t('settings.english') }}
+          </button>
+        </div>
+
         <!-- Theme Toggle -->
         <div class="flex items-center justify-between">
           <div class="flex-1">
-            <h4 class="font-medium text-slate-900 dark:text-slate-100">Tema</h4>
+            <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.theme') }}</h4>
             <p class="text-sm text-slate-500 dark:text-slate-400">
-              Mode {{ themeStore.theme === 'dark' ? 'Gelap' : 'Terang' }}
+              {{ themeStore.theme === 'dark' ? t('settings.themeDark') : t('settings.themeLight') }}
             </p>
           </div>
           <button type="button" @click="themeStore.toggleTheme()"
@@ -471,7 +560,7 @@ async function handleInstall() {
     <!-- Data Management -->
     <BaseCard>
       <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-        Manajemen Data
+        {{ t('dataManagement.title') }}
       </h3>
       <div class="space-y-4">
         <div class="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
@@ -481,11 +570,10 @@ async function handleInstall() {
             </div>
             <div class="flex-1">
               <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">
-                Backup & Restore
+                {{ t('dataManagement.backupRestore') }}
               </h4>
               <p class="text-sm text-slate-600 dark:text-slate-400">
-                Ekspor data Anda sebagai file backup terenkripsi atau pulihkan dari backup sebelumnya.
-                Data Anda dienkripsi dengan passphrase untuk keamanan.
+                {{ t('dataManagement.backupRestoreDesc') }}
               </p>
             </div>
           </div>
@@ -494,11 +582,11 @@ async function handleInstall() {
         <div class="grid grid-cols-2 gap-3">
           <BaseButton variant="secondary" class="w-full" @click="showExportModal = true">
             <font-awesome-icon :icon="['fas', 'download']" class="mr-2" />
-            Eksport
+            {{ t('dataManagement.export') }}
           </BaseButton>
           <BaseButton variant="secondary" class="w-full" @click="showImportModal = true">
             <font-awesome-icon :icon="['fas', 'file-import']" class="mr-2" />
-            Import
+            {{ t('dataManagement.import') }}
           </BaseButton>
         </div>
 
@@ -506,10 +594,9 @@ async function handleInstall() {
           <div class="flex items-start gap-2">
             <font-awesome-icon :icon="['fas', 'circle-info']" class="mt-0.5 text-amber-600 dark:text-amber-400" />
             <div class="flex-1 text-sm text-amber-800 dark:text-amber-300">
-              <p class="font-medium mb-1">Penting</p>
+              <p class="font-medium mb-1">{{ t('dataManagement.important') }}</p>
               <p>
-                Simpan passphrase Anda dengan aman. Tanpanya, Anda tidak dapat memulihkan backup Anda.
-                Kami tidak pernah menyimpan passphrase Anda - hanya digunakan untuk enkripsi/dekripsi.
+                {{ t('dataManagement.importantDesc') }}
               </p>
             </div>
           </div>
@@ -519,97 +606,117 @@ async function handleInstall() {
 
     <!-- PWA Install -->
     <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-        Instal Aplikasi
-      </h3>
-      <div class="space-y-4">
-        <div
-          class="rounded-lg bg-gradient-to-br from-brand/5 to-brand/10 p-4 dark:from-brand/10 dark:to-brand/20 border border-brand/20 dark:border-brand/30">
-          <div class="flex items-start gap-3">
-            <div
-              class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand/10 dark:bg-brand/20 flex-shrink-0">
-              <font-awesome-icon :icon="['fas', isInstalled ? 'check-circle' : 'download']"
-                class="text-brand text-xl" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <h4 class="mb-1.5 font-semibold text-slate-900 dark:text-slate-100">
-                {{ isInstalled ? 'Aplikasi Terinstal' : 'Instal Aplikasi di Perangkat Anda' }}
-              </h4>
-              <p v-if="isInstalled" class="text-sm text-slate-600 dark:text-slate-400">
-                Aplikasi sudah terinstal di perangkat Anda. Nikmati akses cepat dan penggunaan offline.
-              </p>
-              <p v-else class="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                Instal aplikasi untuk mendapatkan pengalaman yang lebih baik dengan akses cepat dan penggunaan offline.
-              </p>
-              <div v-if="!isInstalled" class="space-y-2 mt-3">
-                <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
-                    <font-awesome-icon :icon="['fas', 'bolt']" class="text-brand text-xs" />
+      <button type="button" @click="isPWAInstallOpen = !isPWAInstallOpen"
+        class="flex w-full items-center justify-between gap-3 text-left transition-colors hover:opacity-80">
+        <div class="flex items-center gap-3">
+          <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 dark:bg-brand/20 flex-shrink-0">
+            <font-awesome-icon :icon="['fas', isInstalled ? 'check-circle' : 'download']" class="text-brand" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {{ t('pwa.title') }}
+            </h3>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {{ isInstalled ? t('pwa.installed') : t('pwa.installTitle') }}
+            </p>
+          </div>
+        </div>
+        <font-awesome-icon :icon="['fas', 'chevron-down']"
+          :class="['text-slate-400 dark:text-slate-500 transition-transform duration-200 flex-shrink-0', isPWAInstallOpen ? 'rotate-180' : '']" />
+      </button>
+
+      <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 -translate-y-2"
+        enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
+        leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 -translate-y-2">
+        <div v-if="isPWAInstallOpen" class="mt-4 space-y-4">
+          <div
+            class="rounded-lg bg-gradient-to-br from-brand/5 to-brand/10 p-4 dark:from-brand/10 dark:to-brand/20 border border-brand/20 dark:border-brand/30">
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand/10 dark:bg-brand/20 flex-shrink-0">
+                <font-awesome-icon :icon="['fas', isInstalled ? 'check-circle' : 'download']"
+                  class="text-brand text-xl" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <h4 class="mb-1.5 font-semibold text-slate-900 dark:text-slate-100">
+                  {{ isInstalled ? t('pwa.installedTitle') : t('pwa.installTitle') }}
+                </h4>
+                <p v-if="isInstalled" class="text-sm text-slate-600 dark:text-slate-400">
+                  {{ t('pwa.installedDesc') }}
+                </p>
+                <p v-else class="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  {{ t('pwa.installDesc') }}
+                </p>
+                <div v-if="!isInstalled" class="space-y-2 mt-3">
+                  <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
+                      <font-awesome-icon :icon="['fas', 'bolt']" class="text-brand text-xs" />
+                    </div>
+                    <span>{{ t('pwa.feature1') }}</span>
                   </div>
-                  <span>Akses lebih cepat dari layar utama</span>
-                </div>
-                <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
-                    <font-awesome-icon :icon="['fas', 'wifi']" class="text-brand text-xs" />
+                  <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
+                      <font-awesome-icon :icon="['fas', 'wifi']" class="text-brand text-xs" />
+                    </div>
+                    <span>{{ t('pwa.feature2') }}</span>
                   </div>
-                  <span>Dapat digunakan tanpa koneksi internet</span>
-                </div>
-                <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
-                    <font-awesome-icon :icon="['fas', 'mobile']" class="text-brand text-xs" />
+                  <div class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <div class="flex h-6 w-6 items-center justify-center rounded-full bg-brand/10 dark:bg-brand/20">
+                      <font-awesome-icon :icon="['fas', 'mobile']" class="text-brand text-xs" />
+                    </div>
+                    <span>{{ t('pwa.feature3') }}</span>
                   </div>
-                  <span>Shortcut langsung di layar utama</span>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <BaseButton v-if="!isInstalled && isInstallable" :disabled="isInstalling" :loading="isInstalling" class="w-full"
-          size="lg" @click="handleInstall">
-          <font-awesome-icon :icon="['fas', 'download']" class="mr-2" />
-          {{ isInstalling ? 'Menginstal...' : 'Instal Aplikasi' }}
-        </BaseButton>
+          <BaseButton v-if="!isInstalled && isInstallable" :disabled="isInstalling" :loading="isInstalling"
+            class="w-full" size="lg" @click="handleInstall">
+            <font-awesome-icon :icon="['fas', 'download']" class="mr-2" />
+            {{ isInstalling ? t('pwa.installing') : t('pwa.installButton') }}
+          </BaseButton>
 
-        <div v-else-if="!isInstalled && !isInstallable"
-          class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-          <div class="flex items-start gap-3">
-            <font-awesome-icon :icon="['fas', 'circle-info']"
-              class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <p class="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                Cara Instal Manual (Android Chrome)
-              </p>
-              <ol class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5 list-decimal list-inside">
-                <li>Buka menu Chrome (3 titik di kanan atas)</li>
-                <li>Pilih "Add to Home screen" atau "Install app"</li>
-                <li>Klik "Install" atau "Add"</li>
-                <li>Aplikasi akan muncul di layar utama</li>
-              </ol>
-              <p class="text-xs text-blue-700 dark:text-blue-400 mt-2">
-                Jika opsi tidak muncul, pastikan Anda mengunjungi situs melalui HTTPS dan service worker sudah aktif.
-              </p>
+          <div v-else-if="!isInstalled && !isInstallable"
+            class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+            <div class="flex items-start gap-3">
+              <font-awesome-icon :icon="['fas', 'circle-info']"
+                class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+              <div class="flex-1">
+                <p class="font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                  {{ t('pwa.manualTitle') }}
+                </p>
+                <ol class="text-sm text-blue-800 dark:text-blue-300 space-y-1.5 list-decimal list-inside">
+                  <li>{{ t('pwa.manualStep1') }}</li>
+                  <li>{{ t('pwa.manualStep2') }}</li>
+                  <li>{{ t('pwa.manualStep3') }}</li>
+                  <li>{{ t('pwa.manualStep4') }}</li>
+                </ol>
+                <p class="text-xs text-blue-700 dark:text-blue-400 mt-2">
+                  {{ t('pwa.manualNote') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="isInstalled"
+            class="rounded-lg bg-green-50 p-4 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400 text-lg" />
+              </div>
+              <div class="flex-1">
+                <p class="font-semibold text-green-900 dark:text-green-100 mb-0.5">
+                  {{ t('pwa.successTitle') }}
+                </p>
+                <p class="text-sm text-green-700 dark:text-green-300">
+                  {{ t('pwa.successDesc') }}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-
-        <div v-else-if="isInstalled"
-          class="rounded-lg bg-green-50 p-4 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-          <div class="flex items-center gap-3">
-            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
-              <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400 text-lg" />
-            </div>
-            <div class="flex-1">
-              <p class="font-semibold text-green-900 dark:text-green-100 mb-0.5">
-                Aplikasi Berhasil Terinstal
-              </p>
-              <p class="text-sm text-green-700 dark:text-green-300">
-                Aplikasi sudah tersedia di perangkat Anda dan siap digunakan.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      </Transition>
     </BaseCard>
 
     <!-- Notification Toast -->
@@ -652,5 +759,53 @@ async function handleInstall() {
       message="This will remove license access from this device and return you to Basic account mode. Your transaction data will not be affected. You can activate this license again on another device by entering the same token."
       confirm-text="Deactivate" cancel-text="Cancel" variant="warning" :icon="['fas', 'unlink']"
       @confirm="confirmDeactivateLicense" @close="showDeactivateConfirm = false" />
+
+    <!-- Checkout Overlay -->
+    <BaseModal :is-open="showCheckoutOverlay" size="xl" @close="handleCloseCheckout">
+      <template #header>
+        <div class="flex items-center justify-between w-full">
+          <div class="flex items-center gap-3">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10">
+              <font-awesome-icon :icon="['fas', 'shopping-cart']" class="text-brand" />
+            </div>
+            <div>
+              <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('license.getTokenTitle') }}</h2>
+              <p class="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ t('license.getTokenDesc') }}
+              </p>
+            </div>
+          </div>
+          <button @click="handleCloseCheckout"
+            class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300 transition-colors">
+            <font-awesome-icon :icon="['fas', 'xmark']" class="text-lg" />
+          </button>
+        </div>
+      </template>
+
+      <div class="space-y-4">
+        <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-4">
+          <div class="flex items-start gap-3">
+            <font-awesome-icon :icon="['fas', 'circle-info']"
+              class="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+            <div class="flex-1">
+              <p class="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                {{ t('license.afterPayment') }}
+              </p>
+              <p class="text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+                {{ t('license.afterPaymentDesc') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
+          <div id="lemonsqueezy-checkout" class="w-full">
+            <a href="https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe?embed=1"
+              class="lemonsqueezy-button w-full">Buy Fanplanner – Self-Service Personal Finance Web App</a>
+          </div>
+        </div>
+      </div>
+    </BaseModal>
   </div>
 </template>

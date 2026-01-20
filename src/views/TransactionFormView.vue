@@ -11,6 +11,9 @@ import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AlertModal from '@/components/ui/AlertModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const route = useRoute()
 const router = useRouter()
@@ -140,19 +143,19 @@ function isDateInFuture(dateString: string): boolean {
 
 function validateForm(data: TransactionFormData): string | null {
   if (!data.description.trim()) {
-    return 'Deskripsi wajib diisi'
+    return t('transaction.descriptionRequired')
   }
   if (data.amount <= 0) {
-    return 'Jumlah harus lebih dari 0'
+    return t('transaction.amountRequired')
   }
   if (!data.category) {
-    return 'Kategori wajib dipilih'
+    return t('transaction.categoryRequired')
   }
   if (!data.date) {
-    return 'Tanggal wajib diisi'
+    return t('transaction.dateRequired')
   }
   if (isDateInFuture(data.date)) {
-    return 'Tanggal tidak boleh di masa depan. Silakan pilih tanggal hari ini atau sebelumnya.'
+    return t('transaction.dateFutureError')
   }
   return null
 }
@@ -166,8 +169,8 @@ async function handleSubmit() {
   // Final date validation before submission
   if (formData.value.date && isDateInFuture(formData.value.date)) {
     showAlertModal(
-      'Tanggal Tidak Valid',
-      'Tanggal tidak boleh di masa depan. Silakan pilih tanggal hari ini atau sebelumnya.',
+      t('transaction.dateInvalid'),
+      t('transaction.dateInvalidDesc'),
       'warning'
     )
     // Auto-correct to today
@@ -179,10 +182,10 @@ async function handleSubmit() {
   if (error) {
     // Determine variant based on error message
     let variant: 'error' | 'warning' = 'error'
-    if (error.includes('masa depan')) {
+    if (error.includes('masa depan') || error.includes('future')) {
       variant = 'warning'
     }
-    showAlertModal('Validasi Gagal', error, variant)
+    showAlertModal(t('transaction.validationFailed'), error, variant)
     return
   }
 
@@ -193,7 +196,7 @@ async function handleSubmit() {
         return
       }
       await updateTransaction(id, formData.value)
-      toastStore.success('Transaksi berhasil diupdate!')
+      toastStore.success(t('transaction.updateSuccess'))
       router.push('/')
     } else {
       const transaction = await createTransaction(formData.value)
@@ -209,7 +212,7 @@ async function handleSubmit() {
     }
   } catch (error) {
     console.error('Error saving transaction:', error)
-    showAlertModal('Gagal Menyimpan', 'Gagal menyimpan transaksi. Coba lagi ya.', 'error')
+    showAlertModal(t('transaction.saveFailed'), t('transaction.saveFailedDesc'), 'error')
   }
 }
 
@@ -217,8 +220,8 @@ function handleSaveAndAddMore() {
   // Final date validation before adding to pending
   if (formData.value.date && isDateInFuture(formData.value.date)) {
     showAlertModal(
-      'Tanggal Tidak Valid',
-      'Tanggal tidak boleh di masa depan. Silakan pilih tanggal hari ini atau sebelumnya.',
+      t('transaction.dateInvalid'),
+      t('transaction.dateInvalidDesc'),
       'warning'
     )
     // Auto-correct to today
@@ -230,10 +233,10 @@ function handleSaveAndAddMore() {
   if (error) {
     // Determine variant based on error message
     let variant: 'error' | 'warning' = 'error'
-    if (error.includes('masa depan')) {
+    if (error.includes('masa depan') || error.includes('future')) {
       variant = 'warning'
     }
-    showAlertModal('Validasi Gagal', error, variant)
+    showAlertModal(t('transaction.validationFailed'), error, variant)
     return
   }
 
@@ -309,7 +312,7 @@ function confirmDelete() {
 
 async function handleSubmitAll() {
   if (pendingTransactions.value.length === 0) {
-    showAlertModal('Tidak Ada Transaksi', 'Tidak ada transaksi untuk disimpan', 'warning')
+    showAlertModal(t('transaction.noTransactions'), t('transaction.noTransactionsDesc'), 'warning')
     return
   }
 
@@ -317,8 +320,8 @@ async function handleSubmitAll() {
   const invalidDates = pendingTransactions.value.filter(t => isDateInFuture(t.date))
   if (invalidDates.length > 0) {
     showAlertModal(
-      'Tanggal Tidak Valid',
-      `Beberapa transaksi memiliki tanggal masa depan. Silakan perbaiki tanggal sebelum menyimpan.`,
+      t('transaction.dateInvalid'),
+      t('transaction.dateInvalidMultiple'),
       'warning'
     )
     return
@@ -352,7 +355,7 @@ async function handleSubmitAll() {
     router.push('/')
   } catch (error) {
     console.error('Error saving transactions:', error)
-    showAlertModal('Gagal Menyimpan', 'Gagal menyimpan beberapa transaksi. Coba lagi ya.', 'error')
+    showAlertModal(t('transaction.saveAllFailed'), t('transaction.saveAllFailedDesc'), 'error')
   }
 }
 
@@ -432,15 +435,15 @@ function formatDate(dateString: string): string {
   <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8 min-h-0 overflow-y-auto">
     <div>
       <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
-        {{ isEdit ? 'Edit Transaksi' : 'Tambah Transaksi' }}
+        {{ isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle') }}
       </h1>
       <p class="mt-1 text-slate-600 dark:text-slate-400">
         {{
           isEdit
-            ? 'Update detail transaksi'
+            ? t('transaction.updateTransaction')
             : editingIndex !== null
-              ? 'Edit transaksi yang belum disimpan'
-              : 'Catat income atau expense baru'
+              ? t('transaction.editPendingTransaction')
+              : t('transaction.recordNewTransaction')
         }}
       </p>
     </div>
@@ -454,12 +457,10 @@ function formatDate(dateString: string): string {
         </div>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">
-            Data dari Input Teks
+            {{ t('transaction.dataFromTextInput') }}
           </p>
           <p class="text-xs text-blue-700 dark:text-blue-300">
-            Form telah diisi otomatis dari teks yang Anda masukkan. Silakan periksa dan edit semua field sebelum
-            menyimpan.
-            Field yang kosong atau perlu diperbaiki akan ditandai dengan jelas.
+            {{ t('transaction.dataFromTextInputDesc') }}
           </p>
         </div>
       </div>
@@ -470,19 +471,19 @@ function formatDate(dateString: string): string {
         <template #actions>
           <div class="flex flex-wrap gap-2">
             <BaseButton variant="secondary" @click="handleCancel" class="flex-1 min-w-[100px]">
-              Batal
+              {{ t('common.cancel') }}
             </BaseButton>
             <BaseButton v-if="pendingTransactions.length === 0" type="submit" :loading="loading"
               class="flex-1 min-w-[100px]">
-              {{ isEdit ? 'Update' : 'Simpan' }}
+              {{ isEdit ? t('transaction.update') : t('transaction.save') }}
             </BaseButton>
             <div v-if="!isEdit" class="w-full p-4">
               <BaseButton type="button" variant="secondary" :loading="loading" @click="handleSaveAndAddMore"
                 class="w-full">
-                {{ editingIndex !== null ? 'Update & Tambah Lagi' : 'Simpan & Tambah Lagi' }}
+                {{ editingIndex !== null ? t('transaction.updateAndAddMore') : t('transaction.saveAndAddMore') }}
               </BaseButton>
               <p class="mt-2 text-center italic text-sm text-slate-600 dark:text-slate-400">
-                Pilih opsi ini kalau mau tambah lebih dari 1 transaksi sekaligus
+                {{ t('transaction.saveAndAddMoreDesc') }}
               </p>
             </div>
           </div>
@@ -494,7 +495,7 @@ function formatDate(dateString: string): string {
     <div v-if="!isEdit && pendingTransactions.length > 0" class="space-y-4">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Transaksi Belum Disimpan ({{ pendingTransactions.length }})
+          {{ t('transaction.pendingTransactions') }} ({{ pendingTransactions.length }})
         </h2>
       </div>
 
@@ -503,13 +504,13 @@ function formatDate(dateString: string): string {
           <table class="w-full">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-700">
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Tipe</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Deskripsi
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.type') }}</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.description') }}
                 </th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Jumlah</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">Tanggal
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.amount') }}</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.date') }}
                 </th>
-                <th class="px-2 py-1.5 text-right text-[10px] font-medium text-slate-600 dark:text-slate-400">Aksi</th>
+                <th class="px-2 py-1.5 text-right text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.actions') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
@@ -522,7 +523,7 @@ function formatDate(dateString: string): string {
                       ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                       : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
                   ]">
-                    {{ transaction.type === 'income' ? 'Income' : 'Expense' }}
+                    {{ transaction.type === 'income' ? t('transaction.incomeLabel') : t('transaction.expenseLabel') }}
                   </span>
                 </td>
                 <td class="px-2 py-1.5 text-xs text-slate-900 dark:text-slate-100">
@@ -541,12 +542,12 @@ function formatDate(dateString: string): string {
                   <div class="flex items-center justify-end gap-1">
                     <button type="button" @click="handleEdit(index)"
                       class="rounded-lg p-1 text-slate-600 transition hover:bg-slate-100 hover:text-brand dark:text-slate-400 dark:hover:bg-slate-700"
-                      title="Edit">
+                      :title="t('common.edit')">
                       <font-awesome-icon :icon="['fas', 'edit']" class="h-3 w-3" />
                     </button>
                     <button type="button" @click="handleDelete(index)"
                       class="rounded-lg p-1 text-red-600 transition hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
-                      title="Delete">
+                      :title="t('common.delete')">
                       <font-awesome-icon :icon="['fas', 'trash']" class="h-3 w-3" />
                     </button>
                   </div>
@@ -563,17 +564,17 @@ function formatDate(dateString: string): string {
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm font-medium text-slate-900 dark:text-slate-100">
-                Total: {{formatCurrency(pendingTransactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount :
+                {{ t('transaction.total') }}: {{formatCurrency(pendingTransactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount :
                   -t.amount), 0))}}
               </p>
               <p class="text-xs text-slate-500 dark:text-slate-400">
-                {{pendingTransactions.filter(t => t.type === 'income').length}} income,
-                {{pendingTransactions.filter(t => t.type === 'expense').length}} expense
+                {{pendingTransactions.filter(t => t.type === 'income').length}} {{ t('transaction.income') }},
+                {{pendingTransactions.filter(t => t.type === 'expense').length }} {{ t('transaction.expense') }}
               </p>
             </div>
           </div>
           <BaseButton @click="handleSubmitAll" :loading="loading" class="w-full" size="lg">
-            Simpan Semua Transaksi ({{ pendingTransactions.length }})
+            {{ t('transaction.saveAllTransactions') }} ({{ pendingTransactions.length }})
           </BaseButton>
         </div>
       </BaseCard>
@@ -581,15 +582,15 @@ function formatDate(dateString: string): string {
   </div>
 
   <!-- Delete Confirmation Modal -->
-  <ConfirmModal :is-open="showDeleteConfirm" title="Hapus Transaksi"
-    message="Yakin mau hapus transaksi ini dari daftar? Tindakan ini tidak bisa dibatalkan." confirm-text="Hapus"
-    cancel-text="Batal" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
+  <ConfirmModal :is-open="showDeleteConfirm" :title="t('transaction.deleteTransaction')"
+    :message="t('transaction.deleteTransactionConfirm')" :confirm-text="t('common.delete')"
+    :cancel-text="t('common.cancel')" variant="danger" :icon="['fas', 'trash']" @confirm="confirmDelete"
     @close="showDeleteConfirm = false" />
 
   <!-- Cancel Confirmation Modal -->
-  <ConfirmModal :is-open="showCancelConfirm" title="Transaksi Belum Disimpan"
-    message="Kamu punya transaksi yang belum disimpan. Yakin mau batal? Semua perubahan akan hilang."
-    confirm-text="Batal" cancel-text="Lanjut Edit" variant="warning" :icon="['fas', 'exclamation-triangle']"
+  <ConfirmModal :is-open="showCancelConfirm" :title="t('transaction.cancelTransaction')"
+    :message="t('transaction.cancelTransactionConfirm')"
+    :confirm-text="t('common.cancel')" :cancel-text="t('transaction.continueEdit')" variant="warning" :icon="['fas', 'exclamation-triangle']"
     @confirm="confirmCancel" @close="showCancelConfirm = false" />
 
   <!-- Alert Modal -->
