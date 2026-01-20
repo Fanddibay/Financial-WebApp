@@ -2,7 +2,7 @@ import type { App } from 'vue'
 import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
-  faCircleInfo,
+  faWebAwesome,
   faCopy,
   faSpinner,
   faKeyboard,
@@ -58,10 +58,12 @@ import {
   faUserCircle,
   faWallet,
   faWifi,
+  faCircleInfo,
 } from '@fortawesome/free-solid-svg-icons'
 import { faVuejs } from '@fortawesome/free-brands-svg-icons'
 
 const icons = [
+  faWebAwesome,
   faCircleInfo,
   faCopy,
   faSpinner,
@@ -80,7 +82,6 @@ const icons = [
   faChevronRight,
   faChevronUp,
   faChevronDown,
-  faCircleInfo,
   faComments,
   faDatabase,
   faEdit,

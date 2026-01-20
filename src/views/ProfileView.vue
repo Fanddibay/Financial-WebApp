@@ -400,7 +400,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
             <div class="flex items-start gap-3 mb-3">
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/20 dark:bg-brand/30 flex-shrink-0">
-                <font-awesome-icon :icon="['fas', 'sparkles']" class="text-brand text-lg" />
+                <font-awesome-icon :icon="['fas', 'web-awesome']" class="text-brand text-lg" />
               </div>
               <div class="flex-1">
                 <h4 class="mb-1 font-semibold text-slate-900 dark:text-slate-100">{{ t('license.upgradeToPremium') }}
@@ -410,7 +410,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
                 </p>
               </div>
             </div>
-            <BaseButton class="w-full" size="md" @click="handleOpenCheckout">
+            <BaseButton class="w-full text-white" variant="teritary" size="sm" @click="handleOpenCheckout">
               <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
               {{ t('license.getToken') }}
             </BaseButton>
