@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg'],
       manifest: {
         name: 'Fanplanner',
         short_name: 'Fanplanner',
@@ -24,13 +24,13 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'logo.svg',
+            src: 'ico.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
-            src: 'logo.svg',
+            src: 'ico.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'maskable',
@@ -44,6 +44,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        // Don't block worker files
+        navigateFallback: null,
+        navigateFallbackDenylist: [/^\/_/, /\/[^/?]+\.[^/]+$/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
