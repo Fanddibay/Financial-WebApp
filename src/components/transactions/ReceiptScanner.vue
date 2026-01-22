@@ -614,8 +614,12 @@ const errorIcon = computed(() => {
               {{ t('scanner.basicAccountLimit') }}
             </p>
             <p class="text-xs text-amber-700 dark:text-amber-400">
-              {{ t('scanner.basicAccountLimitDesc', { remaining: tokenStore.getRemainingUsage('receipt'), max: tokenStore.MAX_BASIC_USAGE }) }}
-              <button @click="router.push('/profile')" class="underline font-medium">{{ t('scanner.activateLicense') }}</button> {{ t('scanner.activateLicenseForUnlimited') }}
+              <span>{{ t('scanner.basicAccountLimitDesc', {
+                remaining: tokenStore.getRemainingUsage('receipt'),
+                max: tokenStore.MAX_BASIC_USAGE
+              }) }}</span>
+              <button @click="router.push('/profile')" class="underline font-medium">{{ t('scanner.activateLicense')
+              }}</button> {{ t('scanner.activateLicenseForUnlimited') }}
             </p>
           </div>
         </div>
@@ -667,7 +671,8 @@ const errorIcon = computed(() => {
             <div class="w-full border-t border-slate-300 dark:border-slate-600"></div>
           </div>
           <div class="relative flex justify-center text-sm">
-            <span class="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ t('scanner.or') }}</span>
+            <span class="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ t('scanner.or')
+            }}</span>
           </div>
         </div>
 
@@ -731,14 +736,16 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton') }}</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton')
+              }}</span>
             </button>
             <label for="file-upload-rescan"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm cursor-pointer">
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton') }}</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
+              }}</span>
               <input id="file-upload-rescan" type="file" accept="image/*" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -819,14 +826,16 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton') }}</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton')
+              }}</span>
             </button>
             <label for="file-upload-rescan-preview"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm active:scale-95 cursor-pointer">
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton') }}</span>
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
+              }}</span>
               <input id="file-upload-rescan-preview" type="file" accept="image/*" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -844,7 +853,8 @@ const errorIcon = computed(() => {
       <div v-if="showItemBreakdown && detailedResult?.items && !hasMultipleTransactions && !validationFailed"
         class="space-y-2 flex-shrink-0">
         <BaseCard>
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ t('scanner.itemBreakdown') }}</h4>
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ t('scanner.itemBreakdown') }}
+          </h4>
           <div class="space-y-2 max-h-48 overflow-y-auto">
             <div v-for="(item, index) in detailedResult.items" :key="index"
               class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
@@ -868,7 +878,8 @@ const errorIcon = computed(() => {
           <BaseCard v-for="(transaction, index) in multipleFormData" :key="index"
             class="border-2 border-slate-200 dark:border-slate-700">
             <div class="mb-2 flex items-center justify-between">
-              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('scanner.item') }} {{ index + 1 }}</h4>
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('scanner.item') }} {{ index + 1
+              }}</h4>
             </div>
             <TransactionForm :model-value="transaction" :categories="categories" :hide-actions="true"
               @update:model-value="updateMultipleFormData(index, $event)" />
@@ -912,7 +923,8 @@ const errorIcon = computed(() => {
           ? multipleFormData.some((t) => !t.description.trim())
           : !formData.description.trim()
           " @click="handleSubmit" class="flex-1 sm:flex-none">
-          {{ hasMultipleTransactions ? t('scanner.submitMultiple', { count: multipleFormData.length }) : t('scanner.submit') }}
+          {{ hasMultipleTransactions ? t('scanner.submitMultiple', { count: multipleFormData.length }) :
+            t('scanner.submit') }}
         </BaseButton>
       </div>
     </template>

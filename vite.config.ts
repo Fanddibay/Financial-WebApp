@@ -44,7 +44,41 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        // Exclude vendor files from precaching to avoid "Not allowed nest placeholder" errors
+        // Vendor files will be cached via runtime caching instead
+        globIgnores: ['**/vue-vendor*.js', '**/fontawesome*.js', '**/index*.js'],
+        // Don't modify files during caching
+        dontCacheBustURLsMatching: /\.\w{8}\./,
         runtimeCaching: [
+          // Cache vendor files with NetworkFirst to avoid parsing issues
+          {
+            urlPattern: /vue-vendor.*\.js$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'vue-vendor-cache',
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+          {
+            urlPattern: /fontawesome.*\.js$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'fontawesome-cache',
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
@@ -140,8 +174,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Use esbuild with safer options to avoid "Not allowed nest placeholder" errors
     minify: 'esbuild',
     target: 'esnext',
+    // Disable chunk size warnings that might cause issues
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: (id) => {
@@ -159,6 +196,10 @@ export default defineConfig({
           }
           return null
         },
+        // Use safer output format to avoid nested placeholder issues
+        format: 'es',
+        // Preserve original structure to avoid parsing errors
+        compact: false,
       },
     },
   },

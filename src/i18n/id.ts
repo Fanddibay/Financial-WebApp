@@ -194,7 +194,7 @@ export default {
   scanner: {
     title: 'Scan Receipt',
     basicAccountLimit: 'Batas Akun Basic',
-    basicAccountLimitDesc: 'Anda memiliki {{remaining}} dari {{max}} pemindaian tersisa hari ini.',
+    basicAccountLimitDesc: 'Anda memiliki {remaining} dari {max} pemindaian tersisa hari ini.',
     activateLicense: 'Aktifkan lisensi',
     activateLicenseForUnlimited: 'untuk pemindaian tanpa batas.',
     takePhotoDesc: 'Take a photo or upload an image of your receipt to automatically extract transaction details',
@@ -243,7 +243,7 @@ export default {
     title: 'Input Teks',
     previewTitle: 'Preview Transaksi',
     basicAccountLimit: 'Batas Akun Basic',
-    basicAccountLimitDesc: 'Anda memiliki {{remaining}} dari {{max}} penggunaan tersisa hari ini.',
+    basicAccountLimitDesc: 'Anda memiliki {remaining} dari {max} penggunaan tersisa hari ini.',
     activateLicense: 'Aktifkan lisensi',
     activateLicenseForUnlimited: 'untuk input teks tanpa batas.',
     limitReached: 'Batas input teks tercapai ({{max}} penggunaan per hari). Aktifkan lisensi untuk membuka input teks tanpa batas.',

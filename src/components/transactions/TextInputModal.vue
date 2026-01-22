@@ -369,11 +369,12 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                 {{ t('textInput.basicAccountLimit') }}
               </p>
               <p class="text-xs text-amber-700 dark:text-amber-400">
-                {{ t('textInput.basicAccountLimitDesc', {
-                  remaining: tokenStore.getRemainingUsage('text'), max:
-                    tokenStore.MAX_BASIC_USAGE }) }}
+                <span>{{ t('textInput.basicAccountLimitDesc', {
+                  remaining: tokenStore.getRemainingUsage('text'),
+                  max: tokenStore.MAX_BASIC_USAGE
+                }) }}</span>
                 <button @click="router.push('/profile')" class="underline font-medium">{{ t('textInput.activateLicense')
-                  }}</button> {{ t('textInput.activateLicenseForUnlimited') }}
+                }}</button> {{ t('textInput.activateLicenseForUnlimited') }}
               </p>
             </div>
           </div>
@@ -418,8 +419,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             {{ t('textInput.enterTransaction') }}
           </label>
           <div class="relative">
-            <textarea ref="textareaRef" v-model="inputText" :placeholder="indonesianPlaceholder"
-              rows="8"
+            <textarea ref="textareaRef" v-model="inputText" :placeholder="indonesianPlaceholder" rows="8"
               class="w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:ring-brand/20 resize-none shadow-sm focus:shadow-md"
               @input="handleInput" @keydown.ctrl.enter.exact.prevent="handleParse"
               @keydown.meta.enter.exact.prevent="handleParse" />
