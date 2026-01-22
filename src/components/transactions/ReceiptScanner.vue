@@ -37,7 +37,6 @@ const tokenStore = useTokenStore()
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Tesseract: any = null
-let tesseractWorker: any = null
 
 // Dynamically import Tesseract when needed
 async function loadTesseract() {
@@ -58,68 +57,6 @@ async function loadTesseract() {
     }
   }
   return Tesseract
-}
-
-// Create and configure Tesseract worker for PWA compatibility
-async function createTesseractWorker() {
-  if (tesseractWorker) {
-    return tesseractWorker
-  }
-
-  try {
-    const TesseractInstance = await loadTesseract()
-    
-    // Create worker with timeout to prevent stuck
-    const workerPromise = TesseractInstance.createWorker('eng', 1, {
-      // Explicitly set worker path for PWA compatibility
-      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-      // Use CDN for core files
-      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-      langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
-      // Logger for debugging
-      logger: (m: any) => {
-        if (m.status === 'loading tesseract core') {
-          console.log('Loading Tesseract core...')
-        } else if (m.status === 'initializing tesseract') {
-          console.log('Initializing Tesseract...')
-        } else if (m.status === 'loading language traineddata') {
-          console.log('Loading language data...')
-        } else if (m.status === 'initializing api') {
-          console.log('Initializing API...')
-        }
-      },
-    })
-
-    // Add timeout to prevent stuck (30 seconds)
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('OCR worker initialization timeout. Please check your connection.'))
-      }, 30000)
-    })
-
-    tesseractWorker = await Promise.race([workerPromise, timeoutPromise])
-    return tesseractWorker
-  } catch (error) {
-    console.error('Failed to create Tesseract worker with CDN paths:', error)
-    // Fallback: try without explicit paths (use bundled version)
-    try {
-      const TesseractInstance = await loadTesseract()
-      const workerPromise = TesseractInstance.createWorker('eng', 1)
-      
-      // Add timeout for fallback too
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('OCR worker initialization timeout.'))
-        }, 30000)
-      })
-      
-      tesseractWorker = await Promise.race([workerPromise, timeoutPromise])
-      return tesseractWorker
-    } catch (fallbackError) {
-      console.error('Fallback worker creation also failed:', fallbackError)
-      throw new Error('Failed to initialize OCR worker. Please check your connection and try again.')
-    }
-  }
 }
 
 const processing = ref(false)
@@ -259,21 +196,17 @@ async function processImage(file: File) {
       processedFile = file // Fallback to original if preprocessing fails
     }
 
-    // Load Tesseract worker with PWA-compatible configuration
+    // Load Tesseract if not already loaded
     processingProgress.value = 30
-    const worker = await createTesseractWorker()
-
-    // Set worker parameters for receipt OCR
-    await worker.setParameters({
-      tessedit_pageseg_mode: '6', // Uniform block of text
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
-    })
+    const TesseractInstance = await loadTesseract()
 
     // Perform OCR with optimized parameters for receipts
     processingProgress.value = 40
-    
-    // Add timeout to prevent stuck during OCR (60 seconds)
-    const recognizePromise = worker.recognize(processedFile, {
+    const { data: { text, confidence } } = await TesseractInstance.recognize(processedFile, 'eng', {
+      // PSM 6: Assume a single uniform block of text (good for receipts)
+      // PSM 11: Sparse text (alternative if PSM 6 doesn't work well)
+      tessedit_pageseg_mode: '6', // Uniform block of text
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       logger: (m: any) => {
         if (m.status === 'recognizing text') {
@@ -282,14 +215,6 @@ async function processImage(file: File) {
         }
       },
     })
-    
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('OCR processing timeout. The image may be too complex. Please try again with a clearer image.'))
-      }, 60000)
-    })
-    
-    const { data: { text, confidence } } = await Promise.race([recognizePromise, timeoutPromise])
 
     processingProgress.value = 95
 
@@ -464,7 +389,7 @@ function updateMultipleFormData(index: number, data: TransactionFormData) {
   multipleFormData.value[index] = data
 }
 
-async function handleClose() {
+function handleClose() {
   previewImage.value = null
   scannedData.value = null
   detailedResult.value = null
@@ -479,21 +404,10 @@ async function handleClose() {
   multipleFormData.value = []
   imageScale.value = 1
   imagePosition.value = { x: 0, y: 0 }
-  
-  // Terminate Tesseract worker to free resources (important for PWA)
-  if (tesseractWorker) {
-    try {
-      await tesseractWorker.terminate()
-      tesseractWorker = null
-    } catch (error) {
-      console.warn('Error terminating Tesseract worker:', error)
-    }
-  }
-  
   emit('close')
 }
 
-async function handleRescan() {
+function handleRescan() {
   // Reset all state but keep modal open
   previewImage.value = null
   scannedData.value = null
@@ -511,16 +425,6 @@ async function handleRescan() {
   imagePosition.value = { x: 0, y: 0 }
   processing.value = false
   processingProgress.value = 0
-  
-  // Terminate existing worker to free resources before rescan
-  if (tesseractWorker) {
-    try {
-      await tesseractWorker.terminate()
-      tesseractWorker = null
-    } catch (error) {
-      console.warn('Error terminating Tesseract worker on rescan:', error)
-    }
-  }
 }
 
 function openFullscreenImage() {
