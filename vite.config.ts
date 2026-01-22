@@ -144,14 +144,20 @@ export default defineConfig({
     target: 'esnext',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'fontawesome': [
-            '@fortawesome/fontawesome-svg-core',
-            '@fortawesome/vue-fontawesome',
-            '@fortawesome/free-solid-svg-icons',
-            '@fortawesome/free-brands-svg-icons',
-          ],
+        manualChunks: (id) => {
+          // Exclude tesseract.js from manual chunks to avoid bundling issues
+          if (id.includes('tesseract')) {
+            return null
+          }
+          if (id.includes('node_modules')) {
+            if (id.includes('vue') || id.includes('vue-router') || id.includes('pinia')) {
+              return 'vue-vendor'
+            }
+            if (id.includes('@fortawesome')) {
+              return 'fontawesome'
+            }
+          }
+          return null
         },
       },
     },

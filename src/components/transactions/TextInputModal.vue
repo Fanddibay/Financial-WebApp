@@ -11,8 +11,14 @@ import { useTransactions } from '@/composables/useTransactions'
 import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { useI18n } from 'vue-i18n'
+import idMessages from '@/i18n/id'
 
 const { t, locale } = useI18n()
+
+// Get Indonesian placeholder text regardless of current locale
+const indonesianPlaceholder = computed(() => {
+  return idMessages.textInput.enterTransactionPlaceholder
+})
 
 interface Props {
   isOpen: boolean
@@ -40,28 +46,17 @@ const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
+// Always use Indonesian examples regardless of language setting
 const exampleTexts = computed(() => {
-  if (locale.value === 'id') {
-    return [
-      'Beli bakso hari ini 20 ribu',
-      'Gaji masuk 5 juta',
-      'Bayar tagihan listrik kemarin 500rb',
-      'Ngopi pagi ini 15k',
-      'Transfer masuk dari bank 2 juta',
-      'Beli dispenser 1 juta 520 ribu',
-      'Belanja bulanan 2 juta 300 ribu',
-    ]
-  } else {
-    return [
-      'Buy lunch today 20 thousand',
-      'Salary received 5 million',
-      'Pay electricity bill yesterday 500k',
-      'Coffee this morning 15k',
-      'Bank transfer received 2 million',
-      'Buy dispenser 1 million 520 thousand',
-      'Monthly shopping 2 million 300 thousand',
-    ]
-  }
+  return [
+    'Beli bakso hari ini 20 ribu',
+    'Gaji masuk 5 juta',
+    'Bayar tagihan listrik kemarin 500rb',
+    'Ngopi pagi ini 15k',
+    'Transfer masuk dari bank 2 juta',
+    'Beli dispenser 1 juta 520 ribu',
+    'Belanja bulanan 2 juta 300 ribu',
+  ]
 })
 
 function handleInput() {
@@ -423,7 +418,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             {{ t('textInput.enterTransaction') }}
           </label>
           <div class="relative">
-            <textarea ref="textareaRef" v-model="inputText" :placeholder="t('textInput.enterTransactionPlaceholder')"
+            <textarea ref="textareaRef" v-model="inputText" :placeholder="indonesianPlaceholder"
               rows="8"
               class="w-full rounded-xl border-2 border-slate-300 bg-white px-4 py-3.5 text-base text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-brand dark:focus:ring-brand/20 resize-none shadow-sm focus:shadow-md"
               @input="handleInput" @keydown.ctrl.enter.exact.prevent="handleParse"

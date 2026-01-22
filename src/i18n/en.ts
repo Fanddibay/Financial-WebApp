@@ -22,7 +22,7 @@ export default {
   // Navigation
   nav: {
     home: 'Home',
-    dashboard: 'Chart',
+    dashboard: 'Dashboard',
     transactions: 'History',
     profile: 'Profile',
   },

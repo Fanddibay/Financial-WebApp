@@ -38,22 +38,68 @@ const tokenStore = useTokenStore()
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Tesseract: any = null
 
-// Dynamically import Tesseract when needed
+// Load Tesseract.js from CDN to avoid bundling issues in PWA
 async function loadTesseract() {
   if (!Tesseract) {
     try {
-      // Import tesseract.js - this will be bundled and cached by service worker
-      const tesseractModule = await import('tesseract.js')
-      Tesseract = tesseractModule.default
+      // Check if Tesseract is already loaded globally (from CDN)
+      if (typeof window !== 'undefined' && (window as any).Tesseract) {
+        Tesseract = (window as any).Tesseract
+        return Tesseract
+      }
 
-      // Pre-warm tesseract worker to cache assets on first load
-      // This ensures worker files are cached for offline use
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        console.log('Service worker active - Tesseract.js will be cached for offline use')
+      // Load Tesseract from CDN to avoid bundling issues in PWA
+      // This prevents "Not allowed nest placeholder" errors
+      await new Promise<void>((resolve, reject) => {
+        // Check if script already exists
+        const existingScript = document.querySelector('script[data-tesseract]')
+        if (existingScript && (window as any).Tesseract) {
+          Tesseract = (window as any).Tesseract
+          resolve()
+          return
+        }
+
+        // Add timeout for CDN load (30 seconds)
+        const timeout = setTimeout(() => {
+          reject(new Error('Tesseract.js CDN load timeout. Please check your internet connection.'))
+        }, 30000)
+
+        const script = document.createElement('script')
+        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
+        script.async = true
+        script.setAttribute('data-tesseract', 'true')
+        script.onload = () => {
+          clearTimeout(timeout)
+          // Wait a bit for Tesseract to be available on window
+          const checkTesseract = setInterval(() => {
+            if ((window as any).Tesseract) {
+              clearInterval(checkTesseract)
+              Tesseract = (window as any).Tesseract
+              resolve()
+            }
+          }, 100)
+
+          // Timeout check for Tesseract availability
+          setTimeout(() => {
+            clearInterval(checkTesseract)
+            if (!Tesseract) {
+              reject(new Error('Tesseract not found after script load'))
+            }
+          }, 5000)
+        }
+        script.onerror = () => {
+          clearTimeout(timeout)
+          reject(new Error('Failed to load Tesseract.js from CDN. Please check your internet connection.'))
+        }
+        document.head.appendChild(script)
+      })
+
+      if (!Tesseract) {
+        throw new Error('Tesseract.js could not be loaded')
       }
     } catch (error) {
       console.error('Failed to load Tesseract.js:', error)
-      throw new Error('OCR library not available. Please ensure tesseract.js is installed.')
+      throw new Error('OCR library not available. Please check your internet connection and try again.')
     }
   }
   return Tesseract
@@ -200,21 +246,36 @@ async function processImage(file: File) {
     processingProgress.value = 30
     const TesseractInstance = await loadTesseract()
 
-    // Perform OCR with optimized parameters for receipts
-    processingProgress.value = 40
-    const { data: { text, confidence } } = await TesseractInstance.recognize(processedFile, 'eng', {
-      // PSM 6: Assume a single uniform block of text (good for receipts)
-      // PSM 11: Sparse text (alternative if PSM 6 doesn't work well)
-      tessedit_pageseg_mode: '6', // Uniform block of text
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // Create worker for OCR (required for Tesseract.js v5)
+    processingProgress.value = 35
+    const worker = await TesseractInstance.createWorker('eng', 1, {
+      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
+      langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
       logger: (m: any) => {
-        if (m.status === 'recognizing text') {
+        if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
+          processingProgress.value = 35
+        } else if (m.status === 'loading language traineddata') {
+          processingProgress.value = 38
+        } else if (m.status === 'recognizing text') {
           // Map OCR progress to 40-90% of total progress
           processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
         }
       },
     })
+
+    // Set parameters for receipt OCR
+    await worker.setParameters({
+      tessedit_pageseg_mode: '6', // Uniform block of text
+      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
+    })
+
+    // Perform OCR with optimized parameters for receipts
+    processingProgress.value = 40
+    const { data: { text, confidence } } = await worker.recognize(processedFile)
+
+    // Terminate worker to free resources
+    await worker.terminate()
 
     processingProgress.value = 95
 
