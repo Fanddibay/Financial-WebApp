@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg'],
       manifest: {
-        name: 'Financial Tracker',
-        short_name: 'Finance',
+        name: 'Fanplanner',
+        short_name: 'Fanplanner',
         description: 'Track your income and expenses',
         theme_color: '#42b883',
         background_color: '#ffffff',
