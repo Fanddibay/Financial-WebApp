@@ -137,13 +137,43 @@ export async function detectLowLight(imageSrc: string): Promise<{ isLowLight: bo
 export async function checkImageSize(imageSrc: string): Promise<{ isTooSmall: boolean; width: number; height: number }> {
   return new Promise((resolve) => {
     const img = new Image()
+    
+    // Add timeout to handle cases where image doesn't load properly
+    const timeout = setTimeout(() => {
+      resolve({ isTooSmall: true, width: 0, height: 0 })
+    }, 10000) // 10 second timeout
+    
     img.onload = () => {
+      clearTimeout(timeout)
       // Minimum recommended size for OCR: 300x300 pixels
       const minSize = 300
-      const isTooSmall = img.width < minSize || img.height < minSize
-      resolve({ isTooSmall, width: img.width, height: img.height })
+      
+      // Check if dimensions are valid (not 0 or NaN)
+      const hasValidDimensions = img.width > 0 && img.height > 0 && 
+                                 !isNaN(img.width) && !isNaN(img.height)
+      
+      if (!hasValidDimensions) {
+        // If dimensions are invalid, try to get natural dimensions
+        const naturalWidth = img.naturalWidth || img.width
+        const naturalHeight = img.naturalHeight || img.height
+        
+        if (naturalWidth > 0 && naturalHeight > 0) {
+          const isTooSmall = naturalWidth < minSize || naturalHeight < minSize
+          resolve({ isTooSmall, width: naturalWidth, height: naturalHeight })
+        } else {
+          resolve({ isTooSmall: true, width: 0, height: 0 })
+        }
+      } else {
+        const isTooSmall = img.width < minSize || img.height < minSize
+        resolve({ isTooSmall, width: img.width, height: img.height })
+      }
     }
-    img.onerror = () => resolve({ isTooSmall: true, width: 0, height: 0 })
+    
+    img.onerror = () => {
+      clearTimeout(timeout)
+      resolve({ isTooSmall: true, width: 0, height: 0 })
+    }
+    
     img.src = imageSrc
   })
 }

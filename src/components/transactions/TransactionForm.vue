@@ -47,7 +47,7 @@ const categoryOptions = computed(() => {
   const defaultCategoryKeys =
     props.modelValue.type === 'income'
       ? ['categorySalary', 'categoryFreelance', 'categoryInvestment', 'categoryGift', 'categoryOther']
-      : ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryOther']
+      : ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryCoffee', 'categoryOther']
 
   // Map keys to translated labels
   const defaultCategories = defaultCategoryKeys.map((key) => ({
@@ -84,7 +84,7 @@ const categoryOptions = computed(() => {
 
       // Untuk income, exclude kategori expense yang tidak sesuai
       if (props.modelValue.type === 'income') {
-        const expenseCategories = ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth']
+        const expenseCategories = ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryCoffee']
         const expenseValues = expenseCategories.map((k) => t(`transaction.${k}`).toLowerCase())
         if (expenseValues.includes(lowerCat)) return false
       }
@@ -158,9 +158,9 @@ function handleSubmit() {
     <BaseInput v-model="formData.description" :label="t('transaction.description')" :error="errors.description"
       :placeholder="t('transaction.descriptionPlaceholder')" />
 
-    <CurrencyInput type="tel" v-model="formData.amount" :label="t('transaction.amount')" :error="errors.amount" />
+    <CurrencyInput v-model="formData.amount" :label="t('transaction.amount')" :error="errors.amount" />
 
-    <BaseSelect v-model="formData.category" :label="t('transaction.category')" :options="categoryOptions"
+    <BaseSelect v-model="formData.category" :label="t('transaction.categoryLabel')" :options="categoryOptions"
       :error="errors.category" />
 
     <BaseDatePicker v-model="formData.date" :label="t('transaction.date')" :error="errors.date"

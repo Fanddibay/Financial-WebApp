@@ -347,7 +347,8 @@ function inferCategory(text: string, transactionType: 'expense' | 'income'): { c
       'Transportasi': ['transport', 'transportasi', 'bensin', 'gas', 'fuel', 'parkir', 'parking', 'tol', 'toll', 'grab', 'gojek', 'taxi', 'ojek', 'angkot'],
       'Belanja': ['belanja', 'shopping', 'toko', 'store', 'mall', 'supermarket', 'minimarket', 'alfamart', 'indomaret'],
       'Tagihan': ['tagihan', 'bill', 'listrik', 'air', 'internet', 'wifi', 'telepon', 'phone', 'pulsa', 'paket data'],
-      'Hiburan': ['hiburan', 'entertainment', 'ngopi', 'kopi', 'coffee', 'nonton', 'cinema', 'bioskop', 'game', 'games', 'netflix', 'spotify'],
+      'Coffee/Minuman': ['ngopi', 'kopi', 'coffee', 'minuman', 'beverage', 'beverages', 'starbucks', 'kopi susu', 'es kopi', 'latte', 'cappuccino', 'americano', 'teh', 'tea', 'jus', 'juice', 'smoothie', 'boba', 'bubble tea'],
+      'Hiburan': ['hiburan', 'entertainment', 'nonton', 'cinema', 'bioskop', 'game', 'games', 'netflix', 'spotify'],
       'Kesehatan': ['kesehatan', 'health', 'obat', 'medicine', 'apotek', 'pharmacy', 'dokter', 'doctor', 'rumah sakit', 'hospital', 'klinik', 'clinic'],
       'Lainnya': [] // Default fallback
     }
@@ -357,11 +358,6 @@ function inferCategory(text: string, transactionType: 'expense' | 'income'): { c
       if (keywords.some(keyword => lowerText.includes(keyword))) {
         return { category, confidence: 'high' }
       }
-    }
-
-    // Check for lifestyle/entertainment patterns
-    if (lowerText.includes('ngopi') || lowerText.includes('kopi') || lowerText.includes('coffee')) {
-      return { category: 'Hiburan', confidence: 'high' }
     }
 
     return { category: 'Lainnya', confidence: 'low' } // Default for expense

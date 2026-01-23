@@ -13,6 +13,7 @@ import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
+import { isHeicFile, processImageFile } from '@/utils/heicConverter'
 
 const { t } = useI18n()
 
@@ -116,6 +117,7 @@ const showPreview = ref(false)
 const hasMultipleTransactions = ref(false)
 const showFullscreenImage = ref(false)
 const showItemBreakdown = ref(false)
+const showHeicInfo = ref(true) // Default open
 const validationFailed = ref(false)
 
 // Image zoom/pan state
@@ -171,6 +173,17 @@ function handleFileSelect(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (file) {
+    // Double-check for HEIC even though accept filter should prevent it
+    // Some browsers might not respect the accept attribute
+    if (isHeicFile(file)) {
+      validationFailed.value = true
+      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone/iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview (Mac) atau aplikasi konversi lainnya.'
+      errorType.value = 'unknown'
+      processing.value = false
+      // Reset input
+      input.value = ''
+      return
+    }
     processImage(file)
   }
 }
@@ -178,7 +191,7 @@ function handleFileSelect(event: Event) {
 function handleCameraClick() {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*'
+  input.accept = 'image/jpeg,image/png,image/jpg,image/webp'
   input.capture = 'environment'
   input.onchange = (e) => handleFileSelect(e)
   input.click()
@@ -206,6 +219,19 @@ async function processImage(file: File) {
   validationFailed.value = false
 
   try {
+    // Check and reject HEIC files early (before any processing)
+    // Browser tidak mendukung format HEIC secara native
+    if (isHeicFile(file)) {
+      validationFailed.value = true
+      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone/iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview (Mac) atau aplikasi konversi lainnya.'
+      errorType.value = 'unknown'
+      processing.value = false
+      return
+    }
+
+    // Process non-HEIC files normally
+    const imageFile = file
+
     // Create preview first
     const imageSrc = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
@@ -213,11 +239,11 @@ async function processImage(file: File) {
         resolve(e.target?.result as string)
       }
       reader.onerror = reject
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(imageFile)
     })
 
     previewImage.value = imageSrc
-    processingProgress.value = 10
+    processingProgress.value = 15
 
     // Validate image before OCR (more lenient - just check size)
     processingProgress.value = 20
@@ -236,10 +262,10 @@ async function processImage(file: File) {
     processingProgress.value = 25
     let processedFile: File
     try {
-      processedFile = await quickPreprocessImageForOCR(file)
+      processedFile = await quickPreprocessImageForOCR(imageFile)
     } catch (preprocessError) {
       console.warn('Image preprocessing failed, using original:', preprocessError)
-      processedFile = file // Fallback to original if preprocessing fails
+      processedFile = imageFile // Fallback to original if preprocessing fails
     }
 
     // Load Tesseract if not already loaded
@@ -457,6 +483,7 @@ function handleClose() {
   showPreview.value = false
   showFullscreenImage.value = false
   showItemBreakdown.value = false
+  showHeicInfo.value = true // Reset to open when closing
   error.value = null
   errorType.value = null
   validationFailed.value = false
@@ -476,6 +503,7 @@ function handleRescan() {
   showPreview.value = false
   showFullscreenImage.value = false
   showItemBreakdown.value = false
+  showHeicInfo.value = true // Reset to open when rescanning
   error.value = null
   errorType.value = null
   validationFailed.value = false
@@ -571,9 +599,9 @@ const detectionMessage = computed(() => {
   // Build message manually since vue-i18n interpolation doesn't work well with formatted currency
   const template = t('scanner.totalDetected')
   return template
-    .replace('{{amount}}', formatIDR(detectedAmount))
-    .replace('{{keyword}}', keywordText)
-    .replace('{{confidence}}', confidenceText)
+    .replace('{amount}', formatIDR(detectedAmount))
+    .replace('{keyword}', keywordText)
+    .replace('{confidence}', confidenceText)
 })
 
 const hasItems = computed(() => {
@@ -625,10 +653,44 @@ const errorIcon = computed(() => {
         </div>
       </div>
 
-      <div class="text-center">
+      <div class="text-center space-y-3">
         <p class="text-sm text-slate-600 dark:text-slate-400">
           {{ t('scanner.takePhotoDesc') }}
         </p>
+        
+        <!-- HEIC Not Supported Info (Collapsible) -->
+        <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 overflow-hidden">
+          <button
+            type="button"
+            @click="showHeicInfo = !showHeicInfo"
+            class="w-full flex items-center justify-between p-3 text-left hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
+          >
+            <div class="flex items-center gap-2 flex-1">
+              <font-awesome-icon :icon="['fas', 'circle-info']"
+                class="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+              <p class="text-xs font-medium text-blue-800 dark:text-blue-300">
+                {{ t('scanner.heicNotSupported') }}
+              </p>
+            </div>
+            <font-awesome-icon 
+              :icon="['fas', showHeicInfo ? 'chevron-up' : 'chevron-down']"
+              class="text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
+          </button>
+          <Transition
+            enter-active-class="transition-all duration-300 ease-out"
+            enter-from-class="opacity-0 max-h-0"
+            enter-to-class="opacity-100 max-h-96"
+            leave-active-class="transition-all duration-300 ease-in"
+            leave-from-class="opacity-100 max-h-96"
+            leave-to-class="opacity-0 max-h-0"
+          >
+            <div v-if="showHeicInfo" class="px-3 pb-3">
+              <p class="text-xs text-blue-700 dark:text-blue-400 text-start">
+                {{ t('scanner.heicNotSupportedDesc') }}
+              </p>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <div v-if="previewImage && processing" class="space-y-4">
@@ -686,7 +748,7 @@ const errorIcon = computed(() => {
               <p class="font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImage') }}</p>
               <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('scanner.uploadImageSubtitle') }}</p>
             </div>
-            <input id="file-upload" type="file" accept="image/*" class="hidden" @change="handleFileSelect" />
+            <input id="file-upload" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden" @change="handleFileSelect" />
           </label>
         </BaseCard>
       </div>
@@ -710,7 +772,7 @@ const errorIcon = computed(() => {
                 : 'text-yellow-800 dark:text-yellow-200'">
                 {{ validationFailed ? t('scanner.scanFailed') : t('scanner.warning') }}
               </p>
-              <p class="text-sm" :class="validationFailed
+              <p class="text-sm whitespace-pre-line" :class="validationFailed
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-yellow-700 dark:text-yellow-300'">
                 {{ error }}
@@ -746,7 +808,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
               }}</span>
-              <input id="file-upload-rescan" type="file" accept="image/*" class="hidden"
+              <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
           </div>
@@ -802,7 +864,7 @@ const errorIcon = computed(() => {
               <p class="font-medium mb-1 text-red-800 dark:text-red-200">
                 {{ t('scanner.scanFailed') }}
               </p>
-              <p class="text-sm text-red-700 dark:text-red-300">
+              <p class="text-sm text-red-700 dark:text-red-300 whitespace-pre-line">
                 {{ error }}
               </p>
             </div>
@@ -836,7 +898,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
               }}</span>
-              <input id="file-upload-rescan-preview" type="file" accept="image/*" class="hidden"
+              <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden"
                 @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
           </div>

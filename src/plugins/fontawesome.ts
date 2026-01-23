@@ -62,6 +62,9 @@ import {
   faWallet,
   faWifi,
   faCircleInfo,
+  faExpand,
+  faExpandArrowsAlt,
+  faShoppingCart,
 } from '@fortawesome/free-solid-svg-icons'
 import { faVuejs } from '@fortawesome/free-brands-svg-icons'
 
@@ -126,6 +129,9 @@ const icons = [
   faUserCircle,
   faWallet,
   faWifi,
+  faExpand,
+  faExpandArrowsAlt,
+  faShoppingCart,
   faVuejs,
 ]
 

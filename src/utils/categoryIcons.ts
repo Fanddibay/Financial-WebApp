@@ -12,6 +12,7 @@ const expenseCategoryIcons: Record<string, string> = {
   Tagihan: '📋',
   Hiburan: '🎮',
   Kesehatan: '🏥',
+  'Coffee/Minuman': '☕',
   Investasi: '📈',
   Invest: '📈',
   Lainnya: '📦',
@@ -22,6 +23,7 @@ const expenseCategoryIcons: Record<string, string> = {
   Bills: '📋',
   Entertainment: '🎮',
   Health: '🏥',
+  'Coffee/Beverages': '☕',
   Investment: '📈',
   Other: '📦',
 }
@@ -85,6 +87,11 @@ export function getCategoryIcon(category: string, type: 'income' | 'expense'): s
     'hiburan': '🎮',
     'health': '🏥',
     'kesehatan': '🏥',
+    'coffee': '☕',
+    'minuman': '☕',
+    'beverages': '☕',
+    'coffee/minuman': '☕',
+    'coffee/beverages': '☕',
     'other': '📦',
     'lainnya': '📦',
     // Income variations
