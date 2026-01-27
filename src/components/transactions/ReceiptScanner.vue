@@ -36,74 +36,43 @@ const emit = defineEmits<{
 const router = useRouter()
 const tokenStore = useTokenStore()
 
+// Import Tesseract.js directly from package (works better in PWA)
+// Dynamic import to avoid bundling issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Tesseract: any = null
+let tesseractLoadPromise: Promise<any> | null = null
 
-// Load Tesseract.js from CDN to avoid bundling issues in PWA
+// Load Tesseract.js - use bundled version for PWA compatibility
 async function loadTesseract() {
-  if (!Tesseract) {
+  if (Tesseract) {
+    return Tesseract
+  }
+
+  // Reuse existing load promise if already loading
+  if (tesseractLoadPromise) {
+    return tesseractLoadPromise
+  }
+
+  tesseractLoadPromise = (async () => {
     try {
-      // Check if Tesseract is already loaded globally (from CDN)
-      if (typeof window !== 'undefined' && (window as any).Tesseract) {
-        Tesseract = (window as any).Tesseract
-        return Tesseract
-      }
-
-      // Load Tesseract from CDN to avoid bundling issues in PWA
-      // This prevents "Not allowed nest placeholder" errors
-      await new Promise<void>((resolve, reject) => {
-        // Check if script already exists
-        const existingScript = document.querySelector('script[data-tesseract]')
-        if (existingScript && (window as any).Tesseract) {
-          Tesseract = (window as any).Tesseract
-          resolve()
-          return
-        }
-
-        // Add timeout for CDN load (30 seconds)
-        const timeout = setTimeout(() => {
-          reject(new Error('Tesseract.js CDN load timeout. Please check your internet connection.'))
-        }, 30000)
-
-        const script = document.createElement('script')
-        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'
-        script.async = true
-        script.setAttribute('data-tesseract', 'true')
-        script.onload = () => {
-          clearTimeout(timeout)
-          // Wait a bit for Tesseract to be available on window
-          const checkTesseract = setInterval(() => {
-            if ((window as any).Tesseract) {
-              clearInterval(checkTesseract)
-              Tesseract = (window as any).Tesseract
-              resolve()
-            }
-          }, 100)
-
-          // Timeout check for Tesseract availability
-          setTimeout(() => {
-            clearInterval(checkTesseract)
-            if (!Tesseract) {
-              reject(new Error('Tesseract not found after script load'))
-            }
-          }, 5000)
-        }
-        script.onerror = () => {
-          clearTimeout(timeout)
-          reject(new Error('Failed to load Tesseract.js from CDN. Please check your internet connection.'))
-        }
-        document.head.appendChild(script)
-      })
-
+      // Use dynamic import for better PWA compatibility
+      // This ensures the module is loaded correctly in service worker context
+      const tesseractModule = await import('tesseract.js')
+      Tesseract = tesseractModule.default || tesseractModule
+      
       if (!Tesseract) {
-        throw new Error('Tesseract.js could not be loaded')
+        throw new Error('Tesseract.js module not found')
       }
+      
+      return Tesseract
     } catch (error) {
       console.error('Failed to load Tesseract.js:', error)
-      throw new Error('OCR library not available. Please check your internet connection and try again.')
+      tesseractLoadPromise = null // Reset promise on error
+      throw new Error('OCR library tidak tersedia. Pastikan koneksi internet Anda aktif dan coba lagi.')
     }
-  }
-  return Tesseract
+  })()
+
+  return tesseractLoadPromise
 }
 
 const processing = ref(false)
@@ -273,22 +242,65 @@ async function processImage(file: File) {
     const TesseractInstance = await loadTesseract()
 
     // Create worker for OCR (required for Tesseract.js v5)
+    // Use bundled worker paths for PWA compatibility
     processingProgress.value = 35
-    const worker = await TesseractInstance.createWorker('eng', 1, {
-      workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-      corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-      langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
-      logger: (m: any) => {
-        if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
-          processingProgress.value = 35
-        } else if (m.status === 'loading language traineddata') {
+    let worker: any = null
+    
+    // Helper function to create worker with timeout
+    const createWorkerWithTimeout = async (options: any, timeoutMs = 60000): Promise<any> => {
+      return Promise.race([
+        TesseractInstance.createWorker('eng', 1, options),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Worker creation timeout. Pastikan koneksi internet aktif.')), timeoutMs)
+        )
+      ])
+    }
+    
+    const logger = (m: any) => {
+      // Update progress based on worker status
+      if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
+        processingProgress.value = 35
+      } else if (m.status === 'loading language traineddata') {
+        // More granular progress for language loading
+        if (m.progress) {
+          processingProgress.value = Math.min(45, 38 + Math.round(m.progress * 7))
+        } else {
           processingProgress.value = 38
-        } else if (m.status === 'recognizing text') {
-          // Map OCR progress to 40-90% of total progress
-          processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
         }
-      },
-    })
+      } else if (m.status === 'recognizing text') {
+        // Map OCR progress to 40-90% of total progress
+        processingProgress.value = Math.min(90, 40 + Math.round(m.progress * 50))
+      } else if (m.status === 'loading tesseract') {
+        processingProgress.value = 36
+      }
+    }
+    
+    try {
+      // Try to create worker with bundled paths first (PWA compatible)
+      // Tesseract.js will automatically resolve worker paths from node_modules
+      worker = await createWorkerWithTimeout({
+        logger,
+      }, 60000) // 60 second timeout
+    } catch (workerError) {
+      console.error('Worker creation failed, trying with explicit CDN paths:', workerError)
+      
+      // Fallback: Try with explicit CDN paths if bundled paths fail
+      // This handles edge cases where PWA cache might interfere
+      try {
+        worker = await createWorkerWithTimeout({
+          workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+          corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
+          langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
+          logger,
+        }, 60000) // 60 second timeout
+      } catch (fallbackError) {
+        console.error('Fallback worker creation also failed:', fallbackError)
+        const errorMessage = fallbackError instanceof Error 
+          ? fallbackError.message 
+          : 'Gagal memuat OCR worker. Pastikan koneksi internet aktif dan coba lagi.'
+        throw new Error(errorMessage)
+      }
+    }
 
     // Set parameters for receipt OCR
     await worker.setParameters({

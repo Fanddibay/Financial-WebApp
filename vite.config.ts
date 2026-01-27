@@ -93,64 +93,70 @@ export default defineConfig({
               },
             },
           },
-          // Cache Tesseract.js worker files
+          // Cache Tesseract.js worker files - use NetworkFirst for PWA compatibility
+          // This ensures worker files are always fresh and not blocked by stale cache
           {
             urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*tesseract.*/i,
-            handler: 'CacheFirst',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'tesseract-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days (shorter for freshness)
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
+              networkTimeoutSeconds: 10, // Timeout after 10 seconds, then use cache
             },
           },
-          // Cache Tesseract.js core WASM files
+          // Cache Tesseract.js core WASM files - use NetworkFirst for PWA compatibility
           {
             urlPattern: /\.wasm$/i,
-            handler: 'CacheFirst',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'wasm-cache',
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          // Cache Tesseract.js language data files
-          {
-            urlPattern: /\.traineddata$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'tesseract-lang-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-          // Cache all CDN assets (for tesseract.js and other libraries)
-          {
-            urlPattern: /^https:\/\/.*\.(js|wasm|traineddata)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'cdn-cache',
-              expiration: {
-                maxEntries: 100,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
+              networkTimeoutSeconds: 10,
+            },
+          },
+          // Cache Tesseract.js language data files - use NetworkFirst for PWA compatibility
+          {
+            urlPattern: /\.traineddata$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'tesseract-lang-cache',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              networkTimeoutSeconds: 10,
+            },
+          },
+          // Cache all CDN assets (for tesseract.js and other libraries) - use NetworkFirst
+          // This ensures Tesseract.js resources are not blocked by stale cache in PWA
+          {
+            urlPattern: /^https:\/\/.*\.(js|wasm|traineddata)$/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'cdn-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days (shorter for freshness)
+              },
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              networkTimeoutSeconds: 10, // Timeout after 10 seconds, then use cache
             },
           },
         ],
