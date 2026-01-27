@@ -93,6 +93,7 @@ function handleParse() {
 
 function handleEdit() {
   if (!parseResult.value || !parseResult.value.success) {
+    console.warn('handleEdit: No valid parse result')
     return
   }
 
@@ -100,34 +101,82 @@ function handleEdit() {
 
   // Validate we have minimum required data
   if (!data.amount || data.amount <= 0) {
+    console.warn('handleEdit: Invalid amount', data.amount)
     return
   }
   if (!data.description || !data.description.trim()) {
+    console.warn('handleEdit: Invalid description', data.description)
     return
   }
 
   // Navigate directly to transaction form with prefilled data
   // NO popup, NO text input modal - direct navigation
-  const queryParams = new URLSearchParams()
-  if (data.type) queryParams.set('type', data.type)
-  if (data.amount) queryParams.set('amount', data.amount.toString())
-  if (data.description) queryParams.set('description', encodeURIComponent(data.description.trim()))
-  if (data.category) queryParams.set('category', encodeURIComponent(data.category))
-  if (data.date) queryParams.set('date', data.date)
-  queryParams.set('from', 'text-input')
+  // Build query params object - Vue Router will handle encoding automatically
+  const queryParams: Record<string, string> = {
+    from: 'text-input'
+  }
+  
+  if (data.type) queryParams.type = data.type
+  if (data.amount) queryParams.amount = data.amount.toString()
+  // Description and category may contain special characters, but Vue Router handles encoding
+  if (data.description) queryParams.description = data.description.trim()
+  if (data.category) queryParams.category = data.category
+  if (data.date) queryParams.date = data.date
+
+  console.log('handleEdit: Navigating with query params:', queryParams)
 
   // CRITICAL: Close BOTH modals (TextInputModal and parent AddTransactionModal)
   // Emit signal to parent to close, then close self
   emit('edit-navigate')
   emit('close')
 
-  // Small delay to ensure ALL modals are fully closed before navigation
-  setTimeout(() => {
-    router.push({
-      path: '/transactions/new',
-      query: Object.fromEntries(queryParams),
-    })
-  }, 150)
+  // CRITICAL: Use nextTick to ensure modals are closed before navigation
+  // Then use a small delay to ensure DOM is updated
+  nextTick(() => {
+    setTimeout(() => {
+      const targetPath = '/transactions/new'
+      console.log('handleEdit: Attempting navigation to', targetPath, 'with query:', queryParams)
+      
+      // Use router.push with explicit path and query
+      // Ensure we're navigating to the correct path
+      router.push({
+        path: targetPath,
+        query: queryParams,
+      }).then(() => {
+        console.log('handleEdit: Navigation successful to', router.currentRoute.value.path)
+        // Verify we're on the correct route
+        if (router.currentRoute.value.path !== targetPath) {
+          console.warn('handleEdit: Navigation completed but route mismatch:', {
+            expected: targetPath,
+            actual: router.currentRoute.value.path
+          })
+        }
+      }).catch((error) => {
+        // Log navigation error for debugging
+        console.error('handleEdit: Navigation error:', error)
+        console.error('handleEdit: Error details:', {
+          message: error.message,
+          stack: error.stack,
+          targetPath,
+          queryParams,
+          currentRoute: router.currentRoute.value.path
+        })
+        
+        // Fallback: try again after a longer delay
+        setTimeout(() => {
+          console.log('handleEdit: Retrying navigation...')
+          router.push({
+            path: targetPath,
+            query: queryParams,
+          }).then(() => {
+            console.log('handleEdit: Fallback navigation successful')
+          }).catch((fallbackError) => {
+            console.error('handleEdit: Fallback navigation also failed:', fallbackError)
+          })
+        }, 300)
+      })
+    }, 250) // Increased delay to ensure modals are fully closed and DOM is updated
+  })
 }
 
 async function handleSubmit() {

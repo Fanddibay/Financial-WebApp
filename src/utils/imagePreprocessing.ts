@@ -60,10 +60,10 @@ export async function preprocessImageForOCR(imageFile: File): Promise<File> {
 
       for (let i = 0; i < data.length; i += 4) {
         const gray = grayscale[i / 4]
-        
+
         // Normalize to 0-255 range with contrast enhancement
         let normalized = ((gray - minBrightness) / brightnessRange) * 255
-        
+
         // Apply contrast adjustment
         normalized = 128 + (normalized - 128) * contrastFactor
         normalized = Math.max(0, Math.min(255, normalized))
@@ -80,7 +80,7 @@ export async function preprocessImageForOCR(imageFile: File): Promise<File> {
 
       // Step 3: Apply additional sharpening filter
       const sharpenedData = applySharpeningFilter(imageData, width, height)
-      
+
       // Put processed image data back
       ctx.putImageData(sharpenedData, 0, 0)
 
