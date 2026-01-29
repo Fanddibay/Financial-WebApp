@@ -23,8 +23,15 @@ themeStore.initTheme()
 
 // Initialize token store to ensure device UUID is generated on first load
 import { useTokenStore } from './stores/token'
+import { usePocketStore } from './stores/pocket'
+import { transactionService } from './services/transactionService'
+import { MAIN_POCKET_ID } from './services/pocketService'
+
 const tokenStore = useTokenStore()
-// This will generate and store device UUID if it doesn't exist
 tokenStore.getOrCreateDeviceId()
+
+const pocketStore = usePocketStore()
+pocketStore.init()
+transactionService.migratePocketIds(MAIN_POCKET_ID)
 
 app.mount('#app')

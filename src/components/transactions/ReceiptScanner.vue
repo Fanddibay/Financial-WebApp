@@ -6,6 +6,7 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
 import type { TransactionFormData } from '@/types/transaction'
+import { MAIN_POCKET_ID } from '@/services/pocketService'
 import { parseReceiptText, parseReceiptTextDetailed, type ReceiptParseResult } from '@/utils/receiptParser'
 import { validateImageForReceipt } from '@/utils/imageValidation'
 import { quickPreprocessImageForOCR } from '@/utils/imagePreprocessing'
@@ -101,6 +102,7 @@ const defaultFormData: TransactionFormData = {
   description: '',
   category: '',
   date: new Date().toISOString().split('T')[0] || '',
+  pocketId: MAIN_POCKET_ID,
 }
 
 const formData = ref<TransactionFormData>({ ...defaultFormData })

@@ -2,13 +2,17 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
+import { useAddTransactionFlow } from '@/composables/useAddTransactionFlow'
 import { useToastStore } from '@/stores/toast'
+import { usePocketStore } from '@/stores/pocket'
+import { MAIN_POCKET_ID } from '@/services/pocketService'
 import type { TransactionFormData } from '@/types/transaction'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AlertModal from '@/components/ui/AlertModal.vue'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
 import { useI18n } from 'vue-i18n'
@@ -18,6 +22,8 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const toastStore = useToastStore()
+const pocketStore = usePocketStore()
+const { successThenRedirect } = useAddTransactionFlow()
 const { categories, loading, fetchTransactions, createTransaction, updateTransaction, getTransactionById } = useTransactions()
 
 const isEdit = computed(() => route.name === 'transaction-edit')
@@ -42,10 +48,13 @@ const formData = ref<TransactionFormData>({
   description: '',
   category: '',
   date: getTodayDate(),
+  pocketId: MAIN_POCKET_ID,
 })
 
 const isFromTextInput = ref(false)
-const isCancelling = ref(false) // Guard to prevent auto-save when canceling
+const fromPocketId = ref<string | null>(null)
+const returnTo = ref('')
+const isCancelling = ref(false)
 
 const pendingTransactions = ref<PendingTransaction[]>([])
 const editingIndex = ref<number | null>(null)
@@ -77,9 +86,16 @@ const defaultFormData: TransactionFormData = {
   description: '',
   category: '',
   date: getTodayDate(),
+  pocketId: MAIN_POCKET_ID,
 }
 
+const pocketOptions = computed(() =>
+  pocketStore.pockets.map((p) => ({ value: p.id, label: `${p.icon} ${p.name}` })),
+)
+const lockedPocketId = computed(() => fromPocketId.value ?? undefined)
+
 onMounted(async () => {
+  pocketStore.fetchPockets()
   if (isEdit.value) {
     const id = transactionId.value
     if (!id) {
@@ -89,46 +105,40 @@ onMounted(async () => {
     await fetchTransactions()
     const transaction = getTransactionById(id)
     if (transaction) {
+      if (transaction.type === 'transfer') {
+        router.replace('/transactions')
+        return
+      }
       formData.value = {
-        type: transaction.type,
+        type: transaction.type as 'income' | 'expense',
         amount: transaction.amount,
         description: transaction.description,
         category: transaction.category,
         date: transaction.date,
+        pocketId: transaction.pocketId,
       }
     } else {
       router.push('/transactions')
     }
   } else {
-    // Check for prefilled data from query params (e.g., from text input)
     const query = route.query
+    if (typeof query.returnTo === 'string' && query.returnTo) returnTo.value = query.returnTo
+    if (query.pocketId && typeof query.pocketId === 'string') {
+      formData.value.pocketId = query.pocketId
+      fromPocketId.value = query.pocketId
+    }
     if (query.from === 'text-input') {
       isFromTextInput.value = true
-      if (query.type) {
-        formData.value.type = query.type as 'income' | 'expense'
-      }
+      if (query.type) formData.value.type = query.type as 'income' | 'expense'
       if (query.amount) {
         const amount = parseFloat(query.amount as string)
-        if (!isNaN(amount) && amount > 0) {
-          formData.value.amount = amount
-        }
+        if (!isNaN(amount) && amount > 0) formData.value.amount = amount
       }
-      if (query.description) {
-        formData.value.description = decodeURIComponent(query.description as string)
-      }
-      if (query.category) {
-        formData.value.category = decodeURIComponent(query.category as string)
-      }
-      if (query.date) {
-        formData.value.date = query.date as string
-      }
-
-      // CRITICAL: Clear query params immediately after reading them
-      // This prevents any accidental auto-save or re-reading on navigation
-      router.replace({ query: {} }).catch(() => {
-        // Ignore navigation errors
-      })
+      if (query.description) formData.value.description = decodeURIComponent(query.description as string)
+      if (query.category) formData.value.category = decodeURIComponent(query.category as string)
+      if (query.date) formData.value.date = query.date as string
     }
+    router.replace({ query: {} }).catch(() => {})
   }
 })
 
@@ -192,23 +202,19 @@ async function handleSubmit() {
   try {
     if (isEdit.value) {
       const id = transactionId.value
-      if (!id) {
-        return
-      }
+      if (!id) return
       await updateTransaction(id, formData.value)
       toastStore.success(t('transaction.updateSuccess'))
-      router.push('/')
+      router.push(returnTo.value || '/')
     } else {
-      const transaction = await createTransaction(formData.value)
-      // Store transaction data in sessionStorage for notification
-      sessionStorage.setItem('newTransaction', JSON.stringify({
-        type: transaction.type,
-        amount: transaction.amount,
-        description: transaction.description,
-        category: transaction.category,
-        date: transaction.date,
-      }))
-      router.push('/')
+      await createTransaction(formData.value)
+      const dest = returnTo.value || (fromPocketId.value ? `/pockets/${fromPocketId.value}` : '/')
+      const type = formData.value.type as 'income' | 'expense'
+      successThenRedirect(dest, {
+        pocketId: formData.value.pocketId,
+        amount: formData.value.amount,
+        type,
+      })
     }
   } catch (error) {
     console.error('Error saving transaction:', error)
@@ -328,31 +334,14 @@ async function handleSubmitAll() {
   }
 
   try {
-    // Save all pending transactions
-    const lastTransaction = pendingTransactions.value[pendingTransactions.value.length - 1]
+    const count = pendingTransactions.value.length
     for (const transaction of pendingTransactions.value) {
-      // Final validation before saving
-      if (isDateInFuture(transaction.date)) {
-        console.warn(`Skipping transaction with future date: ${transaction.date}`)
-        continue
-      }
+      if (isDateInFuture(transaction.date)) continue
       await createTransaction(transaction)
     }
-
-    // Store last transaction data for notification
-    if (lastTransaction) {
-      sessionStorage.setItem('newTransaction', JSON.stringify({
-        type: lastTransaction.type,
-        amount: lastTransaction.amount,
-        description: lastTransaction.description,
-        category: lastTransaction.category,
-        date: lastTransaction.date,
-      }))
-    }
-
-    // Clear pending transactions and navigate
     pendingTransactions.value = []
-    router.push('/')
+    const dest = returnTo.value || '/'
+    successThenRedirect(dest, { multi: true, count })
   } catch (error) {
     console.error('Error saving transactions:', error)
     showAlertModal(t('transaction.saveAllFailed'), t('transaction.saveAllFailedDesc'), 'error')
@@ -380,17 +369,14 @@ function handleCancel() {
   if (pendingTransactions.value.length > 0) {
     showCancelConfirm.value = true
   } else {
-    // Clear query params before going back to prevent any auto-save
     router.replace({ query: {} }).then(() => {
-      // Reset canceling flag after navigation
-      setTimeout(() => {
-        isCancelling.value = false
-      }, 100)
-      router.back()
+      setTimeout(() => { isCancelling.value = false }, 100)
+      if (returnTo.value) router.push(returnTo.value)
+      else router.back()
     }).catch(() => {
-      // Reset flag even on error
       isCancelling.value = false
-      router.back()
+      if (returnTo.value) router.push(returnTo.value)
+      else router.back()
     })
   }
 }
@@ -403,17 +389,14 @@ function confirmCancel() {
   pendingTransactions.value = []
   editingIndex.value = null
 
-  // Clear query params before going back
   router.replace({ query: {} }).then(() => {
-    // Reset canceling flag after navigation
-    setTimeout(() => {
-      isCancelling.value = false
-    }, 100)
-    router.back()
+    setTimeout(() => { isCancelling.value = false }, 100)
+    if (returnTo.value) router.push(returnTo.value)
+    else router.back()
   }).catch(() => {
-    // Reset flag even on error
     isCancelling.value = false
-    router.back()
+    if (returnTo.value) router.push(returnTo.value)
+    else router.back()
   })
 }
 
@@ -432,21 +415,18 @@ function formatDate(dateString: string): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8 min-h-0 overflow-y-auto">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">
-        {{ isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle') }}
-      </h1>
-      <p class="mt-1 text-slate-600 dark:text-slate-400">
-        {{
-          isEdit
-            ? t('transaction.updateTransaction')
-            : editingIndex !== null
-              ? t('transaction.editPendingTransaction')
-              : t('transaction.recordNewTransaction')
-        }}
-      </p>
-    </div>
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4 min-h-0 overflow-y-auto">
+    <PageHeader
+      :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
+      :subtitle="
+        isEdit
+          ? t('transaction.updateTransaction')
+          : editingIndex !== null
+            ? t('transaction.editPendingTransaction')
+            : t('transaction.recordNewTransaction')
+      "
+      :show-back="true"
+    />
 
     <!-- Info Banner for Text Input -->
     <div v-if="isFromTextInput"
@@ -467,7 +447,14 @@ function formatDate(dateString: string): string {
     </div>
 
     <BaseCard class="overflow-visible">
-      <TransactionForm v-model="formData" :categories="categories" :loading="loading" @submit="handleSubmit">
+      <TransactionForm
+        v-model="formData"
+        :categories="categories"
+        :loading="loading"
+        :pocket-options="pocketOptions"
+        :locked-pocket-id="lockedPocketId"
+        @submit="handleSubmit"
+      >
         <template #actions>
           <div class="flex flex-wrap gap-2">
             <BaseButton variant="secondary" @click="handleCancel" class="flex-1 min-w-[100px]">

@@ -7,6 +7,7 @@ import IncomeExpenseComparisonChart from '@/components/charts/IncomeExpenseCompa
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportSummaryToPDF } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
@@ -60,17 +61,18 @@ const chartTypeOptions = computed(() => [
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('dashboard.title') }}</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('dashboard.subtitle') }}</p>
-      </div>
-      <BaseButton variant="secondary" size="sm" @click="handleExportSummary">
-        <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
-        {{ t('dashboard.export') }}
-      </BaseButton>
-    </div>
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4">
+    <PageHeader
+      :title="t('dashboard.title')"
+      :subtitle="t('dashboard.subtitle')"
+    >
+      <template #right>
+        <BaseButton variant="secondary" size="sm" @click="handleExportSummary">
+          <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
+          {{ t('dashboard.export') }}
+        </BaseButton>
+      </template>
+    </PageHeader>
 
     <SummaryCard :summary="summary" />
 

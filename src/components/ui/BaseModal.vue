@@ -19,6 +19,7 @@ const emit = defineEmits<{
 defineSlots<{
   default(): unknown
   header?(): unknown
+  headerBottom?(): unknown
   footer?(): unknown
 }>()
 
@@ -62,11 +63,14 @@ onUnmounted(() => {
               'max-w-2xl': size === 'xl',
             },
           ]" @click.stop>
-            <div v-if="title || $slots.header"
+            <div v-if="title || $slots.header || $slots.headerBottom"
               class="border-b border-slate-200 px-6 py-4 dark:border-slate-700 flex-shrink-0">
               <slot name="header">
                 <h2 v-if="title" class="text-xl font-semibold text-slate-900 dark:text-slate-100">{{ title }}</h2>
               </slot>
+              <div v-if="$slots.headerBottom" class="mt-3">
+                <slot name="headerBottom" />
+              </div>
             </div>
             <div class="px-6 py-4 overflow-y-auto flex-1 min-h-0" style="padding-bottom: 1.5rem;">
               <slot />

@@ -4,12 +4,15 @@
  */
 
 import { encryptData, decryptData } from './encryption'
+import { MAIN_POCKET_ID } from '@/services/pocketService'
+import { DEFAULT_POCKET_COLOR } from '@/utils/pocketColors'
 
 const APP_VERSION = '1.0.0'
 const STORAGE_KEYS = {
   TRANSACTIONS: 'financial_tracker_transactions',
   PROFILE: 'financial_tracker_profile',
   THEME: 'financial_tracker_theme',
+  POCKETS: 'financial_tracker_pockets',
 } as const
 
 export interface ExportData {
@@ -21,16 +24,24 @@ export interface ExportData {
 }
 
 /**
- * Collects all app data from localStorage
+ * Collects all app data from localStorage.
+ * Avatar is stored separately and must NOT be included in export.
  */
 export function collectAppData(): ExportData {
   const transactions = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
   )
-  const profile = JSON.parse(
+  const rawProfile = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null',
   )
   const theme = localStorage.getItem(STORAGE_KEYS.THEME)
+  const profile =
+    rawProfile && typeof rawProfile === 'object'
+      ? (() => {
+          const { avatar: _a, ...rest } = rawProfile as Record<string, unknown>
+          return rest
+        })()
+      : rawProfile
 
   return {
     version: APP_VERSION,
@@ -57,14 +68,14 @@ export async function exportData(passphrase: string): Promise<void> {
   const encrypted = await encryptData(jsonString, passphrase)
 
   // Create encrypted export object
-  const exportData = {
+  const exportPayload = {
     encrypted: true,
     version: APP_VERSION,
     data: encrypted,
   }
 
   // Create and download file
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
     type: 'application/json',
   })
   const url = URL.createObjectURL(blob)
@@ -77,8 +88,57 @@ export async function exportData(passphrase: string): Promise<void> {
   URL.revokeObjectURL(url)
 }
 
+export interface PocketExportPayload {
+  version: string
+  exportedAt: string
+  exportType: 'pocket'
+  exportedBy?: string
+  pockets: unknown[]
+  transactions: unknown[]
+}
+
 /**
- * Validates imported data structure
+ * Exports a single pocket and its transactions as encrypted JSON.
+ * Uses same encryption as global export. Safe for sharing.
+ */
+export async function exportPocketData(
+  pocket: { name: string; [k: string]: unknown },
+  transactions: unknown[],
+  passphrase: string,
+  exportedBy?: string,
+): Promise<void> {
+  if (!passphrase || passphrase.length < 4) {
+    throw new Error('Passphrase harus minimal 4 karakter')
+  }
+
+  const data: PocketExportPayload = {
+    version: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    exportType: 'pocket',
+    ...(exportedBy && { exportedBy }),
+    pockets: [pocket],
+    transactions,
+  }
+  const jsonString = JSON.stringify(data, null, 2)
+  const encrypted = await encryptData(jsonString, passphrase)
+  const wrapper = { encrypted: true, version: APP_VERSION, data: encrypted }
+
+  const safeName = pocket.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+  const filename = `fanplanner-pocket-${safeName || 'pocket'}.json`
+
+  const blob = new Blob([JSON.stringify(wrapper, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Validates legacy (global) import data structure
  */
 function validateImportData(data: unknown): data is ExportData {
   if (!data || typeof data !== 'object') {
@@ -87,7 +147,6 @@ function validateImportData(data: unknown): data is ExportData {
 
   const d = data as Record<string, unknown>
 
-  // Check required fields - make profile optional (can be null)
   if (
     typeof d.version !== 'string' ||
     typeof d.exportedAt !== 'string' ||
@@ -96,25 +155,49 @@ function validateImportData(data: unknown): data is ExportData {
     return false
   }
 
-  // Profile can be null or object
   if (d.profile !== null && d.profile !== undefined && typeof d.profile !== 'object') {
     return false
   }
 
-  // Validate transactions structure - allow empty array
-  for (const transaction of d.transactions) {
+  for (const transaction of d.transactions as unknown[]) {
+    const t = transaction as Record<string, unknown>
     if (
-      !transaction ||
-      typeof transaction !== 'object' ||
-      typeof (transaction as Record<string, unknown>).id !== 'string' ||
-      typeof (transaction as Record<string, unknown>).type !== 'string' ||
-      typeof (transaction as Record<string, unknown>).amount !== 'number'
+      !t ||
+      typeof t !== 'object' ||
+      typeof t.id !== 'string' ||
+      typeof t.type !== 'string' ||
+      typeof t.amount !== 'number'
     ) {
       return false
     }
   }
 
   return true
+}
+
+function validatePocketImportData(data: unknown): data is PocketExportPayload {
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
+  if (
+    d.exportType !== 'pocket' ||
+    !Array.isArray(d.pockets) ||
+    !Array.isArray(d.transactions)
+  ) {
+    return false
+  }
+  for (const p of d.pockets as unknown[]) {
+    const x = p as Record<string, unknown>
+    if (!x || typeof x.name !== 'string' || typeof x.id !== 'string') return false
+  }
+  for (const t of d.transactions as unknown[]) {
+    const x = t as Record<string, unknown>
+    if (!x || typeof x.id !== 'string' || typeof x.type !== 'string' || typeof x.amount !== 'number') return false
+  }
+  return true
+}
+
+function newId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
 }
 
 /**
@@ -134,23 +217,28 @@ function validateAndFixDate(dateString: string): string {
   return dateString
 }
 
+export interface ImportResult {
+  transactionCount: number
+  pocketCount?: number
+  profileName: string
+}
+
 /**
- * Imports and restores app data from encrypted file
+ * Imports from encrypted file. Append-only: existing data is never overwritten.
+ * Supports legacy (global) and pocket-export formats.
  */
 export async function importData(
   file: File,
   passphrase: string,
-): Promise<{ transactionCount: number; profileName: string }> {
+): Promise<ImportResult> {
   if (!passphrase || passphrase.length < 4) {
     throw new Error('Passphrase harus minimal 4 karakter')
   }
 
-  // Validate file type
   if (!file.type.includes('json') && !file.name.endsWith('.json')) {
     throw new Error('Tipe file tidak valid. Silakan pilih file JSON.')
   }
 
-  // Read file
   let fileContent: string
   try {
     fileContent = await file.text()
@@ -160,7 +248,6 @@ export async function importData(
     )
   }
 
-  // Parse JSON
   let parsedData: unknown
   try {
     parsedData = JSON.parse(fileContent)
@@ -170,7 +257,6 @@ export async function importData(
     )
   }
 
-  // Check if encrypted
   if (
     !parsedData ||
     typeof parsedData !== 'object' ||
@@ -183,88 +269,141 @@ export async function importData(
   }
 
   const encryptedData = parsedData as { encrypted: boolean; data: string }
-
   if (!encryptedData.encrypted || typeof encryptedData.data !== 'string') {
     throw new Error('Format file backup tidak valid.')
   }
 
-  // Decrypt data
   let decryptedString: string
   try {
     decryptedString = await decryptData(encryptedData.data, passphrase)
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Dekripsi gagal'
-    if (errorMessage.includes('Incorrect passphrase') || errorMessage.includes('decrypt')) {
+    const msg = error instanceof Error ? error.message : 'Dekripsi gagal'
+    if (msg.includes('Incorrect passphrase') || msg.includes('decrypt')) {
       throw new Error('Passphrase salah atau data rusak. Pastikan passphrase yang Anda masukkan benar.')
     }
-    throw new Error(errorMessage)
+    throw new Error(msg)
   }
 
-  // Parse decrypted JSON
-  let importData: unknown
+  let payload: unknown
   try {
-    importData = JSON.parse(decryptedString)
+    payload = JSON.parse(decryptedString)
   } catch (error) {
     throw new Error(
       `Data backup rusak: ${error instanceof Error ? error.message : 'JSON tidak valid setelah dekripsi'}`,
     )
   }
 
-  // Validate data structure
-  if (!validateImportData(importData)) {
-    throw new Error(
-      'Struktur data backup tidak valid. File mungkin rusak atau dari versi yang tidak kompatibel. Pastikan file ini adalah backup yang valid dari aplikasi ini.',
-    )
+  const d = payload as Record<string, unknown>
+  if (d.version && d.version !== APP_VERSION) {
+    console.warn(`Version mismatch: backup ${d.version}, app ${APP_VERSION}`)
   }
 
-  // Check version compatibility (basic check)
-  if (importData.version !== APP_VERSION) {
-    console.warn(
-      `Version mismatch: backup is ${importData.version}, app is ${APP_VERSION}`,
+  // Pocket format: append pockets + transactions
+  if (validatePocketImportData(payload)) {
+    const existingPockets: unknown[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.POCKETS) || '[]',
     )
-    // Continue anyway, but warn user
-  }
+    const existingTx: unknown[] = JSON.parse(
+      localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
+    )
 
-  // Validate and fix dates in imported transactions
-  const validatedTransactions = (importData.transactions as Array<Record<string, unknown>>).map((transaction) => {
-    if (transaction.date && typeof transaction.date === 'string') {
-      const originalDate = transaction.date
-      const fixedDate = validateAndFixDate(transaction.date)
-      if (originalDate !== fixedDate) {
-        console.warn(`Fixed future date in imported transaction: ${originalDate} -> ${fixedDate}`)
-      }
-      return {
-        ...transaction,
-        date: fixedDate,
-      }
+    const exportedBy = typeof d.exportedBy === 'string' ? d.exportedBy.trim() : undefined
+    const pocketIdMap = new Map<string, string>()
+    const newPockets: unknown[] = []
+
+    for (const p of (payload as PocketExportPayload).pockets) {
+      const old = p as Record<string, unknown>
+      const newId_ = newId('pocket')
+      pocketIdMap.set(old.id as string, newId_)
+      const name = (old.name as string) || 'Pocket'
+      const displayName = exportedBy ? `${name} ${exportedBy}` : name
+      newPockets.push({
+        ...old,
+        id: newId_,
+        name: displayName,
+        balance: 0,
+        color: (old.color as string) || DEFAULT_POCKET_COLOR,
+      })
     }
-    return transaction
+
+    const now = new Date().toISOString()
+    const newTx: unknown[] = []
+    for (const t of (payload as PocketExportPayload).transactions) {
+      const x = t as Record<string, unknown>
+      const pid = x.pocketId as string
+      const tid = x.transferToPocketId as string | undefined
+      const srcOk = pocketIdMap.has(pid)
+      const dstOk = !tid || pocketIdMap.has(tid)
+      if (!srcOk || !dstOk) continue
+      const date = typeof x.date === 'string' ? validateAndFixDate(x.date) : (x.date as string) || now.slice(0, 10)
+      newTx.push({
+        ...x,
+        id: newId('tx'),
+        pocketId: pocketIdMap.get(pid)!,
+        transferToPocketId: tid ? pocketIdMap.get(tid) : undefined,
+        date,
+        createdAt: x.createdAt ?? now,
+        updatedAt: x.updatedAt ?? now,
+      })
+    }
+
+    const mergedPockets = [...(Array.isArray(existingPockets) ? existingPockets : []), ...newPockets]
+    const mergedTx = [...(Array.isArray(existingTx) ? existingTx : []), ...newTx]
+
+    try {
+      localStorage.setItem(STORAGE_KEYS.POCKETS, JSON.stringify(mergedPockets))
+      localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(mergedTx))
+    } catch (e) {
+      throw new Error(
+        `Gagal menyimpan data yang diimpor: ${e instanceof Error ? e.message : 'Error penyimpanan'}`,
+      )
+    }
+
+    const profile = JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null') as { name?: string } | null
+    return {
+      transactionCount: newTx.length,
+      pocketCount: newPockets.length,
+      profileName: profile?.name || 'User',
+    }
+  }
+
+  // Legacy format: append transactions only, assign to main pocket
+  if (!validateImportData(payload)) {
+    throw new Error(
+      'Struktur data backup tidak valid. File mungkin rusak atau dari versi yang tidak kompatibel.',
+    )
+  }
+
+  const existingTx: unknown[] = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
+  )
+  const legacyTx = (payload as ExportData).transactions as Array<Record<string, unknown>>
+  const now = new Date().toISOString()
+  const appended = legacyTx.map((t) => {
+    const date = typeof t.date === 'string' ? validateAndFixDate(t.date) : (t.date as string) || now.slice(0, 10)
+    return {
+      ...t,
+      id: newId('tx'),
+      pocketId: MAIN_POCKET_ID,
+      date,
+      createdAt: t.createdAt ?? now,
+      updatedAt: t.updatedAt ?? now,
+    }
   })
 
-  // Store data in localStorage (this is the only place we modify storage)
+  const merged = [...(Array.isArray(existingTx) ? existingTx : []), ...appended]
+
   try {
-    localStorage.setItem(
-      STORAGE_KEYS.TRANSACTIONS,
-      JSON.stringify(validatedTransactions),
-    )
-    localStorage.setItem(
-      STORAGE_KEYS.PROFILE,
-      JSON.stringify(importData.profile),
-    )
-    if (importData.theme) {
-      localStorage.setItem(STORAGE_KEYS.THEME, importData.theme)
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.THEME)
-    }
-  } catch (error) {
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(merged))
+  } catch (e) {
     throw new Error(
-      `Gagal menyimpan data yang diimpor: ${error instanceof Error ? error.message : 'Error penyimpanan'}`,
+      `Gagal menyimpan data yang diimpor: ${e instanceof Error ? e.message : 'Error penyimpanan'}`,
     )
   }
 
-  const profile = (importData.profile as { name?: string }) || {}
+  const profile = JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null') as { name?: string } | null
   return {
-    transactionCount: validatedTransactions.length,
+    transactionCount: appended.length,
     profileName: profile?.name || 'User',
   }
 }

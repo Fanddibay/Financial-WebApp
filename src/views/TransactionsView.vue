@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactions } from '@/composables/useTransactions'
 import { useToastStore } from '@/stores/toast'
+import { usePocketStore } from '@/stores/pocket'
+import { useTokenStore } from '@/stores/token'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -10,6 +13,8 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import AlertModal from '@/components/ui/AlertModal.vue'
+import PageHeader from '@/components/layout/PageHeader.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportToXLSX, exportToPDF } from '@/utils/export'
 import type { TransactionFormData, TransactionType } from '@/types/transaction'
@@ -17,26 +22,31 @@ import { getCategoryWithIcon } from '@/utils/categoryIcons'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const router = useRouter()
 const toastStore = useToastStore()
 const {
   transactions,
   summary,
   categories,
-  // Removed unused variables: incomeTransactionsByCategory, transactionsByCategory
   fetchTransactions,
   deleteTransaction,
   createTransaction,
 } = useTransactions()
+const pocketStore = usePocketStore()
+const tokenStore = useTokenStore()
+const { getActivePockets } = usePocketLimits()
 
 const searchQuery = ref('')
 const filterType = ref<TransactionType | 'all'>('all')
 const filterCategory = ref('')
+const filterPocketId = ref('')
 const showScanner = ref(false)
 const showFilterSection = ref(false)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
 const showScrollToTop = ref(false)
+const showExportNoDataModal = ref(false)
 
 // Date filter state
 type DateFilterType = 'none' | 'today' | 'last7days' | 'last30days' | 'custom'
@@ -54,14 +64,12 @@ const categoryOptions = computed(() => {
   const baseOptions = [{ value: '', label: t('common.allCategories') }]
 
   if (filterType.value === 'all') {
-    // Get unique categories from all transactions with their types
     const categoryMap = new Map<string, 'income' | 'expense'>()
-    transactions.value.forEach((t) => {
-      // For 'all' type, prefer the most common type for that category
-      if (!categoryMap.has(t.category)) {
-        categoryMap.set(t.category, t.type)
-      }
-    })
+    transactions.value
+      .filter((t) => t.type !== 'transfer' && t.category)
+      .forEach((t) => {
+        if (!categoryMap.has(t.category)) categoryMap.set(t.category, t.type)
+      })
 
     // Normalize categories - replace "Other" with "Lainnya" if exists
     const normalizedCategories = Array.from(categoryMap.entries())
@@ -84,7 +92,6 @@ const categoryOptions = computed(() => {
       })),
     ]
   } else if (filterType.value === 'income') {
-    // Get categories from income transactions
     const incomeCategories = new Set<string>()
     transactions.value
       .filter((t) => t.type === 'income')
@@ -101,7 +108,6 @@ const categoryOptions = computed(() => {
       })),
     ]
   } else {
-    // Get categories from expense transactions
     const expenseCategories = new Set<string>()
     transactions.value
       .filter((t) => t.type === 'expense')
@@ -164,14 +170,17 @@ function getDateRange(type: DateFilterType): { start: Date; end: Date } | null {
 const filteredTransactions = computed(() => {
   let result = [...transactions.value]
 
-  // Filter by type
   if (filterType.value !== 'all') {
     result = result.filter((t) => t.type === filterType.value)
   }
 
-  // Filter by category
   if (filterCategory.value) {
     result = result.filter((t) => t.category === filterCategory.value)
+  }
+
+  if (filterPocketId.value) {
+    const pid = filterPocketId.value
+    result = result.filter((t) => t.pocketId === pid || t.transferToPocketId === pid)
   }
 
   // Filter by date range
@@ -203,13 +212,36 @@ const filteredTransactions = computed(() => {
   })
 })
 
+const pocketOptions = computed(() => {
+  const base = [{ value: '', label: t('pocket.allPockets') }]
+  const active = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
+  const list = active.map((p) => ({ value: p.id, label: `${p.icon} ${p.name}` }))
+  return [...base, ...list]
+})
+
+const filteredSummary = computed(() => {
+  const list = filteredTransactions.value.filter((t) => t.type !== 'transfer')
+  const income = list.filter((t) => t.type === 'income')
+  const expenses = list.filter((t) => t.type === 'expense')
+  return {
+    totalIncome: income.reduce((s, t) => s + t.amount, 0),
+    totalExpenses: expenses.reduce((s, t) => s + t.amount, 0),
+    balance: income.reduce((s, t) => s + t.amount, 0) - expenses.reduce((s, t) => s + t.amount, 0),
+    incomeCount: income.length,
+    expenseCount: expenses.length,
+  }
+})
+
 const activeFiltersCount = computed(() => {
   let count = 0
   if (filterType.value !== 'all') count++
   if (filterCategory.value) count++
+  if (filterPocketId.value) count++
   if (dateFilterType.value !== 'none') count++
   return count
 })
+
+const hasTransactionsToExport = computed(() => filteredTransactions.value.length > 0)
 
 const dateFilterLabel = computed(() => {
   switch (dateFilterType.value) {
@@ -235,6 +267,7 @@ const dateFilterLabel = computed(() => {
 function resetFilters() {
   filterType.value = 'all'
   filterCategory.value = ''
+  filterPocketId.value = ''
   dateFilterType.value = 'none'
   customStartDate.value = ''
   customEndDate.value = ''
@@ -292,13 +325,21 @@ async function confirmDelete() {
 }
 
 function handleExportXLSX() {
+  if (!hasTransactionsToExport.value) {
+    showExportNoDataModal.value = true
+    return
+  }
   const filename = `transactions-${new Date().toISOString().split('T')[0]}.xlsx`
   exportToXLSX(filteredTransactions.value, filename)
 }
 
 function handleExportPDF() {
+  if (!hasTransactionsToExport.value) {
+    showExportNoDataModal.value = true
+    return
+  }
   const filename = `transactions-${new Date().toISOString().split('T')[0]}.pdf`
-  exportToPDF(filteredTransactions.value, summary.value, filename)
+  exportToPDF(filteredTransactions.value, filteredSummary.value, filename)
 }
 
 function handleScanComplete(data: TransactionFormData) {
@@ -326,7 +367,16 @@ function scrollToTop() {
 }
 
 onMounted(() => {
+  pocketStore.fetchPockets()
   fetchTransactions()
+  const q = route.query.pocketId
+  if (q && typeof q === 'string') {
+    const active = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
+    if (active.some((p) => p.id === q)) {
+      filterPocketId.value = q
+      showFilterSection.value = true
+    }
+  }
   window.addEventListener('scroll', handleScroll)
 })
 
@@ -336,23 +386,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('transactions.title') }}</h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('transactions.subtitle') }}</p>
-      </div>
-      <!-- <div class="flex items-center gap-2">
-        <BaseButton size="sm" variant="secondary" @click="showScanner = true">
-          <font-awesome-icon :icon="['fas', 'camera']" />
-        </BaseButton>
-        <router-link to="/transactions/new">
-          <BaseButton size="sm">
-            <font-awesome-icon :icon="['fas', 'plus']" />
-          </BaseButton>
-        </router-link>
-      </div> -->
-    </div>
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4">
+    <PageHeader
+      :title="t('transactions.title')"
+      :subtitle="t('transactions.subtitle')"
+    />
 
     <BaseCard>
       <div class="space-y-4">
@@ -393,6 +431,14 @@ onUnmounted(() => {
                   {{ t('transactions.category') }}
                 </label>
                 <BaseSelect v-model="filterCategory" :options="categoryOptions" />
+              </div>
+
+              <!-- Pocket Filter -->
+              <div class="space-y-2">
+                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  {{ t('transactions.pocketFilter') }}
+                </label>
+                <BaseSelect v-model="filterPocketId" :options="pocketOptions" />
               </div>
 
               <!-- Clear All Filters -->
@@ -483,11 +529,27 @@ onUnmounted(() => {
     </BaseCard>
 
     <div class="flex gap-2">
-      <BaseButton variant="secondary" size="sm" class="flex-1" @click="handleExportXLSX">
+      <BaseButton
+        variant="primary"
+        size="sm"
+        :class="[
+          'flex-1',
+          !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
+        ]"
+        @click="handleExportXLSX"
+      >
         <font-awesome-icon :icon="['fas', 'file-excel']" class="mr-2" />
         {{ t('transactions.exportExcel') }}
       </BaseButton>
-      <BaseButton variant="secondary" size="sm" class="flex-1" @click="handleExportPDF">
+      <BaseButton
+        variant="danger"
+        size="sm"
+        :class="[
+          'flex-1',
+          !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
+        ]"
+        @click="handleExportPDF"
+      >
         <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
         {{ t('transactions.exportPDF') }}
       </BaseButton>
@@ -496,7 +558,7 @@ onUnmounted(() => {
     <div v-if="filteredTransactions.length === 0" class="py-12 text-center text-slate-500 dark:text-slate-400">
       <p>
         {{
-          searchQuery || filterCategory || filterType !== 'all' || dateFilterType !== 'none'
+          searchQuery || filterCategory || filterType !== 'all' || filterPocketId || dateFilterType !== 'none'
             ? t('transactions.noTransactionsFiltered')
             : t('transactions.noTransactions')
         }}
@@ -504,12 +566,27 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="space-y-3">
-      <TransactionCard v-for="transaction in filteredTransactions" :key="transaction.id" :transaction="transaction"
-        @edit="handleEdit" @delete="handleDelete" />
+      <TransactionCard
+        v-for="transaction in filteredTransactions"
+        :key="transaction.id"
+        :transaction="transaction"
+        :context-pocket-id="filterPocketId || undefined"
+        @edit="handleEdit"
+        @delete="handleDelete"
+      />
     </div>
 
     <ReceiptScanner :is-open="showScanner" :categories="categories" @close="showScanner = false"
       @scan-complete="handleScanComplete" @scan-complete-multiple="handleScanCompleteMultiple" />
+
+    <!-- Export no-data alert -->
+    <AlertModal
+      :is-open="showExportNoDataModal"
+      :title="t('transactions.exportNoDataTitle')"
+      :message="t('transactions.exportNoDataMessage')"
+      variant="info"
+      @close="showExportNoDataModal = false"
+    />
 
     <!-- Delete Confirmation Modal -->
     <ConfirmModal :is-open="showDeleteConfirm" :title="t('transactions.deleteTransaction')"

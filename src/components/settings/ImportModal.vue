@@ -103,18 +103,18 @@ const fileName = computed(() => {
 
     <div class="space-y-4">
       <div
-        class="rounded-lg bg-red-50 p-3 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+        class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
       >
         <div class="flex items-start gap-2">
           <font-awesome-icon
-            :icon="['fas', 'exclamation-triangle']"
-            class="mt-0.5 text-red-600 dark:text-red-400"
+            :icon="['fas', 'circle-info']"
+            class="mt-0.5 text-blue-600 dark:text-blue-400"
           />
-          <div class="flex-1 text-sm text-red-800 dark:text-red-300">
-            <p class="font-medium mb-1">Peringatan</p>
+          <div class="flex-1 text-sm text-blue-800 dark:text-blue-300">
+            <p class="font-medium mb-1">Impor menambah data</p>
             <p>
-              Mengimpor data akan mengganti semua data Anda saat ini. Tindakan ini
-              tidak dapat dibatalkan. Pastikan Anda memiliki backup sebelum melanjutkan.
+              Data yang diimpor akan ditambahkan ke data Anda yang ada. Data yang sudah ada
+              tidak akan ditimpa. Transaksi dan kantong dari file akan digabung.
             </p>
           </div>
         </div>

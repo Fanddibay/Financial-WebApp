@@ -13,16 +13,25 @@ const route = useRoute()
 
 // Hide header and nav for admin routes (but show admin nav on main admin pages)
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
+// Hide app header on routes that use their own page header (Dashboard, History, Profile, TransactionForm, Pocket Detail)
+const usePageHeaderRoutes = ['dashboard', 'transactions', 'profile', 'transaction-new', 'transaction-edit', 'pocket-detail']
+const hideAppHeader = computed(() => {
+  if (isAdminRoute.value) return true
+  const name = route.name as string
+  if (name && usePageHeaderRoutes.includes(name)) return true
+  if (/^\/pockets\/[^/]+$/.test(route.path)) return true
+  return false
+})
+const showAppHeader = computed(() => !hideAppHeader.value)
 const showAdminNav = computed(() => {
   const path = route.path
-  // Show admin nav only on main admin pages, not on login/access-denied
   return path.startsWith('/admin') && path !== '/admin/login' && path !== '/admin/access-denied'
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-900 dark:text-slate-100">
-    <AppHeader v-if="!isAdminRoute" />
+    <AppHeader v-if="showAppHeader" />
     <main :class="{ 'overflow-y-auto': !isAdminRoute }">
       <RouterView />
     </main>

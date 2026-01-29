@@ -36,6 +36,12 @@ const router = createRouter({
       name: 'profile',
       component: () => import('../views/ProfileView.vue'),
     },
+    {
+      path: '/pockets/:id',
+      name: 'pocket-detail',
+      component: () => import('../views/PocketDetailView.vue'),
+      props: true,
+    },
     // Admin routes
     {
       path: '/admin/login',

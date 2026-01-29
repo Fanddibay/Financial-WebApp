@@ -1,4 +1,4 @@
-export type TransactionType = 'income' | 'expense'
+export type TransactionType = 'income' | 'expense' | 'transfer'
 
 export interface Transaction {
   id: string
@@ -6,9 +6,12 @@ export interface Transaction {
   amount: number
   description: string
   category: string
-  date: string // ISO date string
-  createdAt: string // ISO timestamp
-  updatedAt: string // ISO timestamp
+  date: string
+  createdAt: string
+  updatedAt: string
+  pocketId: string
+  /** Set only when type === 'transfer': target pocket for internal transfer */
+  transferToPocketId?: string
 }
 
 export interface TransactionFormData {
@@ -17,6 +20,7 @@ export interface TransactionFormData {
   description: string
   category: string
   date: string
+  pocketId: string
 }
 
 export interface TransactionFilters {
@@ -24,6 +28,7 @@ export interface TransactionFilters {
   category?: string
   startDate?: string
   endDate?: string
+  pocketId?: string
 }
 
 export interface TransactionSummary {

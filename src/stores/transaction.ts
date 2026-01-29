@@ -1,14 +1,16 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Transaction, TransactionFormData, TransactionFilters, TransactionSummary } from '@/types/transaction'
-import { transactionService } from '@/services/transactionService'
+import { transactionService, computePocketBalances } from '@/services/transactionService'
 
 export const useTransactionStore = defineStore('transaction', () => {
   const transactions = ref<Transaction[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
 
-  // Computed summary
+  const pocketBalances = computed(() => computePocketBalances(transactions.value))
+
+  // Summary excludes transfers (income/expense only)
   const summary = computed<TransactionSummary>(() => {
     const income = transactions.value.filter((t) => t.type === 'income')
     const expenses = transactions.value.filter((t) => t.type === 'expense')
@@ -22,10 +24,11 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   })
 
-  // Get unique categories
   const categories = computed(() => {
     const cats = new Set<string>()
-    transactions.value.forEach((t) => cats.add(t.category))
+    transactions.value.forEach((t) => {
+      if (t.type !== 'transfer' && t.category) cats.add(t.category)
+    })
     return Array.from(cats).sort()
   })
 
@@ -43,7 +46,6 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   }
 
-  // Create transaction
   async function createTransaction(data: TransactionFormData) {
     loading.value = true
     error.value = null
@@ -54,6 +56,22 @@ export const useTransactionStore = defineStore('transaction', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal membuat transaksi'
       console.error('Error creating transaction:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createTransfer(fromPocketId: string, toPocketId: string, amount: number) {
+    loading.value = true
+    error.value = null
+    try {
+      const tx = await transactionService.createTransfer(fromPocketId, toPocketId, amount)
+      transactions.value.push(tx)
+      return tx
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Gagal memindahkan uang'
+      console.error('Error creating transfer:', err)
       throw err
     } finally {
       loading.value = false
@@ -96,6 +114,24 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   }
 
+  // Delete all transactions for a pocket (used when deleting a pocket)
+  async function deleteByPocketId(pocketId: string) {
+    loading.value = true
+    error.value = null
+    try {
+      await transactionService.deleteByPocketId(pocketId)
+      transactions.value = transactions.value.filter(
+        (t) => t.pocketId !== pocketId && t.transferToPocketId !== pocketId,
+      )
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Gagal menghapus transaksi kantong'
+      console.error('Error deleting transactions by pocket:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
   // Get transactions by filters
   async function fetchFilteredTransactions(filters: TransactionFilters) {
     loading.value = true
@@ -122,10 +158,13 @@ export const useTransactionStore = defineStore('transaction', () => {
     error,
     summary,
     categories,
+    pocketBalances,
     fetchTransactions,
     createTransaction,
+    createTransfer,
     updateTransaction,
     deleteTransaction,
+    deleteByPocketId,
     fetchFilteredTransactions,
     getTransactionById,
   }

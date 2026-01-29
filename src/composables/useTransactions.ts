@@ -15,6 +15,7 @@ export function useTransactions() {
   const error = computed(() => store.error)
   const summary = computed(() => store.summary)
   const categories = computed(() => store.categories)
+  const pocketBalances = computed(() => store.pocketBalances)
 
   // Transaction operations
   const fetchTransactions = () => store.fetchTransactions()
@@ -130,6 +131,7 @@ export function useTransactions() {
     error,
     summary,
     categories,
+    pocketBalances,
     
     // Computed
     incomeTransactions,

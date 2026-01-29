@@ -16,12 +16,15 @@ interface Props {
   categories?: string[]
   loading?: boolean
   hideActions?: boolean
+  pocketOptions?: Array<{ value: string; label: string }>
+  lockedPocketId?: string
 }
 
 const props = withDefaults(defineProps<Props>(), {
   categories: () => [],
   loading: false,
   hideActions: false,
+  pocketOptions: () => [],
 })
 
 const emit = defineEmits<{
@@ -42,10 +45,11 @@ const typeOptions = computed(() => [
   { value: 'expense', label: t('transaction.expenseLabel') },
 ])
 
+const formType = computed(() => (props.modelValue.type === 'income' ? 'income' : 'expense'))
+
 const categoryOptions = computed(() => {
-  // Use consistent keys for default categories
   const defaultCategoryKeys =
-    props.modelValue.type === 'income'
+    formType.value === 'income'
       ? ['categorySalary', 'categoryFreelance', 'categoryInvestment', 'categoryGift', 'categoryOther']
       : ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryCoffee', 'categoryOther']
 
@@ -53,7 +57,7 @@ const categoryOptions = computed(() => {
   const defaultCategories = defaultCategoryKeys.map((key) => ({
     key,
     value: t(`transaction.${key}`),
-    label: getCategoryWithIcon(t(`transaction.${key}`), props.modelValue.type),
+    label: getCategoryWithIcon(t(`transaction.${key}`), formType.value),
   }))
 
   // Get translated values for comparison
@@ -75,7 +79,7 @@ const categoryOptions = computed(() => {
       if (catMatchesDefault) return false
 
       // Untuk expense, exclude "Gaji" (karena itu kategori income)
-      if (props.modelValue.type === 'expense') {
+      if (formType.value === 'expense') {
         if (lowerCat === 'gaji' || lowerCat === 'salary' || lowerCat === t('transaction.categorySalary').toLowerCase()) return false
 
         // Exclude "Other" dan variasi lainnya jika sudah ada "Lainnya"
@@ -83,7 +87,7 @@ const categoryOptions = computed(() => {
       }
 
       // Untuk income, exclude kategori expense yang tidak sesuai
-      if (props.modelValue.type === 'income') {
+      if (formType.value === 'income') {
         const expenseCategories = ['categoryFood', 'categoryTransport', 'categoryShopping', 'categoryBills', 'categoryEntertainment', 'categoryHealth', 'categoryCoffee']
         const expenseValues = expenseCategories.map((k) => t(`transaction.${k}`).toLowerCase())
         if (expenseValues.includes(lowerCat)) return false
@@ -93,7 +97,7 @@ const categoryOptions = computed(() => {
     })
     .map((cat) => ({
       value: cat,
-      label: getCategoryWithIcon(cat, props.modelValue.type)
+      label: getCategoryWithIcon(cat, formType.value),
     }))
 
   return [
@@ -141,6 +145,10 @@ function validate(): boolean {
     errors.value.date = t('transaction.dateFutureError')
   }
 
+  if (!formData.value.pocketId) {
+    errors.value.pocketId = t('pocket.selectPocketToContinue')
+  }
+
   return Object.keys(errors.value).length === 0
 }
 
@@ -154,6 +162,25 @@ function handleSubmit() {
 <template>
   <form class="space-y-4" @submit.prevent="handleSubmit">
     <BaseSelect v-model="formData.type" :label="t('transaction.type')" :options="typeOptions" :error="errors.type" />
+
+    <div v-if="pocketOptions.length > 0" class="space-y-1.5">
+      <label v-if="lockedPocketId" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {{ t('pocket.selectPocket') }}
+      </label>
+      <BaseSelect
+        v-if="!lockedPocketId"
+        v-model="formData.pocketId"
+        :label="t('pocket.selectPocket')"
+        :options="pocketOptions"
+        :error="errors.pocketId"
+      />
+      <div v-else class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800">
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('pocket.selectPocket') }}</p>
+        <p class="font-medium text-slate-900 dark:text-slate-100">
+          {{ pocketOptions.find((o) => o.value === formData.pocketId)?.label ?? formData.pocketId }}
+        </p>
+      </div>
+    </div>
 
     <BaseInput v-model="formData.description" :label="t('transaction.description')" :error="errors.description"
       :placeholder="t('transaction.descriptionPlaceholder')" />

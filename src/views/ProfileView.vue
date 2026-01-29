@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useProfileStore } from '@/stores/profile'
 import { useThemeStore } from '@/stores/theme'
 import { useTransactionStore } from '@/stores/transaction'
+import { usePocketStore } from '@/stores/pocket'
 import { useTokenStore } from '@/stores/token'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -10,6 +11,8 @@ import BaseInput from '@/components/ui/BaseInput.vue'
 import ExportModal from '@/components/settings/ExportModal.vue'
 import ImportModal from '@/components/settings/ImportModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import PageHeader from '@/components/layout/PageHeader.vue'
+import AvatarPickerModal from '@/components/profile/AvatarPickerModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { importData } from '@/utils/dataExport'
 import { usePWAInstall } from '@/composables/usePWAInstall'
@@ -19,12 +22,15 @@ import { saveLanguage } from '@/i18n'
 const profileStore = useProfileStore()
 const themeStore = useThemeStore()
 const transactionStore = useTransactionStore()
+const pocketStore = usePocketStore()
 const tokenStore = useTokenStore()
 const { isInstallable, isInstalled, isInstalling, install } = usePWAInstall()
 const { t, locale } = useI18n()
 
 const isEditing = ref(false)
 const editName = ref(profileStore.profile.name)
+/** Snapshot avatar when entering edit mode; restored on Cancel. */
+const avatarWhenEditStarted = ref('')
 const isPWAInstallOpen = ref(false)
 
 // Export/Import modals
@@ -55,7 +61,7 @@ async function handlePasteLicense() {
     licenseTokenInput.value = tokenStore.normalizeLicenseKey(text)
     licenseError.value = null
   } catch {
-    showNotification('error', 'Gagal membaca dari clipboard')
+    showNotification('error', t('license.pasteFailed'))
   }
 }
 
@@ -74,7 +80,7 @@ async function handleVerifyLicense() {
   // Basic validation - only check if key is not empty
   const validation = tokenStore.validateLicenseKeyInput(normalizedKey)
   if (!validation.valid) {
-    licenseError.value = validation.error || '⚠️ Please enter your license key before continuing.'
+    licenseError.value = validation.error || t('license.enterKeyBeforeContinue')
     return
   }
 
@@ -91,21 +97,18 @@ async function handleVerifyLicense() {
     const result = await tokenStore.activateLicense(normalizedKey)
 
     if (result.success) {
-      showNotification(
-        'success',
-        '✅ License activated successfully! All premium features are now unlocked on this device.',
-      )
+      showNotification('success', t('license.activationSuccess'))
       licenseTokenInput.value = ''
       licenseError.value = null
     } else {
       // Show user-friendly error message from backend
-      const errorMsg = result.error || 'Invalid license key. Please check your license and try again.'
+      const errorMsg = result.error || t('license.invalidKey')
       licenseError.value = errorMsg
       showNotification('error', errorMsg)
     }
   } catch (error) {
     console.error('Error activating license:', error)
-    const errorMsg = 'Network error. Please check your connection and try again.'
+    const errorMsg = t('license.networkError')
     licenseError.value = errorMsg
     showNotification('error', errorMsg)
   } finally {
@@ -129,19 +132,15 @@ async function confirmDeactivateLicense() {
     const result = await tokenStore.deactivateLicense()
 
     if (result.success) {
-      showNotification(
-        'success',
-        '✅ License deactivated successfully. You can now activate this license on another device. This device has returned to Basic account mode.',
-      )
+      showNotification('success', t('license.deactivationSuccess'))
       showDeactivateConfirm.value = false
     } else {
-      const errorMsg =
-        result.error || 'Something went wrong while deactivating the license. Please try again.'
+      const errorMsg = result.error || t('license.deactivationError')
       showNotification('error', errorMsg)
     }
   } catch (error) {
     console.error('Error deactivating license:', error)
-    showNotification('error', 'Network error. Please check your connection and try again.')
+    showNotification('error', t('license.networkError'))
   } finally {
     isDeactivating.value = false
   }
@@ -154,8 +153,14 @@ function handleSave() {
   isEditing.value = false
 }
 
+function startEditing() {
+  avatarWhenEditStarted.value = profileStore.profile.avatar ?? ''
+  isEditing.value = true
+}
+
 function handleCancel() {
   editName.value = profileStore.profile.name
+  profileStore.updateProfile({ avatar: avatarWhenEditStarted.value })
   isEditing.value = false
 }
 
@@ -200,20 +205,19 @@ async function handleImportExecute() {
   try {
     const result = await importData(importFile.value, importPassphrase.value)
 
-    // Refresh all stores to reflect imported data
-    profileStore.updateProfile(profileStore.profile) // Trigger re-read from localStorage
-    if (result.profileName) {
-      profileStore.updateProfile({ name: result.profileName })
-    }
-    themeStore.initTheme() // Re-apply theme
-    await transactionStore.fetchTransactions() // Reload transactions
+    themeStore.initTheme()
+    await transactionStore.fetchTransactions()
+    pocketStore.fetchPockets()
 
-    showNotification(
-      'success',
-      `Data berhasil diimpor! Memulihkan ${result.transactionCount} transaksi.`,
-    )
+    const msg =
+      result.pocketCount != null
+        ? t('dataManagement.importSuccessAppendPockets', {
+            pockets: result.pocketCount,
+            transactions: result.transactionCount,
+          })
+        : t('dataManagement.importSuccessAppend', { count: result.transactionCount })
+    showNotification('success', msg)
 
-    // Clear import state
     importFile.value = null
     importPassphrase.value = ''
   } catch (error) {
@@ -230,8 +234,9 @@ function handleImportError(message: string) {
   showNotification('error', message)
 }
 
-const avatarUrl = computed(() => profileStore.profile.avatar)
+const avatarUrl = computed(() => profileStore.profile.avatar ?? '')
 const displayName = computed(() => profileStore.profile.name || 'User')
+const showAvatarPicker = ref(false)
 
 async function handleInstall() {
   const success = await install()
@@ -248,22 +253,44 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-8">
-    <div>
-      <h1 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t('profile.title') }}</h1>
-      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ t('profile.subtitle') }}</p>
-    </div>
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4">
+    <PageHeader
+      :title="t('profile.title')"
+      :subtitle="t('profile.subtitle')"
+    />
 
     <!-- Profile Info -->
     <BaseCard>
       <div class="space-y-6">
-        <!-- Avatar Section -->
+        <!-- Avatar Section: only editable when Edit Profile is active -->
         <div class="flex flex-col items-center gap-4">
+          <!-- View mode: avatar is display-only, no edit icon -->
           <div
-            class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg">
+            v-if="!isEditing"
+            class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg overflow-hidden"
+          >
             <span v-if="!avatarUrl">{{ getInitials(displayName) }}</span>
-            <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full rounded-full object-cover" />
+            <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full object-cover" />
           </div>
+          <!-- Edit mode: avatar is clickable with clear pencil icon (badge on top, slightly out to the right) -->
+          <button
+            v-else
+            type="button"
+            class="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg ring-2 ring-brand/30 transition hover:ring-brand/50 focus:outline-none focus:ring-2 focus:ring-brand"
+            aria-label="Change avatar"
+            @click="showAvatarPicker = true"
+          >
+            <span class="absolute inset-0 overflow-hidden rounded-full">
+              <span v-if="!avatarUrl">{{ getInitials(displayName) }}</span>
+              <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full object-cover" />
+            </span>
+            <span
+              class="absolute -bottom-0.5 -right-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-white text-slate-600 shadow-md dark:border-slate-800 dark:bg-slate-700 dark:text-slate-200"
+              aria-hidden="true"
+            >
+              <font-awesome-icon :icon="['fas', 'edit']" class="text-sm" />
+            </span>
+          </button>
           <div v-if="!isEditing" class="text-center">
             <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ displayName }}</h2>
             <span :class="[
@@ -292,7 +319,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
             <label class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ t('profile.name') }}</label>
             <p class="mt-1 text-slate-900 dark:text-slate-100">{{ displayName }}</p>
           </div>
-          <BaseButton variant="secondary" class="w-full" @click="isEditing = true">
+          <BaseButton variant="secondary" class="w-full" @click="startEditing">
             <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
             {{ t('profile.editProfile') }}
           </BaseButton>
@@ -301,8 +328,9 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     </BaseCard>
 
     <!-- Token & License -->
-    <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
+    <div id="license">
+      <BaseCard>
+        <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
       <div class="space-y-4">
         <!-- Activate License Card -->
         <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
@@ -444,6 +472,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
         </div>
       </div>
     </BaseCard>
+    </div>
 
     <!-- Settings -->
     <BaseCard>
@@ -730,16 +759,21 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <ImportModal :is-open="showImportModal" @close="showImportModal = false" @success="handleExportSuccess"
       @error="handleImportError" @confirm="handleImportConfirm" />
 
-    <ConfirmModal :is-open="showImportConfirm" title="Konfirmasi Impor"
-      message="Ini akan mengganti semua data Anda saat ini. Apakah Anda yakin ingin melanjutkan? Pastikan Anda memiliki backup dari data saat ini."
-      confirm-text="Ya, Impor" cancel-text="Batal" variant="warning" :icon="['fas', 'exclamation-triangle']"
+    <ConfirmModal :is-open="showImportConfirm" :title="t('dataManagement.importConfirmTitle')"
+      :message="t('dataManagement.importConfirmMessage')"
+      :confirm-text="t('dataManagement.importConfirmButton')" :cancel-text="t('common.cancel')"
+      variant="info" :icon="['fas', 'circle-info']"
       @confirm="handleImportExecute" @close="showImportConfirm = false" />
 
     <!-- Deactivate License Confirmation Modal -->
-    <ConfirmModal :is-open="showDeactivateConfirm" title="Deactivate License?"
-      message="This will remove license access from this device and return you to Basic account mode. Your transaction data will not be affected. You can activate this license again on another device by entering the same token."
-      confirm-text="Deactivate" cancel-text="Cancel" variant="warning" :icon="['fas', 'unlink']"
-      @confirm="confirmDeactivateLicense" @close="showDeactivateConfirm = false" />
+    <ConfirmModal :is-open="showDeactivateConfirm" :title="t('license.deactivateConfirmTitle')"
+      :message="t('license.deactivateConfirmMessage')"
+      :confirm-text="t('license.deactivateConfirmButton')" :cancel-text="t('license.deactivateCancelButton')"
+      variant="warning" :icon="['fas', 'unlink']" @confirm="confirmDeactivateLicense"
+      @close="showDeactivateConfirm = false" />
+
+    <!-- Avatar Picker Modal -->
+    <AvatarPickerModal :is-open="showAvatarPicker" @close="showAvatarPicker = false" />
 
   </div>
 </template>

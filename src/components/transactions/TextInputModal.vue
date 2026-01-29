@@ -8,6 +8,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { parseTextInput, type TextParseResult } from '@/utils/textParser'
 import type { TransactionFormData } from '@/types/transaction'
 import { useTransactions } from '@/composables/useTransactions'
+import { MAIN_POCKET_ID } from '@/services/pocketService'
 import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { useI18n } from 'vue-i18n'
@@ -22,14 +23,17 @@ const indonesianPlaceholder = computed(() => {
 
 interface Props {
   isOpen: boolean
+  lockedPocketId?: string
+  /** When provided, parent handles success toast + redirect to origin; this modal does not navigate. */
+  originRoute?: string
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  'edit-navigate': [] // Signal to parent that we're navigating to edit
-  'submit-complete': [] // Signal to parent that submit is complete and modal should close
+  'edit-navigate': []
+  'submit-complete': [payload?: { pocketId: string; amount: number; type: 'income' | 'expense' }]
 }>()
 
 const router = useRouter()
@@ -113,15 +117,16 @@ function handleEdit() {
   // NO popup, NO text input modal - direct navigation
   // Build query params object - Vue Router will handle encoding automatically
   const queryParams: Record<string, string> = {
-    from: 'text-input'
+    from: 'text-input',
   }
-  
+  if (props.originRoute) queryParams.returnTo = props.originRoute
+
   if (data.type) queryParams.type = data.type
   if (data.amount) queryParams.amount = data.amount.toString()
-  // Description and category may contain special characters, but Vue Router handles encoding
   if (data.description) queryParams.description = data.description.trim()
   if (data.category) queryParams.category = data.category
   if (data.date) queryParams.date = data.date
+  if (props.lockedPocketId) queryParams.pocketId = props.lockedPocketId
 
   console.log('handleEdit: Navigating with query params:', queryParams)
 
@@ -136,7 +141,7 @@ function handleEdit() {
     setTimeout(() => {
       const targetPath = '/transactions/new'
       console.log('handleEdit: Attempting navigation to', targetPath, 'with query:', queryParams)
-      
+
       // Use router.push with explicit path and query
       // Ensure we're navigating to the correct path
       router.push({
@@ -161,7 +166,7 @@ function handleEdit() {
           queryParams,
           currentRoute: router.currentRoute.value.path
         })
-        
+
         // Fallback: try again after a longer delay
         setTimeout(() => {
           console.log('handleEdit: Retrying navigation...')
@@ -242,54 +247,34 @@ async function handleSubmit() {
   try {
     // Prepare transaction data with all validations passed
     // All fields are validated and guaranteed to be non-undefined
+    const pocketId = props.lockedPocketId ?? MAIN_POCKET_ID
     const transactionData: TransactionFormData = {
       type: validatedType,
       amount: validatedAmount,
       description: validatedDescription,
       category: validatedCategory,
-      date: finalDate as string, // Type assertion: validated above
+      date: finalDate as string,
+      pocketId,
     }
 
-    // ONLY save here - no auto-save anywhere else
-    const transaction = await createTransaction(transactionData)
+    await createTransaction(transactionData)
     await fetchTransactions()
-
-    // Store transaction data for notification (only after successful save)
-    sessionStorage.setItem('newTransaction', JSON.stringify({
-      type: transaction.type,
-      amount: transaction.amount,
-      description: transaction.description,
-      category: transaction.category,
-      date: transaction.date,
-    }))
-
-    // CRITICAL: Set sessionStorage BEFORE closing modals and navigating
-    // This ensures HomeView can read it immediately when it mounts/updates
-
-    // CRITICAL: Close BOTH modals (TextInputModal and parent AddTransactionModal)
-    // Emit signal to parent to close, then close self
-    // Record usage
     tokenStore.recordTextInput()
-    emit('submit-complete')
+    const pl = props.originRoute
+      ? { pocketId, amount: validatedAmount, type: validatedType as 'income' | 'expense' }
+      : undefined
+    emit('submit-complete', pl)
     emit('close')
 
-    // Check if we're already on homepage
+    if (props.originRoute) {
+      return
+    }
+    const dest = props.lockedPocketId ? `/pockets/${props.lockedPocketId}` : '/'
     const currentPath = router.currentRoute.value.path
-    const isOnHomepage = currentPath === '/'
-
-    if (isOnHomepage) {
-      // If already on homepage, don't navigate (wouldn't trigger watcher anyway)
-      // Instead, trigger notification check directly after modals close
-      setTimeout(() => {
-        // Trigger a custom event that HomeView can listen to
-        // This will immediately check sessionStorage and show notification
-        window.dispatchEvent(new CustomEvent('check-transaction-notification'))
-      }, 200)
+    if (currentPath === dest) {
+      setTimeout(() => window.dispatchEvent(new CustomEvent('check-transaction-notification')), 200)
     } else {
-      // If not on homepage, navigate normally
-      setTimeout(() => {
-        router.push('/')
-      }, 150)
+      setTimeout(() => router.push(dest), 150)
     }
   } catch (error) {
     console.error('Error creating transaction:', error)
@@ -299,18 +284,11 @@ async function handleSubmit() {
 }
 
 function handleCancel() {
-  // CRITICAL: Cancel must completely discard all data
-  // No auto-save, no draft, no background submit
-  // Reset all state and go back to input screen
-
-  // Clear all parsed data
+  inputText.value = ''
   parseResult.value = null
   showPreview.value = false
   showWarnings.value = true
   isSubmitting.value = false
-
-  // Optionally clear input text too (user can start fresh)
-  // inputText.value = '' // Uncomment if you want to clear input on cancel
 }
 
 function handleExampleClick(example: string) {
@@ -318,32 +296,32 @@ function handleExampleClick(example: string) {
   handleParse()
 }
 
-function handleClose() {
-  // CRITICAL: When closing modal, completely reset all state
-  // This ensures no data persists or gets auto-saved
-
+/** Reset all state so modal always starts empty. No pre-filled or "detected" data. */
+function resetState() {
   inputText.value = ''
   parseResult.value = null
   showPreview.value = false
   isProcessing.value = false
   isSubmitting.value = false
   showWarnings.value = true
-  showUsageGuide.value = false // Reset to default closed
-  showExamples.value = false // Reset to default closed
+  showUsageGuide.value = false
+  showExamples.value = false
+  limitError.value = null
+}
 
-  // Emit close event
+function handleClose() {
+  resetState()
   emit('close')
 }
 
 
-// Auto-focus textarea when modal opens
+// Reset when modal opens so we always start empty. Prevents "sudah langsung ke detect" bug.
 watch(() => props.isOpen, (isOpen) => {
-  if (isOpen && !showPreview.value) {
-    nextTick(() => {
-      textareaRef.value?.focus()
-    })
+  if (isOpen) {
+    resetState()
+    nextTick(() => textareaRef.value?.focus())
   }
-})
+}, { immediate: true })
 
 const hasErrors = computed(() => {
   return parseResult.value?.errors && parseResult.value.errors.length > 0
@@ -714,7 +692,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                   ]">
                     {{
                       parseResult.data.date
-                        ? new Date(parseResult.data.date).toLocaleDateString(locale.value === 'id' ? 'id-ID' : 'en-US', {
+                        ? new Date(parseResult.data.date).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', {
                           day: 'numeric',
                           month: 'long',
                           year: 'numeric',

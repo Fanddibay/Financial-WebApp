@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 const STORAGE_KEY = 'financial_tracker_profile'
+const AVATAR_STORAGE_KEY = 'financial_tracker_avatar'
 
 interface Profile {
   name: string
@@ -10,13 +11,41 @@ interface Profile {
   notificationsEnabled: boolean
 }
 
+// Avatar is stored only in AVATAR_STORAGE_KEY so export/import never includes it.
+function getStoredAvatar(): string {
+  try {
+    const v = localStorage.getItem(AVATAR_STORAGE_KEY)
+    return typeof v === 'string' ? v : ''
+  } catch {
+    return ''
+  }
+}
+
+function setStoredAvatar(value: string) {
+  try {
+    if (value) {
+      localStorage.setItem(AVATAR_STORAGE_KEY, value)
+    } else {
+      localStorage.removeItem(AVATAR_STORAGE_KEY)
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 export const useProfileStore = defineStore('profile', () => {
-  // Initialize profile from localStorage or use defaults
   const getInitialProfile = (): Profile => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        return JSON.parse(stored)
+        const parsed = JSON.parse(stored) as Record<string, unknown>
+        const { avatar: _a, ...rest } = parsed
+        return {
+          name: (rest.name as string) ?? 'User',
+          phone: (rest.phone as string) ?? '',
+          notificationsEnabled: (rest.notificationsEnabled as boolean) ?? true,
+          avatar: getStoredAvatar(),
+        }
       }
     } catch {
       // Ignore parse errors
@@ -24,23 +53,26 @@ export const useProfileStore = defineStore('profile', () => {
     return {
       name: 'User',
       phone: '',
-      avatar: '',
       notificationsEnabled: true,
+      avatar: getStoredAvatar(),
     }
   }
 
   const profile = ref<Profile>(getInitialProfile())
 
-  // Update profile
   function updateProfile(updates: Partial<Profile>) {
     profile.value = { ...profile.value, ...updates }
+    if (updates.avatar !== undefined) {
+      setStoredAvatar(updates.avatar)
+    }
     saveProfile()
   }
 
-  // Save to localStorage
+  // Persist only name/phone/notifications; never avatar (so export stays clean).
   function saveProfile() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile.value))
+      const { avatar: _a, ...toSave } = profile.value
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
     } catch {
       // Ignore storage errors
     }

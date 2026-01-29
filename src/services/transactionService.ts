@@ -1,4 +1,5 @@
 import type { Transaction, TransactionFormData, TransactionFilters } from '@/types/transaction'
+import { MAIN_POCKET_ID } from '@/services/pocketService'
 
 /**
  * Transaction Service Interface
@@ -9,9 +10,12 @@ export interface ITransactionService {
   getAll(): Promise<Transaction[]>
   getById(id: string): Promise<Transaction | null>
   create(data: TransactionFormData): Promise<Transaction>
+  createTransfer(fromPocketId: string, toPocketId: string, amount: number): Promise<Transaction>
   update(id: string, data: Partial<TransactionFormData>): Promise<Transaction>
   delete(id: string): Promise<void>
+  deleteByPocketId(pocketId: string): Promise<void>
   getByFilters(filters: TransactionFilters): Promise<Transaction[]>
+  migratePocketIds(mainPocketId: string): void
 }
 
 const STORAGE_KEY = 'financial_tracker_transactions'
@@ -32,7 +36,8 @@ class LocalStorageTransactionService implements ITransactionService {
   private getTransactions(): Transaction[] {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
-      return stored ? JSON.parse(stored) : []
+      const parsed = stored ? JSON.parse(stored) : []
+      return Array.isArray(parsed) ? parsed : []
     } catch {
       return []
     }
@@ -40,6 +45,18 @@ class LocalStorageTransactionService implements ITransactionService {
 
   private saveTransactions(transactions: Transaction[]): void {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions))
+  }
+
+  migratePocketIds(mainPocketId: string): void {
+    const list = this.getTransactions()
+    let changed = false
+    const migrated = list.map((t) => {
+      const tx = t as Transaction & { pocketId?: string }
+      if (tx.pocketId) return t
+      changed = true
+      return { ...t, pocketId: mainPocketId } as Transaction
+    })
+    if (changed) this.saveTransactions(migrated)
   }
 
   async getAll(): Promise<Transaction[]> {
@@ -69,24 +86,49 @@ class LocalStorageTransactionService implements ITransactionService {
   }
 
   async create(data: TransactionFormData): Promise<Transaction> {
-    // Validate and fix date before creating
     const validatedDate = this.validateDate(data.date)
     if (validatedDate !== data.date) {
       console.warn(`Future date detected and corrected: ${data.date} -> ${validatedDate}`)
     }
-    
     const transactions = this.getTransactions()
     const now = new Date().toISOString()
     const transaction: Transaction = {
       id: generateId(),
-      ...data,
+      type: data.type,
+      amount: data.amount,
+      description: data.description,
+      category: data.category,
       date: validatedDate,
+      pocketId: data.pocketId,
       createdAt: now,
       updatedAt: now,
     }
     transactions.push(transaction)
     this.saveTransactions(transactions)
     return transaction
+  }
+
+  async createTransfer(fromPocketId: string, toPocketId: string, amount: number): Promise<Transaction> {
+    if (amount <= 0) throw new Error('Transfer amount must be greater than 0')
+    if (fromPocketId === toPocketId) throw new Error('Source and target pocket must differ')
+    const transactions = this.getTransactions()
+    const now = new Date().toISOString()
+    const today = new Date().toISOString().split('T')[0]
+    const tx: Transaction = {
+      id: generateId(),
+      type: 'transfer',
+      amount,
+      description: `Transfer to pocket`,
+      category: '',
+      date: today,
+      pocketId: fromPocketId,
+      transferToPocketId: toPocketId,
+      createdAt: now,
+      updatedAt: now,
+    }
+    transactions.push(tx)
+    this.saveTransactions(transactions)
+    return tx
   }
 
   async update(id: string, data: Partial<TransactionFormData>): Promise<Transaction> {
@@ -96,21 +138,23 @@ class LocalStorageTransactionService implements ITransactionService {
       throw new Error(`Transaksi dengan id ${id} tidak ditemukan`)
     }
     const existing = transactions[index]!
-    
+
     // Validate and fix date if provided
     const dateToUse = data.date ?? existing.date
     const validatedDate = this.validateDate(dateToUse)
     if (validatedDate !== dateToUse) {
       console.warn(`Future date detected and corrected: ${dateToUse} -> ${validatedDate}`)
     }
-    
+
     const updated: Transaction = {
       id: existing.id,
-      type: data.type ?? existing.type,
+      type: (data.type ?? existing.type) as Transaction['type'],
       amount: data.amount ?? existing.amount,
       description: data.description ?? existing.description,
       category: data.category ?? existing.category,
       date: validatedDate,
+      pocketId: data.pocketId ?? existing.pocketId,
+      transferToPocketId: existing.transferToPocketId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     }
@@ -122,6 +166,14 @@ class LocalStorageTransactionService implements ITransactionService {
   async delete(id: string): Promise<void> {
     const transactions = this.getTransactions()
     const filtered = transactions.filter((t) => t.id !== id)
+    this.saveTransactions(filtered)
+  }
+
+  async deleteByPocketId(pocketId: string): Promise<void> {
+    const transactions = this.getTransactions()
+    const filtered = transactions.filter(
+      (t) => t.pocketId !== pocketId && t.transferToPocketId !== pocketId,
+    )
     this.saveTransactions(filtered)
   }
 
@@ -144,8 +196,31 @@ class LocalStorageTransactionService implements ITransactionService {
       transactions = transactions.filter((t) => t.date <= filters.endDate!)
     }
 
+    if (filters.pocketId) {
+      transactions = transactions.filter((t) => t.pocketId === filters.pocketId || t.transferToPocketId === filters.pocketId)
+    }
+
     return transactions
   }
+}
+
+/**
+ * Compute balance per pocket from transactions (income - expense, transfer out/in).
+ * Transfers do not affect global total; they move money between pockets.
+ */
+export function computePocketBalances(transactions: Transaction[]): Record<string, number> {
+  const bal: Record<string, number> = {}
+  for (const t of transactions) {
+    if (t.type === 'income') {
+      bal[t.pocketId] = (bal[t.pocketId] ?? 0) + t.amount
+    } else if (t.type === 'expense') {
+      bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
+    } else if (t.type === 'transfer' && t.transferToPocketId) {
+      bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
+      bal[t.transferToPocketId] = (bal[t.transferToPocketId] ?? 0) + t.amount
+    }
+  }
+  return bal
 }
 
 /**
@@ -156,20 +231,20 @@ export const transactionService: ITransactionService = new LocalStorageTransacti
 
 /**
  * Example API Service (commented out - ready to use when needed)
- * 
+ *
  * class ApiTransactionService implements ITransactionService {
  *   private baseUrl = 'https://api.example.com/transactions'
- * 
+ *
  *   async getAll(): Promise<Transaction[]> {
  *     const response = await fetch(this.baseUrl)
  *     return response.json()
  *   }
- * 
+ *
  *   async getById(id: string): Promise<Transaction | null> {
  *     const response = await fetch(`${this.baseUrl}/${id}`)
  *     return response.json()
  *   }
- * 
+ *
  *   async create(data: TransactionFormData): Promise<Transaction> {
  *     const response = await fetch(this.baseUrl, {
  *       method: 'POST',
@@ -178,7 +253,7 @@ export const transactionService: ITransactionService = new LocalStorageTransacti
  *     })
  *     return response.json()
  *   }
- * 
+ *
  *   async update(id: string, data: Partial<TransactionFormData>): Promise<Transaction> {
  *     const response = await fetch(`${this.baseUrl}/${id}`, {
  *       method: 'PATCH',
@@ -187,11 +262,11 @@ export const transactionService: ITransactionService = new LocalStorageTransacti
  *     })
  *     return response.json()
  *   }
- * 
+ *
  *   async delete(id: string): Promise<void> {
  *     await fetch(`${this.baseUrl}/${id}`, { method: 'DELETE' })
  *   }
- * 
+ *
  *   async getByFilters(filters: TransactionFilters): Promise<Transaction[]> {
  *     const params = new URLSearchParams()
  *     if (filters.type) params.append('type', filters.type)

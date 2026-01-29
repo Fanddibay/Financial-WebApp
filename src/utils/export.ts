@@ -4,19 +4,68 @@ import autoTable from 'jspdf-autotable'
 import type { Transaction } from '@/types/transaction'
 import { formatIDR } from './currency'
 
+/** Escape CSV cell (quotes, newlines) */
+function escapeCsvCell(s: string): string {
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+/**
+ * Export transactions to CSV
+ */
+export function exportToCSV(
+  transactions: Transaction[],
+  options?: { includePocket?: boolean; pocketNames?: Record<string, string> },
+  filename = 'transactions.csv',
+) {
+  const includePocket = options?.includePocket ?? false
+  const pocketNames = options?.pocketNames ?? {}
+  const headers = ['Date', 'Type', 'Description', 'Category', 'Amount', 'Amount (IDR)']
+  if (includePocket) headers.splice(2, 0, 'Pocket')
+
+  const rows = transactions.map((t) => {
+    const type = t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Income' : 'Expense'
+    const base = [
+      new Date(t.date).toLocaleDateString('id-ID'),
+      type,
+      t.description,
+      t.category,
+      String(t.amount),
+      formatIDR(t.amount),
+    ]
+    if (includePocket) {
+      const name = pocketNames[t.pocketId] ?? t.pocketId
+      base.splice(2, 0, name)
+    }
+    return base.map((c) => escapeCsvCell(String(c)))
+  })
+
+  const csv = [headers.map(escapeCsvCell).join(','), ...rows.map((r) => r.join(','))].join('\n')
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /**
  * Export transactions to Excel (XLSX)
  */
 export function exportToXLSX(transactions: Transaction[], filename = 'transactions.xlsx') {
   // Prepare data for Excel
-  const data = transactions.map((t) => ({
-    Date: new Date(t.date).toLocaleDateString('id-ID'),
-    Type: t.type === 'income' ? 'Income' : 'Expense',
-    Description: t.description,
-    Category: t.category,
-    Amount: t.amount,
-    'Amount (IDR)': formatIDR(t.amount),
-  }))
+  const data = transactions.map((t) => {
+    const type = t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Income' : 'Expense'
+    return {
+      Date: new Date(t.date).toLocaleDateString('id-ID'),
+      Type: type,
+      Description: t.description,
+      Category: t.category,
+      Amount: t.amount,
+      'Amount (IDR)': formatIDR(t.amount),
+    }
+  })
 
   // Create workbook and worksheet
   const wb = XLSX.utils.book_new()
@@ -64,13 +113,16 @@ export function exportToPDF(transactions: Transaction[], summary?: {
   }
 
   // Prepare table data
-  const tableData = transactions.map((t) => [
-    new Date(t.date).toLocaleDateString('id-ID'),
-    t.type === 'income' ? 'Income' : 'Expense',
-    t.description,
-    t.category,
-    formatIDR(t.amount),
-  ])
+  const tableData = transactions.map((t) => {
+    const type = t.type === 'transfer' ? 'Transfer' : t.type === 'income' ? 'Income' : 'Expense'
+    return [
+      new Date(t.date).toLocaleDateString('id-ID'),
+      type,
+      t.description,
+      t.category,
+      formatIDR(t.amount),
+    ]
+  })
 
   // Add table
   autoTable(doc, {
