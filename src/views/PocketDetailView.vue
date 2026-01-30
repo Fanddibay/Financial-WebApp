@@ -268,12 +268,11 @@ onMounted(() => {
 
     <!-- Disabled pocket (Basic, >2): direct URL / bookmark -->
     <div v-else-if="pocketDisabled" class="space-y-6">
-      <header class="sticky top-0 z-10 -mx-4 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+      <header
+        class="sticky top-0 z-10 -mx-4 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
         <button type="button"
           class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-          :aria-label="t('nav.back')"
-          @click="goBack"
-        >
+          :aria-label="t('nav.back')" @click="goBack">
           <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-5 w-5" />
         </button>
         <h1 class="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -282,12 +281,10 @@ onMounted(() => {
       </header>
       <div class="flex flex-col items-center gap-6 py-8">
         <div
-          class="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400"
-        >
+          class="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400">
           <font-awesome-icon :icon="['fas', 'wallet']" class="h-9 w-9" />
           <span
-            class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-white dark:bg-slate-600"
-          >
+            class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-white dark:bg-slate-600">
             <font-awesome-icon :icon="['fas', 'lock']" class="h-3.5 w-3.5" />
           </span>
         </div>
@@ -307,7 +304,7 @@ onMounted(() => {
 
     <template v-else>
       <!-- Flex layout: fixed top (no scroll), only tab content scrolls -->
-      <div class="flex h-[calc(100dvh-5.5rem)] min-h-[280px] flex-col overflow-x-visible overflow-y-hidden">
+      <div class="flex h-[calc(100dvh-5.5rem)] min-h-[280px] flex-col overflow-hidden">
         <!-- Fixed top section (never scrolls) -->
         <div class="flex shrink-0 flex-col gap-4 ">
           <!-- Header: full pocket color, no gap top/left/right. -mx-4 edge-to-edge; safe-area for content -->
@@ -380,7 +377,7 @@ onMounted(() => {
               @click="handleAddTransaction">
               <font-awesome-icon :icon="['fas', 'plus']" class="h-5 w-5 text-brand" />
               <span class="text-xs font-medium text-slate-700 dark:text-slate-300">{{ t('pocket.addTransaction')
-                }}</span>
+              }}</span>
             </button>
             <button type="button" :disabled="insufficientForMove"
               class="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white py-3 transition hover:border-brand/40 hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40 dark:disabled:hover:border-slate-700 dark:disabled:hover:bg-slate-800"
