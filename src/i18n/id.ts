@@ -68,7 +68,7 @@ export default {
       backHome: 'Kembali ke Beranda',
     },
     typeMain: 'Utama',
-    typeSpending: 'Belanja',
+    typeSpending: 'Pengeluaran',
     typeSaving: 'Tabungan',
     typeInvestment: 'Investasi',
     moveMoneyTitle: 'Pindahkan Uang',

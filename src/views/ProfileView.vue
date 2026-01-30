@@ -212,9 +212,9 @@ async function handleImportExecute() {
     const msg =
       result.pocketCount != null
         ? t('dataManagement.importSuccessAppendPockets', {
-            pockets: result.pocketCount,
-            transactions: result.transactionCount,
-          })
+          pockets: result.pocketCount,
+          transactions: result.transactionCount,
+        })
         : t('dataManagement.importSuccessAppend', { count: result.transactionCount })
     showNotification('success', msg)
 
@@ -253,11 +253,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4">
-    <PageHeader
-      :title="t('profile.title')"
-      :subtitle="t('profile.subtitle')"
-    />
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 -pt-2">
+    <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')" />
 
     <!-- Profile Info -->
     <BaseCard>
@@ -265,29 +262,22 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
         <!-- Avatar Section: only editable when Edit Profile is active -->
         <div class="flex flex-col items-center gap-4">
           <!-- View mode: avatar is display-only, no edit icon -->
-          <div
-            v-if="!isEditing"
-            class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg overflow-hidden"
-          >
+          <div v-if="!isEditing"
+            class="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg overflow-hidden">
             <span v-if="!avatarUrl">{{ getInitials(displayName) }}</span>
             <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full object-cover" />
           </div>
           <!-- Edit mode: avatar is clickable with clear pencil icon (badge on top, slightly out to the right) -->
-          <button
-            v-else
-            type="button"
+          <button v-else type="button"
             class="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand to-brand-dark text-3xl font-bold text-white shadow-lg ring-2 ring-brand/30 transition hover:ring-brand/50 focus:outline-none focus:ring-2 focus:ring-brand"
-            aria-label="Change avatar"
-            @click="showAvatarPicker = true"
-          >
+            aria-label="Change avatar" @click="showAvatarPicker = true">
             <span class="absolute inset-0 overflow-hidden rounded-full">
               <span v-if="!avatarUrl">{{ getInitials(displayName) }}</span>
               <img v-else :src="avatarUrl" alt="Avatar" class="h-full w-full object-cover" />
             </span>
             <span
               class="absolute -bottom-0.5 -right-0.5 z-10 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-white text-slate-600 shadow-md dark:border-slate-800 dark:bg-slate-700 dark:text-slate-200"
-              aria-hidden="true"
-            >
+              aria-hidden="true">
               <font-awesome-icon :icon="['fas', 'edit']" class="text-sm" />
             </span>
           </button>
@@ -331,147 +321,147 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <div id="license">
       <BaseCard>
         <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
-      <div class="space-y-4">
-        <!-- Activate License Card -->
-        <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
-          <div class="flex items-start gap-3 mb-4">
-            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 flex-shrink-0">
-              <font-awesome-icon :icon="['fas', 'key']" class="text-brand" />
-            </div>
-            <div class="flex-1">
-              <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">{{ t('license.activateLicense') }}</h4>
-              <p class="text-sm text-slate-600 dark:text-slate-400">
-                {{ t('license.activateLicenseDesc') }}
-              </p>
-            </div>
-          </div>
-
-          <!-- License Status Display -->
-          <div v-if="tokenStore.licenseStatus === 'active' && tokenStore.isLicenseActive"
-            class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mb-4">
-            <div class="space-y-2">
-              <div class="flex items-center gap-2">
-                <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
-                <p class="text-sm font-medium text-green-800 dark:text-green-300">{{ t('license.licenseStatus') }}: {{
-                  t('license.active') }}</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <font-awesome-icon :icon="['fas', 'mobile-screen-button']"
-                  class="text-green-600 dark:text-green-400 text-xs" />
-                <p class="text-xs text-green-700 dark:text-green-400">{{ t('license.device') }}</p>
-              </div>
-              <p class="text-xs text-green-700 dark:text-green-400 mt-1">
-                {{ t('license.activatedOn') }}
-                {{ new Date(tokenStore.tokenState.licenseActivatedAt || '').toLocaleDateString() }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Checking Status -->
-          <div v-else-if="tokenStore.licenseStatus === 'checking'"
-            class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 mb-4">
-            <div class="flex items-center gap-2">
-              <svg class="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg"
-                fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
-                </path>
-              </svg>
-              <p class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ t('license.checking') }}</p>
-            </div>
-          </div>
-
-          <!-- Error Status -->
-          <div v-else-if="tokenStore.licenseStatus === 'error'"
-            class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
-            <div class="flex items-center gap-2">
-              <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 dark:text-red-400" />
-              <p class="text-sm font-medium text-red-800 dark:text-red-300">{{ t('license.error') }}</p>
-            </div>
-            <p class="text-xs text-red-700 dark:text-red-400 mt-1">
-              {{ t('license.errorDesc') }}
-            </p>
-          </div>
-
-          <!-- Basic Account Status -->
-          <div v-else
-            class="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 mb-4">
-            <div class="flex items-center gap-2">
-              <font-awesome-icon :icon="['fas', 'circle-info']" class="text-slate-600 dark:text-slate-400" />
-              <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('license.basic') }}</p>
-            </div>
-          </div>
-
-          <!-- Get Token CTA (only show when license is not active) -->
-          <div v-if="!tokenStore.isLicenseActive"
-            class="rounded-lg bg-gradient-to-br from-brand/5 via-brand/10 to-brand/15 dark:from-brand/10 dark:via-brand/15 dark:to-brand/20 border border-brand/20 dark:border-brand/30 p-4 mb-4">
-            <div class="flex items-start gap-3 mb-3">
-              <div
-                class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/20 dark:bg-brand/30 flex-shrink-0">
-                <font-awesome-icon :icon="['fas', 'web-awesome']" class="text-brand text-lg" />
+        <div class="space-y-4">
+          <!-- Activate License Card -->
+          <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
+            <div class="flex items-start gap-3 mb-4">
+              <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 flex-shrink-0">
+                <font-awesome-icon :icon="['fas', 'key']" class="text-brand" />
               </div>
               <div class="flex-1">
-                <h4 class="mb-1 font-semibold text-slate-900 dark:text-slate-100">{{ t('license.upgradeToPremium') }}
-                </h4>
-                <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                  {{ t('license.upgradeDesc') }}
+                <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">{{ t('license.activateLicense') }}</h4>
+                <p class="text-sm text-slate-600 dark:text-slate-400">
+                  {{ t('license.activateLicenseDesc') }}
                 </p>
               </div>
             </div>
-            <BaseButton class="w-full text-white" variant="teritary" size="sm" @click="handleOpenCheckout">
-              <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
-              {{ t('license.getToken') }}
-            </BaseButton>
-          </div>
 
-          <!-- Activate License Form (only show when license is not active) -->
-          <div v-if="!tokenStore.isLicenseActive" class="space-y-3">
-            <div class="flex gap-2">
-              <div class="flex-1">
-                <input v-model="licenseTokenInput" type="text" :placeholder="t('license.pastePlaceholder')"
-                  class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2.5 text-sm font-mono focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-                  :disabled="isVerifyingLicense" @input="handleLicenseInput" />
+            <!-- License Status Display -->
+            <div v-if="tokenStore.licenseStatus === 'active' && tokenStore.isLicenseActive"
+              class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mb-4">
+              <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <font-awesome-icon :icon="['fas', 'check-circle']" class="text-green-600 dark:text-green-400" />
+                  <p class="text-sm font-medium text-green-800 dark:text-green-300">{{ t('license.licenseStatus') }}: {{
+                    t('license.active') }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <font-awesome-icon :icon="['fas', 'mobile-screen-button']"
+                    class="text-green-600 dark:text-green-400 text-xs" />
+                  <p class="text-xs text-green-700 dark:text-green-400">{{ t('license.device') }}</p>
+                </div>
+                <p class="text-xs text-green-700 dark:text-green-400 mt-1">
+                  {{ t('license.activatedOn') }}
+                  {{ new Date(tokenStore.tokenState.licenseActivatedAt || '').toLocaleDateString() }}
+                </p>
               </div>
-              <BaseButton variant="secondary" size="sm" :disabled="isVerifyingLicense" @click="handlePasteLicense"
-                class="shrink-0">
-                <font-awesome-icon :icon="['fas', 'paste']" class="mr-1" />
-                {{ t('license.paste') }}
+            </div>
+
+            <!-- Checking Status -->
+            <div v-else-if="tokenStore.licenseStatus === 'checking'"
+              class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 mb-4">
+              <div class="flex items-center gap-2">
+                <svg class="animate-spin h-4 w-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg"
+                  fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                  </path>
+                </svg>
+                <p class="text-sm font-medium text-blue-800 dark:text-blue-300">{{ t('license.checking') }}</p>
+              </div>
+            </div>
+
+            <!-- Error Status -->
+            <div v-else-if="tokenStore.licenseStatus === 'error'"
+              class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 mb-4">
+              <div class="flex items-center gap-2">
+                <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="text-red-600 dark:text-red-400" />
+                <p class="text-sm font-medium text-red-800 dark:text-red-300">{{ t('license.error') }}</p>
+              </div>
+              <p class="text-xs text-red-700 dark:text-red-400 mt-1">
+                {{ t('license.errorDesc') }}
+              </p>
+            </div>
+
+            <!-- Basic Account Status -->
+            <div v-else
+              class="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-3 mb-4">
+              <div class="flex items-center gap-2">
+                <font-awesome-icon :icon="['fas', 'circle-info']" class="text-slate-600 dark:text-slate-400" />
+                <p class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ t('license.basic') }}</p>
+              </div>
+            </div>
+
+            <!-- Get Token CTA (only show when license is not active) -->
+            <div v-if="!tokenStore.isLicenseActive"
+              class="rounded-lg bg-gradient-to-br from-brand/5 via-brand/10 to-brand/15 dark:from-brand/10 dark:via-brand/15 dark:to-brand/20 border border-brand/20 dark:border-brand/30 p-4 mb-4">
+              <div class="flex items-start gap-3 mb-3">
+                <div
+                  class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/20 dark:bg-brand/30 flex-shrink-0">
+                  <font-awesome-icon :icon="['fas', 'web-awesome']" class="text-brand text-lg" />
+                </div>
+                <div class="flex-1">
+                  <h4 class="mb-1 font-semibold text-slate-900 dark:text-slate-100">{{ t('license.upgradeToPremium') }}
+                  </h4>
+                  <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {{ t('license.upgradeDesc') }}
+                  </p>
+                </div>
+              </div>
+              <BaseButton class="w-full text-white" variant="teritary" size="sm" @click="handleOpenCheckout">
+                <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
+                {{ t('license.getToken') }}
               </BaseButton>
             </div>
 
-            <!-- Error Message -->
-            <Transition enter-active-class="transition-all duration-200 ease-out"
-              enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100 translate-y-0"
-              leave-active-class="transition-all duration-150 ease-in" leave-from-class="opacity-100 translate-y-0"
-              leave-to-class="opacity-0 -translate-y-1">
-              <div v-if="licenseError"
-                class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
-                <div class="flex items-start gap-2">
-                  <font-awesome-icon :icon="['fas', 'exclamation-circle']"
-                    class="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0 text-sm" />
-                  <p class="text-xs text-red-800 dark:text-red-300 leading-relaxed flex-1">{{ licenseError }}</p>
+            <!-- Activate License Form (only show when license is not active) -->
+            <div v-if="!tokenStore.isLicenseActive" class="space-y-3">
+              <div class="flex gap-2">
+                <div class="flex-1">
+                  <input v-model="licenseTokenInput" type="text" :placeholder="t('license.pastePlaceholder')"
+                    class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-3 py-2.5 text-sm font-mono focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                    :disabled="isVerifyingLicense" @input="handleLicenseInput" />
                 </div>
+                <BaseButton variant="secondary" size="sm" :disabled="isVerifyingLicense" @click="handlePasteLicense"
+                  class="shrink-0">
+                  <font-awesome-icon :icon="['fas', 'paste']" class="mr-1" />
+                  {{ t('license.paste') }}
+                </BaseButton>
               </div>
-            </Transition>
 
-            <!-- Activate Button -->
-            <BaseButton :loading="isVerifyingLicense" :disabled="isVerifyingLicense || !licenseTokenInput.trim()"
-              class="w-full" @click="handleVerifyLicense">
-              <font-awesome-icon v-if="!isVerifyingLicense" :icon="['fas', 'check']" class="mr-2" />
-              {{ isVerifyingLicense ? t('license.activating') : t('license.activate') }}
+              <!-- Error Message -->
+              <Transition enter-active-class="transition-all duration-200 ease-out"
+                enter-from-class="opacity-0 -translate-y-1" enter-to-class="opacity-100 translate-y-0"
+                leave-active-class="transition-all duration-150 ease-in" leave-from-class="opacity-100 translate-y-0"
+                leave-to-class="opacity-0 -translate-y-1">
+                <div v-if="licenseError"
+                  class="rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                  <div class="flex items-start gap-2">
+                    <font-awesome-icon :icon="['fas', 'exclamation-circle']"
+                      class="text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0 text-sm" />
+                    <p class="text-xs text-red-800 dark:text-red-300 leading-relaxed flex-1">{{ licenseError }}</p>
+                  </div>
+                </div>
+              </Transition>
+
+              <!-- Activate Button -->
+              <BaseButton :loading="isVerifyingLicense" :disabled="isVerifyingLicense || !licenseTokenInput.trim()"
+                class="w-full" @click="handleVerifyLicense">
+                <font-awesome-icon v-if="!isVerifyingLicense" :icon="['fas', 'check']" class="mr-2" />
+                {{ isVerifyingLicense ? t('license.activating') : t('license.activate') }}
+              </BaseButton>
+            </div>
+
+            <!-- Deactivate License Button -->
+            <BaseButton v-if="tokenStore.isLicenseActive" variant="secondary" size="sm" class="w-full mt-3"
+              @click="handleDeactivateLicense">
+              <font-awesome-icon :icon="['fas', 'unlink']" class="mr-2" />
+              {{ t('license.deactivate') }}
             </BaseButton>
           </div>
-
-          <!-- Deactivate License Button -->
-          <BaseButton v-if="tokenStore.isLicenseActive" variant="secondary" size="sm" class="w-full mt-3"
-            @click="handleDeactivateLicense">
-            <font-awesome-icon :icon="['fas', 'unlink']" class="mr-2" />
-            {{ t('license.deactivate') }}
-          </BaseButton>
         </div>
-      </div>
-    </BaseCard>
+      </BaseCard>
     </div>
 
     <!-- Settings -->
@@ -760,17 +750,15 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       @error="handleImportError" @confirm="handleImportConfirm" />
 
     <ConfirmModal :is-open="showImportConfirm" :title="t('dataManagement.importConfirmTitle')"
-      :message="t('dataManagement.importConfirmMessage')"
-      :confirm-text="t('dataManagement.importConfirmButton')" :cancel-text="t('common.cancel')"
-      variant="info" :icon="['fas', 'circle-info']"
-      @confirm="handleImportExecute" @close="showImportConfirm = false" />
+      :message="t('dataManagement.importConfirmMessage')" :confirm-text="t('dataManagement.importConfirmButton')"
+      :cancel-text="t('common.cancel')" variant="info" :icon="['fas', 'circle-info']" @confirm="handleImportExecute"
+      @close="showImportConfirm = false" />
 
     <!-- Deactivate License Confirmation Modal -->
     <ConfirmModal :is-open="showDeactivateConfirm" :title="t('license.deactivateConfirmTitle')"
-      :message="t('license.deactivateConfirmMessage')"
-      :confirm-text="t('license.deactivateConfirmButton')" :cancel-text="t('license.deactivateCancelButton')"
-      variant="warning" :icon="['fas', 'unlink']" @confirm="confirmDeactivateLicense"
-      @close="showDeactivateConfirm = false" />
+      :message="t('license.deactivateConfirmMessage')" :confirm-text="t('license.deactivateConfirmButton')"
+      :cancel-text="t('license.deactivateCancelButton')" variant="warning" :icon="['fas', 'unlink']"
+      @confirm="confirmDeactivateLicense" @close="showDeactivateConfirm = false" />
 
     <!-- Avatar Picker Modal -->
     <AvatarPickerModal :is-open="showAvatarPicker" @close="showAvatarPicker = false" />

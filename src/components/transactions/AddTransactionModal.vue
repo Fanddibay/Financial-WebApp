@@ -243,6 +243,9 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
             {{ formatIDR(p.balance) }}
           </p>
         </div>
+        <span class="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
+          {{ t(`pocket.type${p.type === 'main' ? 'Main' : p.type.charAt(0).toUpperCase() + p.type.slice(1)}`) }}
+        </span>
         <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
       </button>
       <p

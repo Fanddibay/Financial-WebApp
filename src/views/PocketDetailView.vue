@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, provide, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { usePocketStore } from '@/stores/pocket'
@@ -64,6 +64,12 @@ const showActionMenu = ref(false)
 const showEditPocketModal = ref(false)
 const showDeletePocketModal = ref(false)
 const showExportJsonModal = ref(false)
+
+const transactionMenuOpenId = ref<string | null>(null)
+provide('transactionMenuOpenId', transactionMenuOpenId)
+provide('transactionMenuSetOpenId', (id: string | null) => {
+  transactionMenuOpenId.value = id
+})
 
 const insufficientForMove = computed(() => balance.value <= 0)
 
@@ -336,13 +342,13 @@ onMounted(() => {
               <div class="min-w-0 flex-1">
                 <p :class="[
                   'text-sm font-medium',
-                  isDarkHeader ? 'text-white/70' : 'text-slate-500 dark:text-slate-400',
+                  isDarkHeader ? 'text-white/70' : 'text-slate-600',
                 ]">
                   {{ pocketTypeLabel }}
                 </p>
                 <h1 :class="[
                   'mt-0.5 truncate text-xl font-bold',
-                  isDarkHeader ? 'text-white' : 'text-slate-900 dark:text-slate-100',
+                  isDarkHeader ? 'text-white' : 'text-slate-900',
                 ]">
                   {{ pocket.name }}
                 </h1>
@@ -351,7 +357,7 @@ onMounted(() => {
             <div class="mt-4 flex items-center gap-4">
               <p :class="[
                 'min-w-0 flex-1 text-2xl font-bold tracking-tight',
-                isDarkHeader ? 'text-white' : 'text-slate-900 dark:text-slate-100',
+                isDarkHeader ? 'text-white' : 'text-slate-900',
               ]">
                 {{ showBalance ? formatIDR(balance) : '••••••••' }}
               </p>

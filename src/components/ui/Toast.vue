@@ -58,46 +58,31 @@ function toastIcon(type: ToastType): 'check-circle' | 'exclamation-triangle' | '
 
 <template>
   <Teleport to="body">
-    <div class="fixed bottom-20 left-1/2 z-[100] -translate-x-1/2 space-y-2 pointer-events-none max-w-[90%] sm:max-w-md">
+    <div
+      class="fixed bottom-20 left-1/2 z-[100] -translate-x-1/2 space-y-2 pointer-events-none max-w-[90%] sm:max-w-md">
       <TransitionGroup name="toast" tag="div" class="space-y-2">
-        <div
-          v-for="toast in toasts"
-          :key="toast.id"
-          :class="[
-            'pointer-events-auto rounded-lg px-4 py-3 shadow-lg border flex flex-col gap-2 min-w-[280px] max-w-full',
-            boxStyles[toast.type] ?? boxStyles.info,
-          ]"
-        >
+        <div v-for="toast in toasts" :key="toast.id" :class="[
+          'pointer-events-auto rounded-lg px-4 py-3 shadow-lg border flex flex-col gap-2 min-w-[280px] max-w-full',
+          boxStyles[toast.type] ?? boxStyles.info,
+        ]">
           <div class="flex items-start gap-3">
-            <font-awesome-icon
-              :icon="['fas', toastIcon(toast.type)]"
-              :class="['text-lg flex-shrink-0 mt-0.5', iconStyles[toast.type] ?? iconStyles.info]"
-            />
+            <font-awesome-icon :icon="['fas', toastIcon(toast.type)]"
+              :class="['text-lg flex-shrink-0 mt-0.5', iconStyles[toast.type] ?? iconStyles.info]" />
             <p class="text-sm font-medium flex-1 min-w-0">{{ toast.message }}</p>
-            <button
-              type="button"
-              @click="toastStore.removeToast(toast.id)"
-              :class="['flex-shrink-0 rounded p-1 transition hover:opacity-70', btnStyles[toast.type] ?? btnStyles.info]"
-            >
+            <button type="button" @click="toastStore.removeToast(toast.id)"
+              :class="['flex-shrink-0 rounded p-1 transition hover:opacity-70', btnStyles[toast.type] ?? btnStyles.info]">
               <font-awesome-icon :icon="['fas', 'times']" class="h-4 w-4" />
             </button>
           </div>
-          <div
-            v-if="toast.action"
-            class="flex shrink-0 w-full pt-1"
-          >
-            <button
-              type="button"
-              @click.stop="handleAction(toast)"
-              :class="[
-                'w-full rounded-lg px-3 py-2.5 text-sm font-semibold transition',
-                (toast.type === 'transaction-income' || toast.type === 'success')
-                  ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500'
-                  : (toast.type === 'transaction-expense' || toast.type === 'error')
-                    ? 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
-                    : 'bg-slate-600 text-white hover:bg-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500',
-              ]"
-            >
+          <div v-if="toast.action" class="flex shrink-0 w-full pt-1">
+            <button type="button" @click.stop="handleAction(toast)" :class="[
+              'w-full rounded-lg px-3 !py-0 text-sm font-semibold transition',
+              (toast.type === 'transaction-income' || toast.type === 'success')
+                ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500'
+                : (toast.type === 'transaction-expense' || toast.type === 'error')
+                  ? 'bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
+                  : 'bg-slate-600 text-white hover:bg-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500',
+            ]">
               {{ toast.action.label }}
             </button>
           </div>
@@ -127,4 +112,3 @@ function toastIcon(type: ToastType): 'check-circle' | 'exclamation-triangle' | '
   transition: transform 0.3s ease;
 }
 </style>
-

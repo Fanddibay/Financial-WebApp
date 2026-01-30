@@ -40,7 +40,7 @@ const avatarUrl = computed(() => profileStore.profile.avatar ?? '')
 <template>
   <header
     class="sticky top-0 z-40 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-700 dark:bg-slate-900/80">
-    <div class="mx-auto flex max-w-[430px] flex-col px-4 py-4">
+    <div class="mx-auto flex max-w-[430px] flex-col px-4 py-6">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <router-link to="/" class="flex items-center gap-2">
@@ -60,12 +60,7 @@ const avatarUrl = computed(() => profileStore.profile.avatar ?? '')
             <button
               class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-brand/40 hover:text-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
               aria-label="Profile">
-              <img
-                v-if="avatarUrl"
-                :src="avatarUrl"
-                alt=""
-                class="h-full w-full object-cover"
-              />
+              <img v-if="avatarUrl" :src="avatarUrl" alt="" class="h-full w-full object-cover" />
               <font-awesome-icon v-else :icon="['fas', 'user-circle']" class="text-xl" />
             </button>
           </router-link>

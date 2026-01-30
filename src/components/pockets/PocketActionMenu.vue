@@ -71,6 +71,7 @@ const isOwnMainPocket = (p: Pocket | null) => p?.id === MAIN_POCKET_ID
             <!-- Action items -->
             <div class="space-y-1 px-4 py-5">
               <button
+                v-if="!isOwnMainPocket(pocket)"
                 type="button"
                 class="flex w-full items-center gap-4 rounded-xl px-4 py-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-700/50"
                 @click="emit('edit'); emit('close')"

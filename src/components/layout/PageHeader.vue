@@ -23,16 +23,11 @@ function goBack() {
 
 <template>
   <header
-    class="sticky top-0 z-30 -mx-4 border-b border-slate-200 bg-white/95 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
-  >
+    class="sticky top-0 z-30 -mx-4 border-b border-slate-200 bg-white/95 px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-4 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
     <div class="flex items-center gap-3">
-      <button
-        v-if="showBack"
-        type="button"
+      <button v-if="showBack" type="button"
         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-        :aria-label="t('nav.back')"
-        @click="goBack"
-      >
+        :aria-label="t('nav.back')" @click="goBack">
         <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-5 w-5" />
       </button>
       <div class="min-w-0 flex-1">

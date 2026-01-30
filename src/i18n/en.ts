@@ -68,7 +68,7 @@ export default {
       backHome: 'Back to Home',
     },
     typeMain: 'Main',
-    typeSpending: 'Spending',
+    typeSpending: 'Expenditure',
     typeSaving: 'Saving',
     typeInvestment: 'Investment',
     moveMoneyTitle: 'Move Money',

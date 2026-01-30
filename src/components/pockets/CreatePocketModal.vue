@@ -20,12 +20,12 @@ defineProps<Props>()
 
 const emit = defineEmits<{
   close: []
-  created: [data: { name: string; icon: string; type: 'spending' | 'saving' | 'investment'; color?: string }]
+  created: [data: { name: string; icon: string; type: 'spending' | 'saving'; color?: string }]
 }>()
 
 const name = ref('')
 const icon = ref('💰')
-const type = ref<'spending' | 'saving' | 'investment'>('spending')
+const type = ref<'spending' | 'saving'>('spending')
 const color = ref(DEFAULT_POCKET_COLOR)
 const error = ref('')
 

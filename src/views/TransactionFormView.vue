@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
 import { useAddTransactionFlow } from '@/composables/useAddTransactionFlow'
@@ -94,6 +94,36 @@ const pocketOptions = computed(() =>
 )
 const lockedPocketId = computed(() => fromPocketId.value ?? undefined)
 
+/** Saat pilih pocket tabungan: default type income, rincian ke option 1 (Gaji). */
+function applySavingPocketDefaults() {
+  const pocket = pocketStore.getPocketById(formData.value.pocketId)
+  if (pocket?.type === 'saving') {
+    formData.value.type = 'income'
+    formData.value.category = t('transaction.categorySalary')
+  }
+}
+
+/** Pengeluaran/income tanpa kategori: isi option 1 sebagai default. */
+function applyDefaultCategory() {
+  if (formData.value.category) return
+  formData.value.category =
+    formData.value.type === 'income'
+      ? t('transaction.categorySalary')
+      : t('transaction.categoryFood')
+}
+
+watch(
+  () => formData.value.pocketId,
+  () => {
+    applySavingPocketDefaults()
+    applyDefaultCategory()
+  },
+)
+watch(
+  () => formData.value.type,
+  () => applyDefaultCategory(),
+)
+
 onMounted(async () => {
   pocketStore.fetchPockets()
   if (isEdit.value) {
@@ -126,7 +156,9 @@ onMounted(async () => {
     if (query.pocketId && typeof query.pocketId === 'string') {
       formData.value.pocketId = query.pocketId
       fromPocketId.value = query.pocketId
+      applySavingPocketDefaults()
     }
+    applyDefaultCategory()
     if (query.from === 'text-input') {
       isFromTextInput.value = true
       if (query.type) formData.value.type = query.type as 'income' | 'expense'
@@ -138,7 +170,7 @@ onMounted(async () => {
       if (query.category) formData.value.category = decodeURIComponent(query.category as string)
       if (query.date) formData.value.date = query.date as string
     }
-    router.replace({ query: {} }).catch(() => {})
+    router.replace({ query: {} }).catch(() => { })
   }
 })
 
@@ -415,18 +447,14 @@ function formatDate(dateString: string): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4 min-h-0 overflow-y-auto">
-    <PageHeader
-      :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
-      :subtitle="
-        isEdit
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-0 min-h-0 overflow-y-auto">
+    <PageHeader :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
+      :subtitle="isEdit
           ? t('transaction.updateTransaction')
           : editingIndex !== null
             ? t('transaction.editPendingTransaction')
             : t('transaction.recordNewTransaction')
-      "
-      :show-back="true"
-    />
+        " :show-back="true" />
 
     <!-- Info Banner for Text Input -->
     <div v-if="isFromTextInput"
@@ -447,14 +475,8 @@ function formatDate(dateString: string): string {
     </div>
 
     <BaseCard class="overflow-visible">
-      <TransactionForm
-        v-model="formData"
-        :categories="categories"
-        :loading="loading"
-        :pocket-options="pocketOptions"
-        :locked-pocket-id="lockedPocketId"
-        @submit="handleSubmit"
-      >
+      <TransactionForm v-model="formData" :categories="categories" :loading="loading" :pocket-options="pocketOptions"
+        :locked-pocket-id="lockedPocketId" @submit="handleSubmit">
         <template #actions>
           <div class="flex flex-wrap gap-2">
             <BaseButton variant="secondary" @click="handleCancel" class="flex-1 min-w-[100px]">
@@ -491,13 +513,18 @@ function formatDate(dateString: string): string {
           <table class="w-full">
             <thead>
               <tr class="border-b border-slate-200 dark:border-slate-700">
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.type') }}</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.description') }}
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{
+                  t('transaction.type') }}</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{
+                  t('transaction.description') }}
                 </th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.amount') }}</th>
-                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.date') }}
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{
+                  t('transaction.amount') }}</th>
+                <th class="px-2 py-1.5 text-left text-[10px] font-medium text-slate-600 dark:text-slate-400">{{
+                  t('transaction.date') }}
                 </th>
-                <th class="px-2 py-1.5 text-right text-[10px] font-medium text-slate-600 dark:text-slate-400">{{ t('transaction.actions') }}</th>
+                <th class="px-2 py-1.5 text-right text-[10px] font-medium text-slate-600 dark:text-slate-400">{{
+                  t('transaction.actions') }}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-200 dark:divide-slate-700">
@@ -551,12 +578,13 @@ function formatDate(dateString: string): string {
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm font-medium text-slate-900 dark:text-slate-100">
-                {{ t('transaction.total') }}: {{formatCurrency(pendingTransactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount :
+                {{ t('transaction.total') }}: {{formatCurrency(pendingTransactions.reduce((sum, t) => sum + (t.type ===
+                  'income' ? t.amount :
                   -t.amount), 0))}}
               </p>
               <p class="text-xs text-slate-500 dark:text-slate-400">
                 {{pendingTransactions.filter(t => t.type === 'income').length}} {{ t('transaction.income') }},
-                {{pendingTransactions.filter(t => t.type === 'expense').length }} {{ t('transaction.expense') }}
+                {{pendingTransactions.filter(t => t.type === 'expense').length}} {{ t('transaction.expense') }}
               </p>
             </div>
           </div>
@@ -576,8 +604,8 @@ function formatDate(dateString: string): string {
 
   <!-- Cancel Confirmation Modal -->
   <ConfirmModal :is-open="showCancelConfirm" :title="t('transaction.cancelTransaction')"
-    :message="t('transaction.cancelTransactionConfirm')"
-    :confirm-text="t('common.cancel')" :cancel-text="t('transaction.continueEdit')" variant="warning" :icon="['fas', 'exclamation-triangle']"
+    :message="t('transaction.cancelTransactionConfirm')" :confirm-text="t('common.cancel')"
+    :cancel-text="t('transaction.continueEdit')" variant="warning" :icon="['fas', 'exclamation-triangle']"
     @confirm="confirmCancel" @close="showCancelConfirm = false" />
 
   <!-- Alert Modal -->

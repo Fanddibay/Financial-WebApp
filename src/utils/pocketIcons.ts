@@ -3,5 +3,5 @@ export const POCKET_ICONS = ['💰', '🏦', '💳', '🐷', '📈', '🏠', '�
 export const POCKET_TYPE_OPTIONS = [
   { value: 'spending', labelKey: 'pocket.typeSpending' },
   { value: 'saving', labelKey: 'pocket.typeSaving' },
-  { value: 'investment', labelKey: 'pocket.typeInvestment' },
+  // { value: 'investment', labelKey: 'pocket.typeInvestment' }, // Out of milestone; re-enable later.
 ] as const

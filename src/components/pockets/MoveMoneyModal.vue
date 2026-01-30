@@ -147,7 +147,10 @@ watch(
             <p class="font-semibold text-slate-900 dark:text-slate-100">{{ p.name }}</p>
             <p class="text-sm text-slate-500 dark:text-slate-400">{{ formatIDR(p.balance) }}</p>
           </div>
-          <span v-if="targetPocketId === p.id" class="text-brand">
+          <span class="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400">
+            {{ t(`pocket.type${p.type === 'main' ? 'Main' : p.type.charAt(0).toUpperCase() + p.type.slice(1)}`) }}
+          </span>
+          <span v-if="targetPocketId === p.id" class="shrink-0 text-brand">
             <font-awesome-icon :icon="['fas', 'check']" class="h-5 w-5" />
           </span>
         </button>

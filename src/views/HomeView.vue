@@ -74,7 +74,7 @@ function handleCreatePocketClick() {
   showCreatePocket.value = true
 }
 
-function handleCreatePocket(data: { name: string; icon: string; type: 'spending' | 'saving' | 'investment'; color?: string }) {
+function handleCreatePocket(data: { name: string; icon: string; type: 'spending' | 'saving'; color?: string }) {
   pocketStore.createPocket(data)
   showCreatePocket.value = false
 }
@@ -116,15 +116,8 @@ onMounted(() => {
 
     <!-- Pocket grid (2 columns) + Create Pocket -->
     <div class="grid grid-cols-2 gap-3">
-      <PocketCard
-        v-for="p in pocketsWithBalances"
-        :key="p.id"
-        :pocket="p"
-        :balance="p.balance"
-        :hide-balance="!showTotals"
-        :disabled="p.disabled"
-        @disabled-click="showPocketDisabledSheet = true"
-      />
+      <PocketCard v-for="p in pocketsWithBalances" :key="p.id" :pocket="p" :balance="p.balance"
+        :hide-balance="!showTotals" :disabled="p.disabled" @disabled-click="showPocketDisabledSheet = true" />
       <button type="button"
         class="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 text-slate-500 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800/30 dark:hover:border-brand/40"
         @click="handleCreatePocketClick">

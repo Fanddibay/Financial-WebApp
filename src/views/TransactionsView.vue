@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactions } from '@/composables/useTransactions'
@@ -47,6 +47,12 @@ const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
 const showScrollToTop = ref(false)
 const showExportNoDataModal = ref(false)
+
+const transactionMenuOpenId = ref<string | null>(null)
+provide('transactionMenuOpenId', transactionMenuOpenId)
+provide('transactionMenuSetOpenId', (id: string | null) => {
+  transactionMenuOpenId.value = id
+})
 
 // Date filter state
 type DateFilterType = 'none' | 'today' | 'last7days' | 'last30days' | 'custom'
@@ -386,11 +392,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-4">
-    <PageHeader
-      :title="t('transactions.title')"
-      :subtitle="t('transactions.subtitle')"
-    />
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-0">
+    <PageHeader :title="t('transactions.title')" :subtitle="t('transactions.subtitle')" />
 
     <BaseCard>
       <div class="space-y-4">
@@ -529,27 +532,17 @@ onUnmounted(() => {
     </BaseCard>
 
     <div class="flex gap-2">
-      <BaseButton
-        variant="primary"
-        size="sm"
-        :class="[
-          'flex-1',
-          !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
-        ]"
-        @click="handleExportXLSX"
-      >
+      <BaseButton variant="primary" size="sm" :class="[
+        'flex-1',
+        !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
+      ]" @click="handleExportXLSX">
         <font-awesome-icon :icon="['fas', 'file-excel']" class="mr-2" />
         {{ t('transactions.exportExcel') }}
       </BaseButton>
-      <BaseButton
-        variant="danger"
-        size="sm"
-        :class="[
-          'flex-1',
-          !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
-        ]"
-        @click="handleExportPDF"
-      >
+      <BaseButton variant="danger" size="sm" :class="[
+        'flex-1',
+        !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
+      ]" @click="handleExportPDF">
         <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
         {{ t('transactions.exportPDF') }}
       </BaseButton>
@@ -566,27 +559,16 @@ onUnmounted(() => {
     </div>
 
     <div v-else class="space-y-3">
-      <TransactionCard
-        v-for="transaction in filteredTransactions"
-        :key="transaction.id"
-        :transaction="transaction"
-        :context-pocket-id="filterPocketId || undefined"
-        @edit="handleEdit"
-        @delete="handleDelete"
-      />
+      <TransactionCard v-for="transaction in filteredTransactions" :key="transaction.id" :transaction="transaction"
+        :context-pocket-id="filterPocketId || undefined" @edit="handleEdit" @delete="handleDelete" />
     </div>
 
     <ReceiptScanner :is-open="showScanner" :categories="categories" @close="showScanner = false"
       @scan-complete="handleScanComplete" @scan-complete-multiple="handleScanCompleteMultiple" />
 
     <!-- Export no-data alert -->
-    <AlertModal
-      :is-open="showExportNoDataModal"
-      :title="t('transactions.exportNoDataTitle')"
-      :message="t('transactions.exportNoDataMessage')"
-      variant="info"
-      @close="showExportNoDataModal = false"
-    />
+    <AlertModal :is-open="showExportNoDataModal" :title="t('transactions.exportNoDataTitle')"
+      :message="t('transactions.exportNoDataMessage')" variant="info" @close="showExportNoDataModal = false" />
 
     <!-- Delete Confirmation Modal -->
     <ConfirmModal :is-open="showDeleteConfirm" :title="t('transactions.deleteTransaction')"
