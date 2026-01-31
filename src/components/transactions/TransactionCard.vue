@@ -157,7 +157,7 @@ function handleDelete() {
             {{ displayTitle }}
           </h3>
           <span v-if="!isTransfer"
-            class="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+            class="inline-flex items-center gap-1 rounded-lg text-xs font-medium text-slate-600  dark:text-slate-300">
             {{ categoryIcon }} {{ transaction.category }}
           </span>
           <span v-else
