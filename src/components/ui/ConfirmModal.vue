@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import BaseModal from './BaseModal.vue'
+import BottomSheet from './BottomSheet.vue'
 import BaseButton from './BaseButton.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
@@ -51,14 +51,11 @@ const bgColors = {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" size="sm" @close="handleCancel">
+  <BottomSheet :is-open="isOpen" :title="title" max-height="60" @close="handleCancel">
     <div class="text-center">
-      <div :class="['mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full', bgColors[variant]]">
-        <FontAwesomeIcon :icon="icon" :class="['h-8 w-8', iconColors[variant]]" />
+      <div :class="['mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full', bgColors[variant]]">
+        <FontAwesomeIcon :icon="icon" :class="['h-7 w-7', iconColors[variant]]" />
       </div>
-      <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-        {{ title }}
-      </h3>
       <p class="mb-6 text-sm text-slate-600 dark:text-slate-400">
         {{ message }}
       </p>
@@ -73,6 +70,5 @@ const bgColors = {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>
-

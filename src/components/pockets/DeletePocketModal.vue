@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Pocket } from '@/types/pocket'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -54,30 +54,7 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" size="sm" @close="handleClose">
-    <template #header>
-      <div class="flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400"
-          >
-            <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="h-5 w-5" />
-          </div>
-          <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            {{ t('pocket.deleteTitleConfirm') }}
-          </h2>
-        </div>
-        <button
-          type="button"
-          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
-          :aria-label="t('common.close')"
-          @click="handleClose"
-        >
-          <font-awesome-icon :icon="['fas', 'times']" class="h-5 w-5" />
-        </button>
-      </div>
-    </template>
-
+  <BottomSheet :is-open="isOpen" :title="t('pocket.deleteTitleConfirm')" max-height="70" @close="handleClose">
     <div class="space-y-4">
       <!-- Warning section -->
       <div
@@ -127,5 +104,5 @@ function handleClose() {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>

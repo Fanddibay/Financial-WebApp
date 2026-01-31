@@ -638,15 +638,23 @@ export class LicenseService {
         return result as LicenseActivationResult
       }
 
-      // Fallback to direct access
-      if (response.status === 404) {
+      // 401 Unauthorized or 404: fallback to direct table access (no throw, no console noise)
+      if (response.status === 401 || response.status === 404) {
         return await this.checkLicenseStatusDirect(normalizedKey, deviceId)
       }
 
-      const result = await response.json()
-      return {
-        success: false,
-        error: result.error || 'Failed to check license status.',
+      // Other errors: try to parse error message, avoid response.json() on non-JSON body
+      try {
+        const result = await response.json()
+        return {
+          success: false,
+          error: result.error || 'Failed to check license status.',
+        }
+      } catch {
+        return {
+          success: false,
+          error: `Request failed with status ${response.status}.`,
+        }
       }
     } catch {
       // Network error, CORS, or Edge Function not deployed - fallback to direct access

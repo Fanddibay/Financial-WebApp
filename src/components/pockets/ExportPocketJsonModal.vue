@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import type { Pocket } from '@/types/pocket'
 import { useProfileStore } from '@/stores/profile'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -72,10 +72,7 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="t('pocket.exportJsonTitle')" size="sm" @close="handleClose">
-    <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
-      {{ t('pocket.exportJsonDesc') }}
-    </p>
+  <BottomSheet :is-open="isOpen" :title="t('pocket.exportJsonTitle')" :subtitle="t('pocket.exportJsonDesc')" max-height="60" @close="handleClose">
     <div class="space-y-3">
       <BaseInput
         v-model="passphrase"
@@ -104,5 +101,5 @@ function handleClose() {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>

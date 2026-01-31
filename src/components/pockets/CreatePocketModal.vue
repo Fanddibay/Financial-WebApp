@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
@@ -67,10 +67,7 @@ function submit() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="t('pocket.createTitle')" size="md" @close="handleClose">
-    <p class="mb-4 text-sm text-slate-600 dark:text-slate-400">
-      {{ t('pocket.createDesc') }}
-    </p>
+  <BottomSheet :is-open="isOpen" :title="t('pocket.createTitle')" :subtitle="t('pocket.createDesc')" max-height="85" @close="handleClose">
     <div class="space-y-4">
       <BaseInput
         v-model="name"
@@ -119,5 +116,5 @@ function submit() {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>

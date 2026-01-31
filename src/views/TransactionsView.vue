@@ -42,11 +42,12 @@ const filterType = ref<TransactionType | 'all'>('all')
 const filterCategory = ref('')
 const filterPocketId = ref('')
 const showScanner = ref(false)
-const showFilterSection = ref(false)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
 const showScrollToTop = ref(false)
 const showExportNoDataModal = ref(false)
+const showExportDropdown = ref(false)
+const exportDropdownRef = ref<HTMLElement | null>(null)
 
 const transactionMenuOpenId = ref<string | null>(null)
 provide('transactionMenuOpenId', transactionMenuOpenId)
@@ -72,9 +73,10 @@ const categoryOptions = computed(() => {
   if (filterType.value === 'all') {
     const categoryMap = new Map<string, 'income' | 'expense'>()
     transactions.value
-      .filter((t) => t.type !== 'transfer' && t.category)
-      .forEach((t) => {
-        if (!categoryMap.has(t.category)) categoryMap.set(t.category, t.type)
+      .filter((tx) => tx.type !== 'transfer' && tx.category)
+      .forEach((tx) => {
+        const type = tx.type as 'income' | 'expense'
+        if (!categoryMap.has(tx.category)) categoryMap.set(tx.category, type)
       })
 
     // Normalize categories - replace "Other" with "Lainnya" if exists
@@ -219,7 +221,7 @@ const filteredTransactions = computed(() => {
 })
 
 const pocketOptions = computed(() => {
-  const base = [{ value: '', label: t('pocket.allPockets') }]
+  const base = [{ value: '', label: t('transactions.allWallets') }]
   const active = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
   const list = active.map((p) => ({ value: p.id, label: `${p.icon} ${p.name}` }))
   return [...base, ...list]
@@ -247,6 +249,28 @@ const activeFiltersCount = computed(() => {
   return count
 })
 
+const hasActiveFilters = computed(
+  () =>
+    !!searchQuery.value ||
+    !!filterCategory.value ||
+    filterType.value !== 'all' ||
+    !!filterPocketId.value ||
+    dateFilterType.value !== 'none',
+)
+
+function clearFilters() {
+  searchQuery.value = ''
+  filterCategory.value = ''
+  filterType.value = 'all'
+  filterPocketId.value = ''
+  dateFilterType.value = 'none'
+}
+
+function handleEmptyStateAction() {
+  if (hasActiveFilters.value) clearFilters()
+  else router.push('/transactions/new')
+}
+
 const hasTransactionsToExport = computed(() => filteredTransactions.value.length > 0)
 
 const dateFilterLabel = computed(() => {
@@ -266,8 +290,68 @@ const dateFilterLabel = computed(() => {
       }
       return t('transactions.customRange')
     default:
-      return t('transactions.dateRange')
+      return t('transactions.allTime')
   }
+})
+
+const dateFilterOptions = computed(() => [
+  { value: 'none', label: t('transactions.allTime') },
+  { value: 'today', label: t('transactions.today') },
+  { value: 'last7days', label: t('transactions.last7Days') },
+  { value: 'last30days', label: t('transactions.last30Days') },
+  { value: 'custom', label: t('transactions.customRange') },
+])
+
+/** Group transactions by date: today, yesterday, then formatted date (e.g. 10 JAN 2026) */
+const groupedByDate = computed(() => {
+  const list = [...filteredTransactions.value].sort((a, b) => {
+    const dateA = new Date(a.date).getTime()
+    const dateB = new Date(b.date).getTime()
+    if (dateB !== dateA) return dateB - dateA
+    const createdA = a.createdAt ? new Date(a.createdAt).getTime() : 0
+    const createdB = b.createdAt ? new Date(b.createdAt).getTime() : 0
+    return createdB - createdA
+  })
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const todayEnd = new Date(today)
+  todayEnd.setHours(23, 59, 59, 999)
+  const yesterdayStart = new Date(today)
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1)
+  yesterdayStart.setHours(0, 0, 0, 0)
+  const yesterdayEnd = new Date(yesterdayStart)
+  yesterdayEnd.setHours(23, 59, 59, 999)
+  const dateLocale = locale.value === 'id' ? 'id-ID' : 'en-US'
+  const groups: { sectionLabel: string; sectionKey: string; items: typeof list }[] = []
+  let currentKey = ''
+  let currentLabel = ''
+  let currentItems: typeof list = []
+  for (const tx of list) {
+    const d = new Date(tx.date)
+    const time = d.getTime()
+    let key: string
+    let label: string
+    if (time >= today.getTime() && time <= todayEnd.getTime()) {
+      key = 'today'
+      label = t('transactions.todaySection')
+    } else if (time >= yesterdayStart.getTime() && time <= yesterdayEnd.getTime()) {
+      key = 'yesterday'
+      label = t('transactions.yesterdaySection')
+    } else {
+      key = d.toISOString().slice(0, 10)
+      label = d.toLocaleDateString(dateLocale, { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()
+    }
+    if (key !== currentKey) {
+      if (currentKey) groups.push({ sectionLabel: currentLabel, sectionKey: currentKey, items: currentItems })
+      currentKey = key
+      currentLabel = label
+      currentItems = [tx]
+    } else {
+      currentItems.push(tx)
+    }
+  }
+  if (currentKey) groups.push({ sectionLabel: currentLabel, sectionKey: currentKey, items: currentItems })
+  return groups
 })
 
 function resetFilters() {
@@ -372,6 +456,11 @@ function scrollToTop() {
   })
 }
 
+function closeExportDropdown(e?: MouseEvent) {
+  if (e && exportDropdownRef.value && exportDropdownRef.value.contains(e.target as Node)) return
+  showExportDropdown.value = false
+}
+
 onMounted(() => {
   pocketStore.fetchPockets()
   fetchTransactions()
@@ -380,187 +469,167 @@ onMounted(() => {
     const active = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
     if (active.some((p) => p.id === q)) {
       filterPocketId.value = q
-      showFilterSection.value = true
     }
   }
   window.addEventListener('scroll', handleScroll)
+  document.addEventListener('click', closeExportDropdown)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', handleScroll)
+  document.removeEventListener('click', closeExportDropdown)
 })
+
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-0">
-    <PageHeader :title="t('transactions.title')" :subtitle="t('transactions.subtitle')" />
+  <div class="mx-auto max-w-[430px] space-y-5 px-4 pb-24 pt-24">
+    <PageHeader :title="t('transactions.title')" :subtitle="t('transactions.subtitle')">
+      <template #right>
+        <div ref="exportDropdownRef" class="relative">
+          <button type="button"
+            class="flex text-xs items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2  font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            :class="{ 'ring-2 ring-brand ring-offset-2 dark:ring-offset-slate-900': showExportDropdown }"
+            :disabled="!hasTransactionsToExport" :title="t('transactions.exportFile')"
+            @click.stop="showExportDropdown = !showExportDropdown">
+            Import Data
 
-    <BaseCard>
-      <div class="space-y-4">
-        <div class="relative">
-          <font-awesome-icon :icon="['fas', 'search']"
-            class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input v-model="searchQuery" type="text" :placeholder="t('transactions.searchPlaceholder')"
-            class="w-full rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 py-2 pl-10 pr-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400 dark:placeholder:text-slate-500" />
-        </div>
-        <div class="space-y-3">
-          <BaseButton variant="secondary" class="w-full" @click="showFilterSection = !showFilterSection">
-            <font-awesome-icon :icon="['fas', 'filter']" class="mr-2" />
-            {{ t('transactions.filter') }}
-            <span v-if="activeFiltersCount > 0"
-              class="ml-2 rounded-full bg-brand px-2 py-0.5 text-xs font-semibold text-white">
-              {{ activeFiltersCount }}
-            </span>
-            <font-awesome-icon :icon="['fas', showFilterSection ? 'chevron-up' : 'chevron-down']" class="ml-auto" />
-          </BaseButton>
+            <span class="hidden sm:inline">{{ t('transactions.exportFile') }}</span>
+            <font-awesome-icon :icon="['fas', showExportDropdown ? 'chevron-up' : 'chevron-down']"
+              class="h-3 w-3 text-slate-400" />
 
-          <!-- Expandable Filter Section -->
-          <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
-            enter-to-class="opacity-100 max-h-[800px]" leave-active-class="transition-all duration-200 ease-in"
-            leave-from-class="opacity-100 max-h-[800px]" leave-to-class="opacity-0 max-h-0">
-            <div v-if="showFilterSection"
-              class="overflow-hidden space-y-4 pt-2 border-t border-slate-200 dark:border-slate-700">
-              <!-- Type Filter -->
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {{ t('transactions.transactionType') }}
-                </label>
-                <BaseSelect v-model="filterType" :options="typeOptions" />
-              </div>
-
-              <!-- Category Filter -->
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {{ t('transactions.category') }}
-                </label>
-                <BaseSelect v-model="filterCategory" :options="categoryOptions" />
-              </div>
-
-              <!-- Pocket Filter -->
-              <div class="space-y-2">
-                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {{ t('transactions.pocketFilter') }}
-                </label>
-                <BaseSelect v-model="filterPocketId" :options="pocketOptions" />
-              </div>
-
-              <!-- Clear All Filters -->
-              <div v-if="activeFiltersCount > 0" class="pt-2 border-t border-slate-200 dark:border-slate-700">
-                <BaseButton variant="ghost" size="sm" class="w-full" @click="resetFilters">
-                  <font-awesome-icon :icon="['fas', 'redo']" class="mr-2" />
-                  {{ t('transactions.clearAllFilters') }}
-                </BaseButton>
-              </div>
+          </button>
+          <Transition enter-active-class="transition duration-150 ease-out" enter-from-class="opacity-0 scale-95"
+            enter-to-class="opacity-100 scale-100" leave-active-class="transition duration-100 ease-in"
+            leave-from-class="opacity-100 scale-100" leave-to-class="opacity-0 scale-95">
+            <div v-if="showExportDropdown"
+              class="absolute right-0 top-full z-50 mt-1.5 min-w-[140px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+              <button type="button"
+                class="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50"
+                :disabled="!hasTransactionsToExport" @click.stop="showExportDropdown = false; handleExportXLSX()">
+                <font-awesome-icon :icon="['fas', 'file-excel']" class="h-4 w-4 text-green-600 dark:text-green-400" />
+                {{ t('transactions.exportExcel') }}
+              </button>
+              <button type="button"
+                class="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/50"
+                :disabled="!hasTransactionsToExport" @click.stop="showExportDropdown = false; handleExportPDF()">
+                <font-awesome-icon :icon="['fas', 'file-pdf']" class="h-4 w-4 text-red-600 dark:text-red-400" />
+                {{ t('transactions.exportPDF') }}
+              </button>
             </div>
           </Transition>
         </div>
+      </template>
+    </PageHeader>
 
-        <!-- Date Filter Section (Always Visible) -->
-        <div class="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-700">
-          <label class="text-sm font-medium text-slate-700 dark:text-slate-300">
-            {{ t('transactions.timePeriod') }}
-          </label>
-
-          <!-- Quick Date Filters -->
-          <div class="grid grid-cols-3 gap-2">
-            <button type="button" @click="setDateFilter('today')" :class="[
-              'rounded-lg px-3 py-2 text-xs font-medium transition',
-              dateFilterType === 'today'
-                ? 'bg-brand text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-            ]">
-              {{ t('transactions.today') }}
-            </button>
-            <button type="button" @click="setDateFilter('last7days')" :class="[
-              'rounded-lg px-3 py-2 text-xs font-medium transition',
-              dateFilterType === 'last7days'
-                ? 'bg-brand text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-            ]">
-              {{ t('transactions.last7Days') }}
-            </button>
-            <button type="button" @click="setDateFilter('last30days')" :class="[
-              'rounded-lg px-3 py-2 text-xs font-medium transition',
-              dateFilterType === 'last30days'
-                ? 'bg-brand text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-            ]">
-              {{ t('transactions.last30Days') }}
-            </button>
-          </div>
-
-          <!-- Custom Range -->
-          <div class="space-y-2">
-            <button type="button" @click="setDateFilter('custom')" :class="[
-              'w-full rounded-lg px-3 py-2 text-xs font-medium transition text-left',
-              dateFilterType === 'custom'
-                ? 'bg-brand text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600'
-            ]">
-              <font-awesome-icon :icon="['fas', 'calendar-days']" class="mr-2" />
-              {{ t('transactions.customRange') }}
-            </button>
-
-            <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
-              enter-to-class="opacity-100 max-h-[200px]" leave-active-class="transition-all duration-200 ease-in"
-              leave-from-class="opacity-100 max-h-[200px]" leave-to-class="opacity-0 max-h-0">
-              <div v-if="dateFilterType === 'custom'" class="overflow-hidden space-y-3 pt-2">
-                <BaseDatePicker v-model="customStartDate" :label="t('transactions.startDate')"
-                  :max-date="customEndDate || undefined" />
-                <BaseDatePicker v-model="customEndDate" :label="t('transactions.endDate')"
-                  :min-date="customStartDate || undefined" />
-              </div>
-            </Transition>
-          </div>
-
-          <!-- Active Date Filter Display -->
-          <div v-if="dateFilterType !== 'none'"
-            class="flex items-center justify-between rounded-lg bg-brand/10 dark:bg-brand/20 px-3 py-2">
-            <div class="flex items-center gap-2">
-              <font-awesome-icon :icon="['fas', 'calendar-check']" class="text-brand" />
-              <span class="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {{ dateFilterLabel }}
-              </span>
-            </div>
-            <button type="button" @click="clearDateFilter"
-              class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">
-              <font-awesome-icon :icon="['fas', 'times']" />
-            </button>
-          </div>
-        </div>
-      </div>
-    </BaseCard>
-
-    <div class="flex gap-2">
-      <BaseButton variant="primary" size="sm" :class="[
-        'flex-1',
-        !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
-      ]" @click="handleExportXLSX">
-        <font-awesome-icon :icon="['fas', 'file-excel']" class="mr-2" />
-        {{ t('transactions.exportExcel') }}
-      </BaseButton>
-      <BaseButton variant="danger" size="sm" :class="[
-        'flex-1',
-        !hasTransactionsToExport && 'cursor-not-allowed opacity-50 hover:opacity-50',
-      ]" @click="handleExportPDF">
-        <font-awesome-icon :icon="['fas', 'file-pdf']" class="mr-2" />
-        {{ t('transactions.exportPDF') }}
-      </BaseButton>
+    <!-- Search -->
+    <div class="relative">
+      <font-awesome-icon :icon="['fas', 'search']"
+        class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+      <input v-model="searchQuery" type="text" :placeholder="t('transactions.searchPlaceholder')"
+        class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
     </div>
 
-    <div v-if="filteredTransactions.length === 0" class="py-12 text-center text-slate-500 dark:text-slate-400">
-      <p>
+    <!-- Filter row: Waktu, Tipe transaksi, Dompet, Kategori (scroll x) -->
+    <div class="-mx-4 overflow-x-auto px-4 pb-1">
+      <div class="flex gap-2" style="min-width: max-content;">
+        <!-- Waktu -->
+        <div class="relative shrink-0 w-[130px]">
+          <font-awesome-icon :icon="['fas', 'calendar-days']"
+            class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <select v-model="dateFilterType"
+            class="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-8 pr-7 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <option v-for="opt in dateFilterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <font-awesome-icon :icon="['fas', 'chevron-down']"
+            class="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+        <!-- Tipe transaksi -->
+        <div class="relative shrink-0 w-[130px]">
+          <font-awesome-icon :icon="['fas', 'arrow-right-arrow-left']"
+            class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <select v-model="filterType"
+            class="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-8 pr-7 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <font-awesome-icon :icon="['fas', 'chevron-down']"
+            class="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+        <!-- Dompet -->
+        <div class="relative shrink-0 w-[130px]">
+          <font-awesome-icon :icon="['fas', 'wallet']"
+            class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <select v-model="filterPocketId"
+            class="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-8 pr-7 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <option v-for="opt in pocketOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <font-awesome-icon :icon="['fas', 'chevron-down']"
+            class="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+        <!-- Kategori -->
+        <div class="relative shrink-0 w-[140px]">
+          <font-awesome-icon :icon="['fas', 'layer-group']"
+            class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <select v-model="filterCategory"
+            class="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-8 pr-7 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <option v-for="opt in categoryOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+          </select>
+          <font-awesome-icon :icon="['fas', 'chevron-down']"
+            class="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom date range (when "Custom Range" selected) -->
+    <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
+      enter-to-class="opacity-100 max-h-[200px]" leave-active-class="transition-all duration-200 ease-in"
+      leave-from-class="opacity-100 max-h-[200px]" leave-to-class="opacity-0 max-h-0">
+      <div v-if="dateFilterType === 'custom'"
+        class="overflow-hidden rounded-xl border border-slate-200 bg-white p-3 space-y-3 dark:border-slate-600 dark:bg-slate-800">
+        <BaseDatePicker v-model="customStartDate" :label="t('transactions.startDate')"
+          :max-date="customEndDate || undefined" />
+        <BaseDatePicker v-model="customEndDate" :label="t('transactions.endDate')"
+          :min-date="customStartDate || undefined" />
+      </div>
+    </Transition>
+
+    <div v-if="filteredTransactions.length === 0"
+      class="flex flex-col items-center rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 py-12 px-6 text-center dark:border-slate-700 dark:bg-slate-800/30">
+      <span
+        class="mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-brand/10 text-4xl text-brand dark:bg-brand/20"
+        aria-hidden="true">
+        <font-awesome-icon :icon="['fas', 'receipt']" class="h-10 w-10" />
+      </span>
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
         {{
           searchQuery || filterCategory || filterType !== 'all' || filterPocketId || dateFilterType !== 'none'
             ? t('transactions.noTransactionsFiltered')
-            : t('transactions.noTransactions')
+            : t('transactions.emptyTitle')
+        }}
+      </h2>
+      <p class="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+        {{
+          searchQuery || filterCategory || filterType !== 'all' || filterPocketId || dateFilterType !== 'none'
+            ? t('transactions.emptyFilteredHint')
+            : t('transactions.emptySubtitle')
         }}
       </p>
+      <BaseButton variant="primary" size="lg" class="mt-6" @click="handleEmptyStateAction">
+        <font-awesome-icon :icon="['fas', hasActiveFilters ? 'rotate-left' : 'plus']" class="mr-2" />
+        {{ hasActiveFilters ? t('transactions.clearAllFilters') : t('home.addTransaction') }}
+      </BaseButton>
     </div>
 
-    <div v-else class="space-y-3">
-      <TransactionCard v-for="transaction in filteredTransactions" :key="transaction.id" :transaction="transaction"
-        :context-pocket-id="filterPocketId || undefined" @edit="handleEdit" @delete="handleDelete" />
+    <div v-else class="space-y-6">
+      <section v-for="group in groupedByDate" :key="group.sectionKey" class="space-y-2">
+        <h2 class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          {{ group.sectionLabel }}
+        </h2>
+        <div class="space-y-2">
+          <TransactionCard v-for="transaction in group.items" :key="transaction.id" :transaction="transaction"
+            :context-pocket-id="filterPocketId || undefined" @edit="handleEdit" @delete="handleDelete" />
+        </div>
+      </section>
     </div>
 
     <ReceiptScanner :is-open="showScanner" :categories="categories" @close="showScanner = false"

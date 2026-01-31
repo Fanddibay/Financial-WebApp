@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { Pocket } from '@/types/pocket'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import IconPicker from '@/components/pockets/IconPicker.vue'
@@ -66,7 +66,7 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="t('pocket.editTitle')" size="md" @close="handleClose">
+  <BottomSheet :is-open="isOpen" :title="t('pocket.editTitle')" max-height="85" @close="handleClose">
     <div class="space-y-4">
       <BaseInput
         v-model="name"
@@ -114,5 +114,5 @@ function handleClose() {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>

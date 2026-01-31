@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -74,23 +74,7 @@ function handleClose() {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" size="sm" @close="handleClose">
-    <template #header>
-      <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-brand/10">
-          <font-awesome-icon :icon="['fas', 'download']" class="text-brand" />
-        </div>
-        <div>
-          <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Ekspor Data
-          </h2>
-          <p class="text-xs text-slate-500 dark:text-slate-400">
-            Buat backup terenkripsi dari data Anda
-          </p>
-        </div>
-      </div>
-    </template>
-
+  <BottomSheet :is-open="isOpen" title="Ekspor Data" subtitle="Buat backup terenkripsi dari data Anda" max-height="70" @close="handleClose">
     <div class="space-y-4">
       <div
         class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
@@ -188,6 +172,6 @@ function handleClose() {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>
 

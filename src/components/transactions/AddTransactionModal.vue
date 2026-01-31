@@ -257,90 +257,90 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
     </div>
 
     <!-- Options: 3 transaction methods. "Ganti kantong" only when multi-pocket step 2. -->
-    <div v-else-if="showOptionsView" class="space-y-4 py-2">
+    <div v-else-if="showOptionsView" class="space-y-2 py-1">
       <button
         v-if="showChangePocketLink"
         type="button"
-        class="flex items-center gap-2 text-sm font-medium text-brand hover:underline dark:text-brand-light"
+        class="flex items-center gap-2 py-1 text-sm font-medium text-brand hover:underline dark:text-brand-light"
         @click="backToSelectPocket"
       >
         <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-4 w-4" />
         {{ t('transaction.changePocket') }}
       </button>
-      <div class="space-y-3">
+      <div class="space-y-2">
         <BaseCard>
           <button
             type="button"
-            class="flex w-full items-center gap-4 rounded-lg p-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
+            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
             @click="handleAddByForm"
           >
             <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
             >
               <font-awesome-icon
                 :icon="['fas', 'edit']"
-                class="h-6 w-6 text-blue-600 dark:text-blue-400"
+                class="h-4 w-4 text-blue-600 dark:text-blue-400"
               />
             </div>
-            <div class="flex-1">
+            <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
                 {{ t('transaction.addViaForm') }}
               </h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
+              <p class="mt-0.5 text-sm leading-snug text-slate-500 dark:text-slate-400">
                 {{ t('transaction.addViaFormDesc') }}
               </p>
             </div>
-            <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
+            <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
           </button>
         </BaseCard>
         <BaseCard>
           <button
             type="button"
-            class="flex w-full items-center gap-4 rounded-lg p-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
+            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
             @click="handleAddByScan"
           >
             <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
             >
               <font-awesome-icon
                 :icon="['fas', 'camera']"
-                class="h-6 w-6 text-green-600 dark:text-green-400"
+                class="h-4 w-4 text-green-600 dark:text-green-400"
               />
             </div>
-            <div class="flex-1">
+            <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
                 {{ t('transaction.scanReceipt') }}
               </h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
+              <p class="mt-0.5 text-sm leading-snug text-slate-500 dark:text-slate-400">
                 {{ t('transaction.scanReceiptDesc') }}
               </p>
             </div>
-            <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
+            <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
           </button>
         </BaseCard>
         <BaseCard>
           <button
             type="button"
-            class="flex w-full items-center gap-4 rounded-lg p-4 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
+            class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
             @click="handleAddByText"
           >
             <div
-              class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30"
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30"
             >
               <font-awesome-icon
                 :icon="['fas', 'keyboard']"
-                class="h-6 w-6 text-purple-600 dark:text-purple-400"
+                class="h-4 w-4 text-purple-600 dark:text-purple-400"
               />
             </div>
-            <div class="flex-1">
+            <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
                 {{ t('transaction.textInput') }}
               </h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
+              <p class="mt-0.5 text-sm leading-snug text-slate-500 dark:text-slate-400">
                 {{ t('transaction.textInputDesc') }}
               </p>
             </div>
-            <font-awesome-icon :icon="['fas', 'chevron-right']" class="text-slate-400" />
+            <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
           </button>
         </BaseCard>
       </div>

@@ -19,6 +19,7 @@ export interface ExportData {
   version: string
   exportedAt: string
   transactions: unknown[]
+  pockets: unknown[]
   profile: unknown
   theme: string | null
 }
@@ -30,6 +31,9 @@ export interface ExportData {
 export function collectAppData(): ExportData {
   const transactions = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
+  )
+  const pockets = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.POCKETS) || '[]',
   )
   const rawProfile = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null',
@@ -47,6 +51,7 @@ export function collectAppData(): ExportData {
     version: APP_VERSION,
     exportedAt: new Date().toISOString(),
     transactions,
+    pockets: Array.isArray(pockets) ? pockets : [],
     profile,
     theme,
   }
@@ -138,7 +143,8 @@ export async function exportPocketData(
 }
 
 /**
- * Validates legacy (global) import data structure
+ * Validates legacy (global) import data structure.
+ * Pockets array is optional for backward compatibility with old backups.
  */
 function validateImportData(data: unknown): data is ExportData {
   if (!data || typeof data !== 'object') {
@@ -152,6 +158,10 @@ function validateImportData(data: unknown): data is ExportData {
     typeof d.exportedAt !== 'string' ||
     !Array.isArray(d.transactions)
   ) {
+    return false
+  }
+
+  if (d.pockets !== undefined && d.pockets !== null && !Array.isArray(d.pockets)) {
     return false
   }
 
@@ -310,17 +320,36 @@ export async function importData(
     const exportedBy = typeof d.exportedBy === 'string' ? d.exportedBy.trim() : undefined
     const pocketIdMap = new Map<string, string>()
     const newPockets: unknown[] = []
+    const allNames = (existingPockets as Array<{ name?: string }>).map((x) => x.name)
+
+    function ensureUniqueName(base: string): string {
+      let name = base
+      let n = 1
+      const used = new Set([...allNames, ...newPockets.map((x) => (x as Record<string, unknown>).name)])
+      while (used.has(name)) {
+        name = `${base} (${n})`
+        n++
+      }
+      return name
+    }
 
     for (const p of (payload as PocketExportPayload).pockets) {
       const old = p as Record<string, unknown>
+      const oldId = old.id as string
+      const isMain = oldId === MAIN_POCKET_ID || old.type === 'main'
       const newId_ = newId('pocket')
-      pocketIdMap.set(old.id as string, newId_)
+      pocketIdMap.set(oldId, newId_)
+
       const name = (old.name as string) || 'Pocket'
-      const displayName = exportedBy ? `${name} ${exportedBy}` : name
+      const baseName = exportedBy ? `${name} ${exportedBy}` : name
+      const displayName = ensureUniqueName(baseName)
+      const pocketType = isMain ? 'spending' : ((old.type as string) || 'spending')
+
       newPockets.push({
         ...old,
         id: newId_,
         name: displayName,
+        type: pocketType,
         balance: 0,
         color: (old.color as string) || DEFAULT_POCKET_COLOR,
       })
@@ -367,34 +396,103 @@ export async function importData(
     }
   }
 
-  // Legacy format: append transactions only, assign to main pocket
+  // Legacy format: append pockets (if present) and transactions
   if (!validateImportData(payload)) {
     throw new Error(
       'Struktur data backup tidak valid. File mungkin rusak atau dari versi yang tidak kompatibel.',
     )
   }
 
+  const legacyData = payload as ExportData
+  const existingPockets: unknown[] = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.POCKETS) || '[]',
+  )
   const existingTx: unknown[] = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
   )
-  const legacyTx = (payload as ExportData).transactions as Array<Record<string, unknown>>
+
+  const pocketIdMap = new Map<string, string>()
+  let newPocketsCount = 0
+
+  // Helper: ensure unique pocket name
+  function ensureUniquePocketName(baseName: string): string {
+    const existing = (existingPockets as Array<{ name?: string }>).map((x) => x.name)
+    let name = baseName
+    let n = 1
+    while (existing.includes(name)) {
+      name = `${baseName} (${n})`
+      n++
+    }
+    return name
+  }
+
+  // Restore pockets if present (Main Pocket becomes new pocket with unique name, editable/deletable)
+  if (Array.isArray(legacyData.pockets) && legacyData.pockets.length > 0) {
+    const profile = legacyData.profile as { name?: string } | undefined
+    const profileName = typeof profile?.name === 'string' ? profile.name.trim() : undefined
+
+    for (const p of legacyData.pockets) {
+      const old = p as Record<string, unknown>
+      const oldId = old.id as string
+      const newId_ = newId('pocket')
+      pocketIdMap.set(oldId, newId_)
+
+      let displayName: string
+      let pocketType: string
+
+      if (oldId === MAIN_POCKET_ID || old.type === 'main') {
+        // Main Pocket: import as new pocket with unique name (e.g. "Main Pocket Robby"), type spending
+        const baseName = `Main Pocket${profileName ? ` ${profileName}` : ''}`.trim() || 'Main Pocket'
+        displayName = ensureUniquePocketName(baseName)
+        pocketType = 'spending'
+      } else {
+        displayName = ensureUniquePocketName((old.name as string) || 'Pocket')
+        pocketType = (old.type as string) || 'spending'
+      }
+
+      newPocketsCount++
+      const newPocket = {
+        ...old,
+        id: newId_,
+        name: displayName,
+        type: pocketType,
+        balance: 0,
+        color: (old.color as string) || DEFAULT_POCKET_COLOR,
+      }
+      existingPockets.push(newPocket)
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.POCKETS, JSON.stringify(existingPockets))
+    } catch (e) {
+      throw new Error(
+        `Gagal menyimpan kantong yang diimpor: ${e instanceof Error ? e.message : 'Error penyimpanan'}`,
+      )
+    }
+  }
+
+  const legacyTx = legacyData.transactions as Array<Record<string, unknown>>
   const now = new Date().toISOString()
   const appended = legacyTx.map((t) => {
     const date = typeof t.date === 'string' ? validateAndFixDate(t.date) : (t.date as string) || now.slice(0, 10)
+    const pid = (t.pocketId as string) || MAIN_POCKET_ID
+    const tid = t.transferToPocketId as string | undefined
+    const newPid = pocketIdMap.get(pid) ?? MAIN_POCKET_ID
+    const newTid = tid ? (pocketIdMap.get(tid) ?? MAIN_POCKET_ID) : undefined
     return {
       ...t,
       id: newId('tx'),
-      pocketId: MAIN_POCKET_ID,
+      pocketId: newPid,
+      transferToPocketId: newTid,
       date,
       createdAt: t.createdAt ?? now,
       updatedAt: t.updatedAt ?? now,
     }
   })
 
-  const merged = [...(Array.isArray(existingTx) ? existingTx : []), ...appended]
+  const mergedTx = [...(Array.isArray(existingTx) ? existingTx : []), ...appended]
 
   try {
-    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(merged))
+    localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(mergedTx))
   } catch (e) {
     throw new Error(
       `Gagal menyimpan data yang diimpor: ${e instanceof Error ? e.message : 'Error penyimpanan'}`,
@@ -404,6 +502,7 @@ export async function importData(
   const profile = JSON.parse(localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null') as { name?: string } | null
   return {
     transactionCount: appended.length,
+    pocketCount: newPocketsCount > 0 ? newPocketsCount : undefined,
     profileName: profile?.name || 'User',
   }
 }

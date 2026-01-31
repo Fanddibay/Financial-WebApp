@@ -2,10 +2,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { ChatMessage, ChatContext } from '@/types/chat'
 import { chatService } from '@/services/chatService'
+import i18n from '@/i18n'
 
 const STORAGE_KEY = 'financial_tracker_chat_history'
 
 export const useChatStore = defineStore('chat', () => {
+  const t = (key: string, params?: Record<string, string>) => i18n.global.t(key, params)
   const messages = ref<ChatMessage[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -59,8 +61,8 @@ export const useChatStore = defineStore('chat', () => {
       const response = await chatService.sendMessage(content, context as ChatContext)
       addMessage('assistant', response)
     } catch (err) {
-      error.value = err instanceof Error ? err.message : 'Gagal mengirim pesan'
-      addMessage('assistant', `Maaf, ada error: ${error.value}. Cek konfigurasi API kamu ya.`)
+      error.value = err instanceof Error ? err.message : t('chat.sendFailed')
+      addMessage('assistant', t('chat.errorMessage', { error: error.value }))
       console.error('Chat error:', err)
     } finally {
       loading.value = false
@@ -77,39 +79,14 @@ export const useChatStore = defineStore('chat', () => {
   function toggleChat() {
     isOpen.value = !isOpen.value
     if (isOpen.value && messages.value.length === 0) {
-      // Add welcome message on first open (Indonesian)
-      addMessage('assistant', 'Halo! 👋 Saya asisten keuangan AI Anda. Saya bisa membantu Anda:\n\n' +
-        '📊 **Analisis & Insight:**\n' +
-        '• Analisis kesehatan finansial\n' +
-        '• Cek saldo dan insight\n' +
-        '• Saran penghematan\n' +
-        '• Analisis kategori pengeluaran\n\n' +
-        '📅 **Ringkasan:**\n' +
-        '• Ringkasan bulanan/mingguan\n' +
-        '• Deteksi pengeluaran berlebihan\n\n' +
-        '💡 **Saran:**\n' +
-        '• Tips keuangan umum\n' +
-        '• Potensi tabungan\n\n' +
-        'Coba tanyakan: "Apakah pengeluaran saya sehat?" atau "Dimana saya bisa hemat?" 😊')
+      addMessage('assistant', t('chat.welcome'))
     }
   }
 
   function openChat() {
     isOpen.value = true
     if (messages.value.length === 0) {
-      addMessage('assistant', 'Halo! 👋 Saya asisten keuangan AI Anda. Saya bisa membantu Anda:\n\n' +
-        '📊 **Analisis & Insight:**\n' +
-        '• Analisis kesehatan finansial\n' +
-        '• Cek saldo dan insight\n' +
-        '• Saran penghematan\n' +
-        '• Analisis kategori pengeluaran\n\n' +
-        '📅 **Ringkasan:**\n' +
-        '• Ringkasan bulanan/mingguan\n' +
-        '• Deteksi pengeluaran berlebihan\n\n' +
-        '💡 **Saran:**\n' +
-        '• Tips keuangan umum\n' +
-        '• Potensi tabungan\n\n' +
-        'Coba tanyakan: "Apakah pengeluaran saya sehat?" atau "Dimana saya bisa hemat?" 😊')
+      addMessage('assistant', t('chat.welcome'))
     }
   }
 

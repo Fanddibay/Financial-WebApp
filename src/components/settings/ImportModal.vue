@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -84,23 +84,7 @@ const fileName = computed(() => {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" size="sm" @close="handleClose">
-    <template #header>
-      <div class="flex items-center gap-3">
-        <div class="flex h-10 w-10 items-center justify-center rounded-full bg-brand/10">
-          <font-awesome-icon :icon="['fas', 'file-import']" class="text-brand" />
-        </div>
-        <div>
-          <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
-            Impor Data
-          </h2>
-          <p class="text-xs text-slate-500 dark:text-slate-400">
-            Pulihkan data dari backup terenkripsi
-          </p>
-        </div>
-      </div>
-    </template>
-
+  <BottomSheet :is-open="isOpen" title="Impor Data" subtitle="Pulihkan data dari backup terenkripsi" max-height="70" @close="handleClose">
     <div class="space-y-4">
       <div
         class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
@@ -208,6 +192,6 @@ const fileName = computed(() => {
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>
 

@@ -4,11 +4,17 @@ import { ref } from 'vue'
 const STORAGE_KEY = 'financial_tracker_profile'
 const AVATAR_STORAGE_KEY = 'financial_tracker_avatar'
 
+export type NotificationFrequency = 'daily' | 'weekly' | 'monthly' | 'custom'
+
 interface Profile {
   name: string
   phone: string
   avatar?: string
   notificationsEnabled: boolean
+  notificationFrequency: NotificationFrequency
+  notificationCustomDays: number
+  /** Jam notifikasi format 24h, e.g. "09:00" */
+  notificationTime: string
 }
 
 // Avatar is stored only in AVATAR_STORAGE_KEY so export/import never includes it.
@@ -44,6 +50,9 @@ export const useProfileStore = defineStore('profile', () => {
           name: (rest.name as string) ?? 'User',
           phone: (rest.phone as string) ?? '',
           notificationsEnabled: (rest.notificationsEnabled as boolean) ?? true,
+          notificationFrequency: (rest.notificationFrequency as NotificationFrequency) ?? 'daily',
+          notificationCustomDays: typeof rest.notificationCustomDays === 'number' ? Math.max(1, Math.min(365, rest.notificationCustomDays)) : 3,
+          notificationTime: typeof rest.notificationTime === 'string' && /^\d{2}:\d{2}$/.test(rest.notificationTime as string) ? (rest.notificationTime as string) : '09:00',
           avatar: getStoredAvatar(),
         }
       }
@@ -54,6 +63,9 @@ export const useProfileStore = defineStore('profile', () => {
       name: 'User',
       phone: '',
       notificationsEnabled: true,
+      notificationFrequency: 'daily' as NotificationFrequency,
+      notificationCustomDays: 3,
+      notificationTime: '09:00',
       avatar: getStoredAvatar(),
     }
   }

@@ -3,6 +3,7 @@ import { library } from '@fortawesome/fontawesome-svg-core'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import {
   faWebAwesome,
+  faBellSlash,
   faCopy,
   faSpinner,
   faKeyboard,
@@ -23,10 +24,13 @@ import {
   faChevronUp,
   faChevronDown,
   faComments,
+  faCrown,
   faDatabase,
   faEdit,
   faEllipsis,
   faEllipsisVertical,
+  faEnvelope,
+  faEnvelopeOpen,
   faEye,
   faEyeSlash,
   faFileExcel,
@@ -73,6 +77,7 @@ import { faVuejs } from '@fortawesome/free-brands-svg-icons'
 
 const icons = [
   faWebAwesome,
+  faBellSlash,
   faCircleInfo,
   faCopy,
   faSpinner,
@@ -94,10 +99,13 @@ const icons = [
   faChevronUp,
   faChevronDown,
   faComments,
+  faCrown,
   faDatabase,
   faEdit,
   faEllipsis,
   faEllipsisVertical,
+  faEnvelope,
+  faEnvelopeOpen,
   faEye,
   faEyeSlash,
   faFileExcel,

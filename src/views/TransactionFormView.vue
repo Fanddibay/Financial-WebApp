@@ -447,7 +447,7 @@ function formatDate(dateString: string): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-0 min-h-0 overflow-y-auto">
+  <div class="mx-auto max-w-[430px] min-h-0 space-y-6 overflow-y-auto px-4 pb-24 pt-24">
     <PageHeader :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
       :subtitle="isEdit
           ? t('transaction.updateTransaction')

@@ -10,7 +10,9 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import ExportModal from '@/components/settings/ExportModal.vue'
 import ImportModal from '@/components/settings/ImportModal.vue'
+import ImportExportGuideSheet from '@/components/settings/ImportExportGuideSheet.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import PageHeader from '@/components/layout/PageHeader.vue'
 import AvatarPickerModal from '@/components/profile/AvatarPickerModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -36,12 +38,13 @@ const isPWAInstallOpen = ref(false)
 // Export/Import modals
 const showExportModal = ref(false)
 const showImportModal = ref(false)
+const showImportExportGuide = ref(false)
 const showImportConfirm = ref(false)
 const importFile = ref<File | null>(null)
 const importPassphrase = ref('')
 const isLoading = ref(false)
 
-// Notifications
+// Notifications (toast for license etc.)
 const notification = ref<{
   type: 'success' | 'error' | null
   message: string
@@ -53,6 +56,8 @@ const licenseError = ref<string | null>(null)
 const isVerifyingLicense = ref(false)
 const showDeactivateConfirm = ref(false)
 const isDeactivating = ref(false)
+const showSubscribedPopup = ref(false)
+const showNotSubscribedPopup = ref(false)
 
 async function handlePasteLicense() {
   try {
@@ -121,7 +126,7 @@ async function handleDeactivateLicense() {
 }
 
 function handleOpenCheckout() {
-  // Direct redirect to Lemon Squeezy checkout
+  showNotSubscribedPopup.value = false
   window.open('https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe', '_blank')
 }
 
@@ -250,11 +255,25 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
   saveLanguage(newLocale)
   showNotification('success', t('settings.languageHelper'))
 }
+
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 -pt-2">
-    <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')" />
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-24">
+    <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')">
+      <template #right>
+        <button type="button" :class="[
+          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition active:scale-95',
+          tokenStore.isLicenseActive
+            ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
+            : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-500 dark:hover:bg-slate-600',
+        ]"
+          :aria-label="tokenStore.isLicenseActive ? t('profile.subscribedPopupTitle') : t('profile.notSubscribedPopupTitle')"
+          @click="tokenStore.isLicenseActive ? (showSubscribedPopup = true) : (showNotSubscribedPopup = true)">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-5 w-5" />
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Profile Info -->
     <BaseCard>
@@ -468,43 +487,15 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <BaseCard>
       <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
       <div class="space-y-4">
-        <!-- Notifications -->
-        <div class="relative">
-          <div class="flex items-center justify-between">
-            <div class="flex-1">
-              <div class="flex items-center gap-2 mb-1">
-                <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.notifications') }}</h4>
-                <span
-                  class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
-                  {{ t('settings.comingSoon') }}
-                </span>
-              </div>
-              <p class="text-sm text-slate-500 dark:text-slate-400">
-                {{ t('settings.notificationsDesc') }}
-              </p>
-            </div>
-            <div class="relative">
-              <label class="relative inline-flex cursor-not-allowed items-center opacity-50">
-                <input type="checkbox" disabled class="peer sr-only" />
-                <div
-                  class="peer h-6 w-11 rounded-full bg-slate-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] dark:bg-slate-700 dark:after:border-slate-600" />
-              </label>
-            </div>
-          </div>
-          <div class="mt-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3">
-            <div class="flex items-start gap-2">
-              <font-awesome-icon :icon="['fas', 'circle-info']"
-                class="mt-0.5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-              <div class="flex-1">
-                <p class="text-xs font-medium text-blue-800 dark:text-blue-300 mb-0.5">
-                  {{ t('settings.featureInDevelopment') }}
-                </p>
-                <p class="text-xs text-blue-700 dark:text-blue-400">
-                  {{ t('settings.featureInDevelopmentDesc') }}
-                </p>
-              </div>
-            </div>
-          </div>
+        <!-- Notifications: coming soon -->
+        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.notifications') }}</h4>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {{ t('settings.featureInDevelopmentDesc') }}
+          </p>
+          <p class="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {{ t('settings.comingSoon') }}
+          </p>
         </div>
 
         <!-- Language Switcher -->
@@ -559,9 +550,16 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 
     <!-- Data Management -->
     <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-        {{ t('dataManagement.title') }}
-      </h3>
+      <div class="mb-4 flex items-center justify-between gap-3">
+        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          {{ t('dataManagement.title') }}
+        </h3>
+        <button type="button"
+          class="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-brand transition hover:bg-brand/10 dark:hover:bg-brand/20"
+          @click="showImportExportGuide = true">
+          {{ t('dataManagement.howItWorks') }}
+        </button>
+      </div>
       <div class="space-y-4">
         <div class="rounded-lg bg-slate-50 p-4 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
           <div class="flex items-start gap-3">
@@ -749,6 +747,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <ImportModal :is-open="showImportModal" @close="showImportModal = false" @success="handleExportSuccess"
       @error="handleImportError" @confirm="handleImportConfirm" />
 
+    <ImportExportGuideSheet :is-open="showImportExportGuide" @close="showImportExportGuide = false" />
+
     <ConfirmModal :is-open="showImportConfirm" :title="t('dataManagement.importConfirmTitle')"
       :message="t('dataManagement.importConfirmMessage')" :confirm-text="t('dataManagement.importConfirmButton')"
       :cancel-text="t('common.cancel')" variant="info" :icon="['fas', 'circle-info']" @confirm="handleImportExecute"
@@ -762,6 +762,42 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 
     <!-- Avatar Picker Modal -->
     <AvatarPickerModal :is-open="showAvatarPicker" @close="showAvatarPicker = false" />
+
+    <!-- Subscribed (crown) popup -->
+    <BottomSheet
+      :is-open="showSubscribedPopup"
+      :title="t('profile.subscribedPopupTitle')"
+      max-height="60"
+      @close="showSubscribedPopup = false"
+    >
+      <p class="text-slate-600 dark:text-slate-300">{{ t('profile.subscribedPopupMessage') }}</p>
+      <template #footer>
+        <BaseButton class="w-full" @click="showSubscribedPopup = false">
+          {{ t('common.close') }}
+        </BaseButton>
+      </template>
+    </BottomSheet>
+
+    <!-- Not subscribed (crown) popup -->
+    <BottomSheet
+      :is-open="showNotSubscribedPopup"
+      :title="t('profile.notSubscribedPopupTitle')"
+      max-height="60"
+      @close="showNotSubscribedPopup = false"
+    >
+      <p class="text-slate-600 dark:text-slate-300">{{ t('profile.notSubscribedPopupMessage') }}</p>
+      <template #footer>
+        <div class="flex flex-col gap-2">
+          <BaseButton class="w-full text-white" variant="teritary" @click="handleOpenCheckout">
+            <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
+            {{ t('profile.getTokenCta') }}
+          </BaseButton>
+          <BaseButton variant="secondary" class="w-full" @click="showNotSubscribedPopup = false">
+            {{ t('common.close') }}
+          </BaseButton>
+        </div>
+      </template>
+    </BottomSheet>
 
   </div>
 </template>

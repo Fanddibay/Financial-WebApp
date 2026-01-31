@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useTransactionStore } from '@/stores/transaction'
 import { useThemeStore } from '@/stores/theme'
 import { useTokenStore } from '@/stores/token'
 import { analyzeFinancialData } from '@/services/financialAI'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+const { t, locale } = useI18n()
+const showClearChatConfirm = ref(false)
 const router = useRouter()
 const chatStore = useChatStore()
 const transactionStore = useTransactionStore()
@@ -61,6 +65,7 @@ async function handleSend() {
     const analysis = analyzeFinancialData(transactionStore.transactions)
     
     const context = {
+        locale: (locale.value === 'en' ? 'en' : 'id') as 'id' | 'en',
         transactions: {
             totalIncome: analysis.totalIncome,
             totalExpenses: analysis.totalExpenses,
@@ -91,9 +96,12 @@ function handleKeyPress(e: KeyboardEvent) {
 }
 
 function handleClear() {
-    if (confirm('Yakin ingin menghapus riwayat chat?')) {
-        chatStore.clearHistory()
-    }
+    showClearChatConfirm.value = true
+}
+
+function handleClearChatConfirm() {
+    chatStore.clearHistory()
+    showClearChatConfirm.value = false
 }
 </script>
 
@@ -218,4 +226,17 @@ function handleClear() {
             </p>
         </div>
     </div>
+
+    <!-- Clear chat history confirmation -->
+    <ConfirmModal
+        :is-open="showClearChatConfirm"
+        :title="t('chat.clearHistoryTitle')"
+        :message="t('chat.clearHistoryMessage')"
+        :confirm-text="t('chat.clearHistoryConfirm')"
+        :cancel-text="t('common.cancel')"
+        variant="warning"
+        :icon="['fas', 'trash']"
+        @confirm="handleClearChatConfirm"
+        @close="showClearChatConfirm = false"
+    />
 </template>

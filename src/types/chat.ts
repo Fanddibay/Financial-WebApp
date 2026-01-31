@@ -6,6 +6,8 @@ export interface ChatMessage {
 }
 
 export interface ChatContext {
+  /** User's active language ('id' | 'en'). Chatbot responds in this language. */
+  locale?: 'id' | 'en'
   transactions?: {
     totalIncome: number
     totalExpenses: number

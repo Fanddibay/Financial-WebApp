@@ -80,7 +80,7 @@ const formattedDate = computed(() =>
 
 const categoryIcon = computed(() => {
   if (isTransfer.value) return '↔️'
-  return getCategoryIcon(props.transaction.category, props.transaction.type)
+  return getCategoryIcon(props.transaction.category, props.transaction.type as 'income' | 'expense')
 })
 
 const displayTitle = computed(() => {
@@ -145,7 +145,7 @@ function handleDelete() {
 
 <template>
   <div ref="rootRef"
-    :class="['relative flex items-centerimage.png justify-between gap-4 rounded-xl border-2 p-3.5 transition hover:shadow-sm', cardClass]">
+    :class="['relative flex items-center justify-between gap-4 rounded-xl border p-3.5 transition hover:shadow-sm', cardClass]">
     <!-- Left: icon + details -->
     <div class="min-w-0 flex-1">
       <div class="flex items-start gap-3">
@@ -156,11 +156,14 @@ function handleDelete() {
           <h3 class="truncate text-base font-semibold leading-tight text-slate-900 dark:text-slate-100">
             {{ displayTitle }}
           </h3>
-          <p v-if="!isTransfer" class="text-sm leading-snug text-slate-600 dark:text-slate-400">
+          <span v-if="!isTransfer"
+            class="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
             {{ categoryIcon }} {{ transaction.category }}
-          </p>
-          <p v-else class="text-sm leading-snug text-slate-500 dark:text-slate-400">Transfer</p>
-          <p class="text-xs text-slate-500 dark:text-slate-400">{{ formattedDate }}</p>
+          </span>
+          <span v-else
+            class="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+            Transfer
+          </span>
         </div>
       </div>
     </div>

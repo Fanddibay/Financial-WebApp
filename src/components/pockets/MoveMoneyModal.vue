@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import CurrencyInput from '@/components/ui/CurrencyInput.vue'
 import { usePocketLimits } from '@/composables/usePocketLimits'
@@ -105,7 +105,7 @@ watch(
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="t('pocket.moveMoneyTitle')" size="md" @close="handleClose">
+  <BottomSheet :is-open="isOpen" :title="t('pocket.moveMoneyTitle')" @close="handleClose">
     <template v-if="step === 1" #headerBottom>
       <p class="text-sm text-slate-600 dark:text-slate-400">
         {{ t('pocket.moveMoneyStep1') }}
@@ -198,5 +198,5 @@ watch(
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 </template>

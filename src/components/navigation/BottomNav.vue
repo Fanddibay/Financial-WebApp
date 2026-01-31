@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { faHouse, faReceipt, faChartLine, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
+import { faHouse, faReceipt, faWallet, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
 import { useI18n } from 'vue-i18n'
 
@@ -17,9 +17,8 @@ const activeTab = computed(() => {
   const currentPath = route.path
 
   if (currentPath === '/') return 'home'
-  if (currentPath.startsWith('/dashboard')) return 'dashboard'
+  if (currentPath.startsWith('/pockets')) return 'pockets'
   if (currentPath.startsWith('/transactions')) return 'transactions'
-
   if (currentPath === '/profile') return 'profile'
   return 'home'
 })
@@ -50,15 +49,15 @@ function openAddModal() {
         <span class="text-xs font-medium">{{ t('nav.home') }}</span>
       </button>
 
-      <!-- Dashboard Button -->
+      <!-- Pockets Button -->
       <button :class="[
         'flex flex-col items-center gap-1 rounded-xl px-3 py-2 transition',
-        activeTab === 'dashboard'
+        activeTab === 'pockets'
           ? 'bg-brand/10 text-brand dark:bg-brand/20'
           : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
-      ]" @click="navigate('/dashboard')">
-        <font-awesome-icon :icon="faChartLine" class="text-lg" />
-        <span class="text-xs font-medium">{{ t('nav.dashboard') }}</span>
+      ]" @click="navigate('/pockets')">
+        <font-awesome-icon :icon="faWallet" class="text-lg" />
+        <span class="text-xs font-medium">{{ t('nav.pockets') }}</span>
       </button>
 
       <!-- Add Button (Centered, Larger) -->

@@ -52,6 +52,11 @@ export const useTransactionStore = defineStore('transaction', () => {
     try {
       const transaction = await transactionService.create(data)
       transactions.value.push(transaction)
+      try {
+        window.dispatchEvent(new CustomEvent('check-transaction-notification'))
+      } catch {
+        // ignore
+      }
       return transaction
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal membuat transaksi'
@@ -68,6 +73,11 @@ export const useTransactionStore = defineStore('transaction', () => {
     try {
       const tx = await transactionService.createTransfer(fromPocketId, toPocketId, amount)
       transactions.value.push(tx)
+      try {
+        window.dispatchEvent(new CustomEvent('check-transaction-notification'))
+      } catch {
+        // ignore
+      }
       return tx
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal memindahkan uang'

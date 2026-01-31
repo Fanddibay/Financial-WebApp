@@ -71,9 +71,11 @@ class OpenAIChatService implements IChatService {
   }
 
   private buildSystemPrompt(context?: ChatContext): string {
+    const lang = context?.locale === 'en' ? 'English' : 'Indonesian'
     let prompt = `You are a helpful financial assistant for a personal finance tracking app.
 You help users understand their finances, provide budgeting advice, and answer questions about their transactions.
 
+IMPORTANT: You MUST respond in ${lang} only. Match the user's language setting.
 Be concise, friendly, and practical in your responses. Use Indonesian Rupiah (IDR) format when mentioning amounts.`
 
     if (context?.transactions) {
@@ -101,6 +103,7 @@ Use Indonesian Rupiah (IDR) format when mentioning amounts.`
  */
 class LocalAIChatService implements IChatService {
   async sendMessage(message: string, context?: ChatContext): Promise<string> {
+    const locale = context?.locale === 'en' ? 'en' : 'id'
     // If we have transaction data in context, use it for analysis
     if (context?.transactions) {
       // Convert context to FinancialAnalysis format
@@ -120,11 +123,13 @@ class LocalAIChatService implements IChatService {
       }
 
       const ai = new LocalFinancialAI(analysis)
-      return await ai.processMessage(message)
+      return await ai.processMessage(message, locale)
     }
 
     // Fallback if no context
-    return 'Saya membutuhkan data transaksi untuk memberikan analisis. Pastikan Anda sudah menambahkan beberapa transaksi pendapatan dan pengeluaran terlebih dahulu! 📊'
+    return locale === 'en'
+      ? 'I need transaction data to provide analysis. Please add some income and expense transactions first! 📊'
+      : 'Saya membutuhkan data transaksi untuk memberikan analisis. Pastikan Anda sudah menambahkan beberapa transaksi pendapatan dan pengeluaran terlebih dahulu! 📊'
   }
 }
 
