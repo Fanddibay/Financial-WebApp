@@ -301,10 +301,10 @@ function handleSuggestionClick(question: string) {
   <!-- Limit Info Modal -->
   <BottomSheet :is-open="showLimitInfo" title="Basic Account Limit" @close="showLimitInfo = false" maxHeight="60">
     <div class="space-y-4">
-      <div class="flex flex-col items-center justify-center py-6 text-center">
+      <div class="flex flex-col items-center justify-center  text-center">
         <!-- Grayscale Crown Icon -->
-        <div class="mb-4 rounded-full bg-slate-100 p-4 dark:bg-slate-800">
-          <font-awesome-icon :icon="['fas', 'crown']" class="h-8 w-8 text-slate-400" />
+        <div class="mb-4 rounded-full bg-slate-100 p-3 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-6 w-6 text-slate-400" />
         </div>
         <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
           Basic Account Limit
@@ -315,7 +315,7 @@ function handleSuggestionClick(question: string) {
         </p>
       </div>
 
-      <div class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+      <!-- <div class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
         <div class="flex gap-3">
           <font-awesome-icon :icon="['fas', 'check-circle']"
             class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -327,7 +327,7 @@ function handleSuggestionClick(question: string) {
             </p>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="pt-2">
         <BaseButton class="w-full justify-center" size="lg" @click="navigateToProfile">

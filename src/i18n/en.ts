@@ -532,6 +532,7 @@ export default {
     textNotClear: 'Text in image is not clearly readable. Please enter information manually or try taking another photo.',
     totalNotDetectedManual: 'Total payment not automatically detected. Please enter information manually.',
     processingFailed: 'Failed to process image. Please ensure tesseract.js is installed correctly.',
+    premiumBenefits: 'for unlimited scans.',
   },
 
   // Text Input
@@ -578,6 +579,7 @@ export default {
     tryAgain: 'Try Again',
     income: 'Income',
     expense: 'Expense',
+    premiumBenefits: 'for unlimited text input.',
   },
 
   // Home/Dashboard

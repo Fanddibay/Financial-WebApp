@@ -532,6 +532,7 @@ export default {
     textNotClear: 'Teks pada gambar tidak terbaca dengan jelas. Silakan masukkan informasi secara manual atau coba ambil foto ulang.',
     totalNotDetectedManual: 'Total pembayaran tidak terdeteksi otomatis. Silakan masukkan informasi secara manual.',
     processingFailed: 'Gagal memproses gambar. Pastikan tesseract.js terpasang dengan benar.',
+    premiumBenefits: 'untuk pemindaian tanpa batas.',
   },
 
   // Text Input
@@ -578,6 +579,7 @@ export default {
     tryAgain: 'Coba Lagi',
     income: 'Income',
     expense: 'Expense',
+    premiumBenefits: 'untuk input teks tanpa batas.',
   },
 
   // Home/Dashboard

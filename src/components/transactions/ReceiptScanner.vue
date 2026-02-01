@@ -31,7 +31,8 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   close: [],
   scanComplete: [data: TransactionFormData],
-  scanCompleteMultiple: [data: TransactionFormData[]]
+  scanCompleteMultiple: [data: TransactionFormData[]],
+  'navigate-away': []
 }>()
 
 const router = useRouter()
@@ -511,6 +512,14 @@ function handleClose() {
   emit('close')
 }
 
+// Navigate to profile and close modal
+function navigateToProfile() {
+  showLimitInfo.value = false
+  emit('navigate-away') // Close parent AddTransactionModal
+  emit('close')
+  router.push('/profile')
+}
+
 function handleRescan() {
   // Reset all state but keep modal open
   previewImage.value = null
@@ -790,7 +799,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-              }}</span>
+                }}</span>
             </button>
             <label for="file-upload-rescan"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm cursor-pointer">
@@ -799,7 +808,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-              }}</span>
+                }}</span>
               <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -884,7 +893,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-              }}</span>
+                }}</span>
             </button>
             <label for="file-upload-rescan-preview"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm active:scale-95 cursor-pointer">
@@ -893,7 +902,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-              }}</span>
+                }}</span>
               <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -1051,9 +1060,9 @@ const errorIcon = computed(() => {
   <BottomSheet :is-open="showLimitInfo" :title="t('scanner.basicAccountLimit')" @close="showLimitInfo = false"
     maxHeight="60">
     <div class="space-y-4">
-      <div class="flex flex-col items-center justify-center py-6 text-center">
-        <div class="mb-4 rounded-full bg-slate-100 p-4 dark:bg-slate-800">
-          <font-awesome-icon :icon="['fas', 'crown']" class="h-8 w-8 text-slate-400" />
+      <div class="flex flex-col items-center justify-center text-center">
+        <div class="mb-4 rounded-full bg-slate-100 p-3 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-6 w-6 text-slate-400" />
         </div>
         <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
           {{ t('scanner.basicAccountLimit') }}
@@ -1066,7 +1075,7 @@ const errorIcon = computed(() => {
         </p>
       </div>
 
-      <div class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
+      <!-- <div class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
         <div class="flex gap-3">
           <font-awesome-icon :icon="['fas', 'check-circle']"
             class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -1078,10 +1087,10 @@ const errorIcon = computed(() => {
             </p>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <div class="pt-2">
-        <BaseButton class="w-full justify-center" size="lg" @click="router.push('/profile')">
+        <BaseButton class="w-full justify-center" size="lg" @click="navigateToProfile">
           <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
           {{ t('scanner.activateLicense') }}
         </BaseButton>

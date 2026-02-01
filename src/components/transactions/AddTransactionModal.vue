@@ -201,38 +201,22 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
 
 <template>
   <!-- Always use BottomSheet (slide-up from bottom). Multi-pocket: select → options; single/locked: options only. -->
-  <BottomSheet
-    :is-open="isOpen"
-    :title="sheetTitle"
-    :subtitle="sheetSubtitle"
-    @close="handleClose"
-  >
+  <BottomSheet :is-open="isOpen" :title="sheetTitle" :subtitle="sheetSubtitle" @close="handleClose">
     <template v-if="showSelectStep && step === 'select'" #headerBottom>
       <div class="relative">
-        <font-awesome-icon
-          :icon="['fas', 'search']"
-          class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-        />
-        <input
-          v-model="searchPocketQuery"
-          type="text"
-          :placeholder="t('pocket.searchPockets')"
-          class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-        />
+        <font-awesome-icon :icon="['fas', 'search']"
+          class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input v-model="searchPocketQuery" type="text" :placeholder="t('pocket.searchPockets')"
+          class="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500" />
       </div>
     </template>
     <!-- Step 1: Select pocket (1x1 elongated list, white/default). Search in headerBottom above. -->
     <div v-if="showSelectStep && step === 'select'" class="space-y-2">
-      <button
-        v-for="p in filteredPocketsForSelect"
-        :key="p.id"
-        type="button"
+      <button v-for="p in filteredPocketsForSelect" :key="p.id" type="button"
         class="flex w-full items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-800/80"
-        @click="selectPocket(p.id)"
-      >
+        @click="selectPocket(p.id)">
         <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl dark:bg-slate-700"
-        >
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-2xl dark:bg-slate-700">
           {{ p.icon }}
         </div>
         <div class="min-w-0 flex-1">
@@ -248,39 +232,27 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
         </span>
         <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
       </button>
-      <p
-        v-if="filteredPocketsForSelect.length === 0"
-        class="py-6 text-center text-sm text-slate-500 dark:text-slate-400"
-      >
+      <p v-if="filteredPocketsForSelect.length === 0"
+        class="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
         {{ searchPocketQuery.trim() ? t('pocket.noSearchResults') : t('pocket.noPocketsYetDesc') }}
       </p>
     </div>
 
     <!-- Options: 3 transaction methods. "Ganti kantong" only when multi-pocket step 2. -->
     <div v-else-if="showOptionsView" class="space-y-2 py-1">
-      <button
-        v-if="showChangePocketLink"
-        type="button"
+      <button v-if="showChangePocketLink" type="button"
         class="flex items-center gap-2 py-1 text-sm font-medium text-brand hover:underline dark:text-brand-light"
-        @click="backToSelectPocket"
-      >
+        @click="backToSelectPocket">
         <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-4 w-4" />
         {{ t('transaction.changePocket') }}
       </button>
       <div class="space-y-2">
         <BaseCard>
-          <button
-            type="button"
+          <button type="button"
             class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
-            @click="handleAddByForm"
-          >
-            <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30"
-            >
-              <font-awesome-icon
-                :icon="['fas', 'edit']"
-                class="h-4 w-4 text-blue-600 dark:text-blue-400"
-              />
+            @click="handleAddByForm">
+            <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+              <font-awesome-icon :icon="['fas', 'edit']" class="h-4 w-4 text-blue-600 dark:text-blue-400" />
             </div>
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
@@ -294,18 +266,12 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
           </button>
         </BaseCard>
         <BaseCard>
-          <button
-            type="button"
+          <button type="button"
             class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
-            @click="handleAddByScan"
-          >
+            @click="handleAddByScan">
             <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30"
-            >
-              <font-awesome-icon
-                :icon="['fas', 'camera']"
-                class="h-4 w-4 text-green-600 dark:text-green-400"
-              />
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+              <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4 text-green-600 dark:text-green-400" />
             </div>
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
@@ -319,18 +285,12 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
           </button>
         </BaseCard>
         <BaseCard>
-          <button
-            type="button"
+          <button type="button"
             class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800"
-            @click="handleAddByText"
-          >
+            @click="handleAddByText">
             <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30"
-            >
-              <font-awesome-icon
-                :icon="['fas', 'keyboard']"
-                class="h-4 w-4 text-purple-600 dark:text-purple-400"
-              />
+              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/30">
+              <font-awesome-icon :icon="['fas', 'keyboard']" class="h-4 w-4 text-purple-600 dark:text-purple-400" />
             </div>
             <div class="min-w-0 flex-1">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">
@@ -355,19 +315,9 @@ function handleTextInputSubmit(payload?: AddTransactionPayload) {
     </template>
   </BottomSheet>
 
-  <ReceiptScanner
-    :is-open="showScanner"
-    :categories="categories"
-    @close="showScanner = false"
-    @scan-complete="handleScanComplete"
-    @scan-complete-multiple="handleScanCompleteMultiple"
-  />
-  <TextInputModal
-    :is-open="showTextInput"
-    :locked-pocket-id="effectivePocketId"
-    :origin-route="originRoute"
-    @close="showTextInput = false"
-    @edit-navigate="handleTextInputEdit"
-    @submit-complete="handleTextInputSubmit"
-  />
+  <ReceiptScanner :is-open="showScanner" :categories="categories" @close="showScanner = false"
+    @navigate-away="handleClose" @scan-complete="handleScanComplete"
+    @scan-complete-multiple="handleScanCompleteMultiple" />
+  <TextInputModal :is-open="showTextInput" :locked-pocket-id="effectivePocketId" :origin-route="originRoute"
+    @close="showTextInput = false" @edit-navigate="handleTextInputEdit" @submit-complete="handleTextInputSubmit" />
 </template>

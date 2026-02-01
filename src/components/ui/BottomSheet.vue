@@ -76,7 +76,7 @@ onUnmounted(() => {
 
             <!-- Header -->
             <div v-if="title || subtitle || $slots.headerBottom"
-              class="shrink-0 border-b border-slate-200 px-4 pb-4 pt-0 dark:border-slate-700">
+              class="shrink-0 border-b border-slate-200 px-4 pb-2 pt-0 dark:border-slate-700">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <h2 v-if="title" class="text-lg font-semibold text-slate-900 dark:text-slate-100">
