@@ -21,7 +21,7 @@ defineSlots<{
 
 <template>
   <button :disabled="disabled || loading" :class="[
-    'inline-flex items-center  justify-center gap-2 rounded-xl font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
+    'inline-flex items-center justify-center  rounded-xl font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
     {
       'bg-brand text-white hover:bg-brand-dark focus-visible:ring-brand/60': variant === 'primary',
       'bg-yellow-400 hover:bg-yellow-500': variant === 'teritary',

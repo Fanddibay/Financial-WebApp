@@ -11,6 +11,7 @@ interface Props {
   transaction: Transaction
   /** When listing per-pocket, pass current pocket id to show transfer direction (from/to). */
   contextPocketId?: string
+  hideActions?: boolean
 }
 
 const props = defineProps<Props>()
@@ -178,7 +179,7 @@ function handleDelete() {
         </p>
       </div>
       <div class="relative flex shrink-0 items-start">
-        <button type="button"
+        <button v-if="!hideActions" type="button"
           class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-200/80 hover:text-slate-700 dark:hover:bg-slate-600 dark:hover:text-slate-300"
           :aria-label="t('transaction.actions')" @click="toggleMenu">
           <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" class="h-4 w-4" />

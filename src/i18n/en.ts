@@ -134,6 +134,15 @@ export default {
     clearHistoryTitle: 'Delete chat history?',
     clearHistoryMessage: 'Are you sure you want to delete chat history? This cannot be undone.',
     clearHistoryConfirm: 'Delete',
+    inputPlaceholder: 'Ask about your finances',
+    suggestionsTitle: 'Suggested Questions',
+    suggestions: {
+      question1: 'Analyze this month\'s spending trends',
+      question2: 'Are there any overspending in food category?',
+      question3: 'How is my cash flow this week?',
+      question4: 'Suggestions to save more money',
+      question5: 'Predict next month\'s expenses',
+    },
   },
 
   // Profile Page
@@ -627,6 +636,8 @@ export default {
     transactionAddedIncome: 'Income Transaction Added Successfully!',
     transactionAddedExpense: 'Expense Transaction Added Successfully!',
     scanner: 'Scanner',
+    emptyTransactionsStateTitle: "You haven't made any transactions yet, let's get started",
+    startTransaction: 'Start Transaction',
   },
 
   // Dashboard
@@ -682,6 +693,7 @@ export default {
     deleteTransaction: 'Delete Transaction',
     deleteTransactionConfirm: 'Are you sure you want to delete this transaction? This action cannot be undone.',
     deleteSuccess: 'Transaction deleted successfully!',
+    deleteSuccessDesc: 'Transaction "{description}" successfully deleted.',
     deleteFailed: 'Failed to delete transaction. Please try again.',
     exportFile: 'Export file',
     exportExcel: 'Excel',

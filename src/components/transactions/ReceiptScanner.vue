@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
@@ -14,7 +14,7 @@ import { formatIDR } from '@/utils/currency'
 import { useTokenStore } from '@/stores/token'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
-import { isHeicFile, processImageFile } from '@/utils/heicConverter'
+import { isHeicFile } from '@/utils/heicConverter'
 
 const { t } = useI18n()
 
@@ -29,8 +29,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  close: []
-  scanComplete: [data: TransactionFormData]
+  close: [],
+  scanComplete: [data: TransactionFormData],
   scanCompleteMultiple: [data: TransactionFormData[]]
 }>()
 
@@ -60,11 +60,11 @@ async function loadTesseract() {
       // This ensures the module is loaded correctly in service worker context
       const tesseractModule = await import('tesseract.js')
       Tesseract = tesseractModule.default || tesseractModule
-      
+
       if (!Tesseract) {
         throw new Error('Tesseract.js module not found')
       }
-      
+
       return Tesseract
     } catch (error) {
       console.error('Failed to load Tesseract.js:', error)
@@ -89,6 +89,7 @@ const showFullscreenImage = ref(false)
 const showItemBreakdown = ref(false)
 const showHeicInfo = ref(true) // Default open
 const validationFailed = ref(false)
+const showLimitInfo = ref(false)
 
 // Image zoom/pan state
 const imageScale = ref(1)
@@ -148,7 +149,7 @@ function handleFileSelect(event: Event) {
     // Some browsers might not respect the accept attribute
     if (isHeicFile(file)) {
       validationFailed.value = true
-      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone/iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview (Mac) atau aplikasi konversi lainnya.'
+      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone / iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview(Mac) atau aplikasi konversi lainnya.'
       errorType.value = 'unknown'
       processing.value = false
       // Reset input
@@ -194,7 +195,7 @@ async function processImage(file: File) {
     // Browser tidak mendukung format HEIC secara native
     if (isHeicFile(file)) {
       validationFailed.value = true
-      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone/iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview (Mac) atau aplikasi konversi lainnya.'
+      error.value = 'Format HEIC tidak didukung oleh browser. Silakan konversi file ke JPEG atau PNG terlebih dahulu. Cara konversi: iPhone / iPad: Settings > Camera > Formats > Most Compatible. Online: heic.fun atau convertio.co. Desktop: Preview(Mac) atau aplikasi konversi lainnya.'
       errorType.value = 'unknown'
       processing.value = false
       return
@@ -247,17 +248,17 @@ async function processImage(file: File) {
     // Use bundled worker paths for PWA compatibility
     processingProgress.value = 35
     let worker: any = null
-    
+
     // Helper function to create worker with timeout
     const createWorkerWithTimeout = async (options: any, timeoutMs = 60000): Promise<any> => {
       return Promise.race([
         TesseractInstance.createWorker('eng', 1, options),
-        new Promise((_, reject) => 
+        new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Worker creation timeout. Pastikan koneksi internet aktif.')), timeoutMs)
         )
       ])
     }
-    
+
     const logger = (m: any) => {
       // Update progress based on worker status
       if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
@@ -276,7 +277,7 @@ async function processImage(file: File) {
         processingProgress.value = 36
       }
     }
-    
+
     try {
       // Try to create worker with bundled paths first (PWA compatible)
       // Tesseract.js will automatically resolve worker paths from node_modules
@@ -285,7 +286,7 @@ async function processImage(file: File) {
       }, 60000) // 60 second timeout
     } catch (workerError) {
       console.error('Worker creation failed, trying with explicit CDN paths:', workerError)
-      
+
       // Fallback: Try with explicit CDN paths if bundled paths fail
       // This handles edge cases where PWA cache might interfere
       try {
@@ -297,8 +298,8 @@ async function processImage(file: File) {
         }, 60000) // 60 second timeout
       } catch (fallbackError) {
         console.error('Fallback worker creation also failed:', fallbackError)
-        const errorMessage = fallbackError instanceof Error 
-          ? fallbackError.message 
+        const errorMessage = fallbackError instanceof Error
+          ? fallbackError.message
           : 'Gagal memuat OCR worker. Pastikan koneksi internet aktif dan coba lagi.'
         throw new Error(errorMessage)
       }
@@ -307,7 +308,8 @@ async function processImage(file: File) {
     // Set parameters for receipt OCR
     await worker.setParameters({
       tessedit_pageseg_mode: '6', // Uniform block of text
-      tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
+      tessedit_char_whitelist:
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,:/- ', // Common receipt characters
     })
 
     // Perform OCR with optimized parameters for receipts
@@ -552,7 +554,10 @@ function handleImageWheel(e: WheelEvent) {
 function handleImageMouseDown(e: MouseEvent) {
   if (imageScale.value > 1) {
     isDragging.value = true
-    dragStart.value = { x: e.clientX - imagePosition.value.x, y: e.clientY - imagePosition.value.y }
+    dragStart.value = {
+      x: e.clientX - imagePosition.value.x, y: e.clientY -
+        imagePosition.value.y
+    }
   }
 }
 
@@ -643,42 +648,27 @@ const errorIcon = computed(() => {
 
 <template>
   <!-- Main Scanner Modal -->
-  <BaseModal :is-open="isOpen" :title="t('scanner.title')" size="lg" @close="handleClose">
+  <BottomSheet :is-open="isOpen" :title="t('scanner.title')" @close="handleClose">
+    <template #header-actions>
+      <button v-if="!tokenStore.isLicenseActive" @click="showLimitInfo = true"
+        class="shrink-0 rounded-full p-2 text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/30 dark:hover:text-amber-300 transition-colors"
+        :aria-label="t('scanner.basicAccountLimit')">
+        <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5" />
+      </button>
+    </template>
     <div v-if="!showPreview" class="space-y-4">
-      <!-- Usage Limit Warning -->
-      <div v-if="!tokenStore.isLicenseActive"
-        class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
-        <div class="flex items-start gap-2">
-          <font-awesome-icon :icon="['fas', 'info-circle']"
-            class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-          <div class="flex-1">
-            <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
-              {{ t('scanner.basicAccountLimit') }}
-            </p>
-            <p class="text-xs text-amber-700 dark:text-amber-400">
-              <span>{{ t('scanner.basicAccountLimitDesc', {
-                remaining: tokenStore.getRemainingUsage('receipt'),
-                max: tokenStore.MAX_BASIC_USAGE
-              }) }}</span>
-              <button @click="router.push('/profile')" class="underline font-medium">{{ t('scanner.activateLicense')
-              }}</button> {{ t('scanner.activateLicenseForUnlimited') }}
-            </p>
-          </div>
-        </div>
-      </div>
+      <!-- Usage Limit Warning (Moved to Header) -->
 
       <div class="text-center space-y-3">
-        <p class="text-sm text-slate-600 dark:text-slate-400">
+        <!-- <p class="text-sm text-slate-600 dark:text-slate-400">
           {{ t('scanner.takePhotoDesc') }}
-        </p>
-        
+        </p> -->
+
         <!-- HEIC Not Supported Info (Collapsible) -->
-        <div class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 overflow-hidden">
-          <button
-            type="button"
-            @click="showHeicInfo = !showHeicInfo"
-            class="w-full flex items-center justify-between p-3 text-left hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors"
-          >
+        <div
+          class="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 overflow-hidden">
+          <button type="button" @click="showHeicInfo = !showHeicInfo"
+            class="w-full flex items-center justify-between p-3 text-left hover:bg-blue-100/50 dark:hover:bg-blue-900/30 transition-colors">
             <div class="flex items-center gap-2 flex-1">
               <font-awesome-icon :icon="['fas', 'circle-info']"
                 class="text-blue-600 dark:text-blue-400 flex-shrink-0" />
@@ -686,18 +676,12 @@ const errorIcon = computed(() => {
                 {{ t('scanner.heicNotSupported') }}
               </p>
             </div>
-            <font-awesome-icon 
-              :icon="['fas', showHeicInfo ? 'chevron-up' : 'chevron-down']"
+            <font-awesome-icon :icon="['fas', showHeicInfo ? 'chevron-up' : 'chevron-down']"
               class="text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2" />
           </button>
-          <Transition
-            enter-active-class="transition-all duration-300 ease-out"
-            enter-from-class="opacity-0 max-h-0"
-            enter-to-class="opacity-100 max-h-96"
-            leave-active-class="transition-all duration-300 ease-in"
-            leave-from-class="opacity-100 max-h-96"
-            leave-to-class="opacity-0 max-h-0"
-          >
+          <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 max-h-0"
+            enter-to-class="opacity-100 max-h-96" leave-active-class="transition-all duration-300 ease-in"
+            leave-from-class="opacity-100 max-h-96" leave-to-class="opacity-0 max-h-0">
             <div v-if="showHeicInfo" class="px-3 pb-3">
               <p class="text-xs text-blue-700 dark:text-blue-400 text-start">
                 {{ t('scanner.heicNotSupportedDesc') }}
@@ -728,43 +712,34 @@ const errorIcon = computed(() => {
         </div>
       </div>
 
-      <div v-else-if="!error" class="space-y-3">
-        <BaseCard>
-          <button type="button" @click="handleCameraClick"
-            class="flex w-full flex-col items-center justify-center space-y-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 transition-colors hover:border-brand hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700">
-            <div class="rounded-full bg-brand p-4 text-white">
-              <font-awesome-icon :icon="['fas', 'camera']" class="h-8 w-8" />
-            </div>
-            <div class="text-center">
-              <p class="font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhoto') }}</p>
-              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('scanner.takePhotoSubtitle') }}</p>
-            </div>
-          </button>
-        </BaseCard>
-
-        <div class="relative">
-          <div class="absolute inset-0 flex items-center">
-            <div class="w-full border-t border-slate-300 dark:border-slate-600"></div>
+      <div v-else-if="!error" class="grid grid-cols-2 gap-3">
+        <button type="button" @click="handleCameraClick"
+          class="flex w-full flex-col items-center justify-center space-y-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 py-6 transition-all hover:bg-slate-100 hover:border-brand dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700">
+          <div class="rounded-full bg-brand/10 p-3 text-brand dark:bg-brand/20">
+            <font-awesome-icon :icon="['fas', 'camera']" class="h-6 w-6" />
           </div>
-          <div class="relative flex justify-center text-sm">
-            <span class="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ t('scanner.or')
-            }}</span>
+          <div class="text-center">
+            <p class="font-medium text-slate-900 dark:text-slate-100">{{
+              t('scanner.takePhoto') }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{
+              t('scanner.takePhotoSubtitle') }}</p>
           </div>
-        </div>
+        </button>
 
-        <BaseCard>
-          <label for="file-upload"
-            class="flex w-full cursor-pointer flex-col items-center justify-center space-y-3 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-8 transition-colors hover:border-brand hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:hover:bg-slate-700">
-            <div class="rounded-full bg-brand p-4 text-white">
-              <font-awesome-icon :icon="['fas', 'upload']" class="h-8 w-8" />
-            </div>
-            <div class="text-center">
-              <p class="font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImage') }}</p>
-              <p class="text-sm text-slate-500 dark:text-slate-400">{{ t('scanner.uploadImageSubtitle') }}</p>
-            </div>
-            <input id="file-upload" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden" @change="handleFileSelect" />
-          </label>
-        </BaseCard>
+        <label for="file-upload"
+          class="flex w-full cursor-pointer flex-col items-center justify-center space-y-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 py-6 transition-all hover:bg-slate-100 hover:border-brand dark:border-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700">
+          <div class="rounded-full bg-blue-100 p-3 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+            <font-awesome-icon :icon="['fas', 'upload']" class="h-6 w-6" />
+          </div>
+          <div class="text-center">
+            <p class="font-medium text-slate-900 dark:text-slate-100">{{
+              t('scanner.uploadImage') }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{
+              t('scanner.uploadImageSubtitle') }}</p>
+          </div>
+          <input id="file-upload" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden"
+            @change="handleFileSelect" />
+        </label>
       </div>
 
       <!-- Error Display -->
@@ -784,7 +759,8 @@ const errorIcon = computed(() => {
               <p class="font-medium mb-1" :class="validationFailed
                 ? 'text-red-800 dark:text-red-200'
                 : 'text-yellow-800 dark:text-yellow-200'">
-                {{ validationFailed ? t('scanner.scanFailed') : t('scanner.warning') }}
+                {{ validationFailed ? t('scanner.scanFailed') : t('scanner.warning')
+                }}
               </p>
               <p class="text-sm whitespace-pre-line" :class="validationFailed
                 ? 'text-red-700 dark:text-red-300'
@@ -812,7 +788,8 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton')
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
+                t('scanner.takePhotoButton')
               }}</span>
             </button>
             <label for="file-upload-rescan"
@@ -820,10 +797,11 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-3">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-5 w-5 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
+                t('scanner.uploadImageButton')
               }}</span>
-              <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden"
-                @change="(e) => { handleRescan(); handleFileSelect(e); }" />
+              <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
+                class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
           </div>
         </div>
@@ -857,12 +835,14 @@ const errorIcon = computed(() => {
           : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
       ]">
         <p class="font-medium mb-1">
-          {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') : t('scanner.totalNotDetected') }}
+          {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') :
+            t('scanner.totalNotDetected') }}
         </p>
         <p class="text-xs sm:text-sm">{{ detectionMessage }}</p>
         <div v-if="hasItems && !hasMultipleTransactions" class="mt-2">
           <BaseButton variant="secondary" size="sm" @click="showItemBreakdown = !showItemBreakdown" class="text-xs">
-            {{ showItemBreakdown ? t('scanner.hideItemBreakdown') : t('scanner.viewItemBreakdown') }}
+            {{ showItemBreakdown ? t('scanner.hideItemBreakdown') :
+              t('scanner.viewItemBreakdown') }}
           </BaseButton>
         </div>
       </div>
@@ -902,7 +882,8 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.takePhotoButton')
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
+                t('scanner.takePhotoButton')
               }}</span>
             </button>
             <label for="file-upload-rescan-preview"
@@ -910,10 +891,11 @@ const errorIcon = computed(() => {
               <div class="rounded-full bg-brand/10 dark:bg-brand/20 p-2.5">
                 <font-awesome-icon :icon="['fas', 'upload']" class="h-4 w-4 text-brand" />
               </div>
-              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{ t('scanner.uploadImageButton')
+              <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
+                t('scanner.uploadImageButton')
               }}</span>
-              <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp" class="hidden"
-                @change="(e) => { handleRescan(); handleFileSelect(e); }" />
+              <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
+                class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
           </div>
         </div>
@@ -929,13 +911,15 @@ const errorIcon = computed(() => {
       <div v-if="showItemBreakdown && detailedResult?.items && !hasMultipleTransactions && !validationFailed"
         class="space-y-2 flex-shrink-0">
         <BaseCard>
-          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ t('scanner.itemBreakdown') }}
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{
+            t('scanner.itemBreakdown') }}
           </h4>
           <div class="space-y-2 max-h-48 overflow-y-auto">
             <div v-for="(item, index) in detailedResult.items" :key="index"
               class="flex items-center justify-between p-2 rounded bg-slate-50 dark:bg-slate-800/50">
               <div class="flex-1 min-w-0 pr-2">
-                <p class="text-sm text-slate-900 dark:text-slate-100 truncate">{{ item.name }}</p>
+                <p class="text-sm text-slate-900 dark:text-slate-100 truncate">{{
+                  item.name }}</p>
                 <p v-if="item.quantity && item.quantity > 1" class="text-xs text-slate-500 dark:text-slate-400">
                   {{ t('scanner.quantity') }}: {{ item.quantity }}x
                 </p>
@@ -954,8 +938,9 @@ const errorIcon = computed(() => {
           <BaseCard v-for="(transaction, index) in multipleFormData" :key="index"
             class="border-2 border-slate-200 dark:border-slate-700">
             <div class="mb-2 flex items-center justify-between">
-              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ t('scanner.item') }} {{ index + 1
-              }}</h4>
+              <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{
+                t('scanner.item') }} {{ index + 1
+                }}</h4>
             </div>
             <TransactionForm :model-value="transaction" :categories="categories" :hide-actions="true"
               @update:model-value="updateMultipleFormData(index, $event)" />
@@ -999,12 +984,15 @@ const errorIcon = computed(() => {
           ? multipleFormData.some((t) => !t.description.trim())
           : !formData.description.trim()
           " @click="handleSubmit" class="flex-1 sm:flex-none">
-          {{ hasMultipleTransactions ? t('scanner.submitMultiple', { count: multipleFormData.length }) :
+          {{ hasMultipleTransactions ? t('scanner.submitMultiple', {
+            count:
+              multipleFormData.length
+          }) :
             t('scanner.submit') }}
         </BaseButton>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
 
   <!-- Fullscreen Image Modal -->
   <Teleport to="body">
@@ -1042,7 +1030,8 @@ const errorIcon = computed(() => {
             aria-label="Zoom out">
             <font-awesome-icon :icon="['fas', 'minus']" class="h-4 w-4" />
           </button>
-          <span class="text-white text-sm min-w-[60px] text-center">{{ Math.round(imageScale * 100) }}%</span>
+          <span class="text-white text-sm min-w-[60px] text-center">{{
+            Math.round(imageScale * 100) }}%</span>
           <button @click.stop="imageScale = Math.min(3, imageScale + 0.25)"
             class="rounded-full bg-white/20 hover:bg-white/30 dark:bg-slate-700/50 dark:hover:bg-slate-600/50 p-2 text-white transition-colors"
             aria-label="Zoom in">
@@ -1057,4 +1046,46 @@ const errorIcon = computed(() => {
       </div>
     </Transition>
   </Teleport>
+
+  <!-- Limit Info Modal -->
+  <BottomSheet :is-open="showLimitInfo" :title="t('scanner.basicAccountLimit')" @close="showLimitInfo = false"
+    maxHeight="60">
+    <div class="space-y-4">
+      <div class="flex flex-col items-center justify-center py-6 text-center">
+        <div class="mb-4 rounded-full bg-slate-100 p-4 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-8 w-8 text-slate-400" />
+        </div>
+        <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+          {{ t('scanner.basicAccountLimit') }}
+        </h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
+          {{ t('scanner.basicAccountLimitDesc', {
+            remaining: tokenStore.getRemainingUsage('receipt'),
+            max: tokenStore.MAX_BASIC_USAGE
+          }) }}
+        </p>
+      </div>
+
+      <div class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
+        <div class="flex gap-3">
+          <font-awesome-icon :icon="['fas', 'check-circle']"
+            class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div>
+            <h4 class="font-medium text-amber-900 dark:text-amber-200">{{ t('scanner.activateLicenseForUnlimited') }}
+            </h4>
+            <p class="mt-1 text-sm text-amber-800 dark:text-amber-300">
+              {{ t('scanner.premiumBenefits') }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <BaseButton class="w-full justify-center" size="lg" @click="router.push('/profile')">
+          <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
+          {{ t('scanner.activateLicense') }}
+        </BaseButton>
+      </div>
+    </div>
+  </BottomSheet>
 </template>

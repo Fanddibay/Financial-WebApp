@@ -9,8 +9,6 @@ import { useTokenStore } from '@/stores/token'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
-import BaseCard from '@/components/ui/BaseCard.vue'
-import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AlertModal from '@/components/ui/AlertModal.vue'
@@ -27,7 +25,7 @@ const router = useRouter()
 const toastStore = useToastStore()
 const {
   transactions,
-  summary,
+
   categories,
   fetchTransactions,
   deleteTransaction,
@@ -240,14 +238,7 @@ const filteredSummary = computed(() => {
   }
 })
 
-const activeFiltersCount = computed(() => {
-  let count = 0
-  if (filterType.value !== 'all') count++
-  if (filterCategory.value) count++
-  if (filterPocketId.value) count++
-  if (dateFilterType.value !== 'none') count++
-  return count
-})
+
 
 const hasActiveFilters = computed(
   () =>
@@ -273,26 +264,7 @@ function handleEmptyStateAction() {
 
 const hasTransactionsToExport = computed(() => filteredTransactions.value.length > 0)
 
-const dateFilterLabel = computed(() => {
-  switch (dateFilterType.value) {
-    case 'today':
-      return t('transactions.today')
-    case 'last7days':
-      return t('transactions.last7Days')
-    case 'last30days':
-      return t('transactions.last30Days')
-    case 'custom':
-      if (customStartDate.value && customEndDate.value) {
-        const dateLocale = locale.value === 'id' ? 'id-ID' : 'en-US'
-        const start = new Date(customStartDate.value).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
-        const end = new Date(customEndDate.value).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
-        return `${start} - ${end}`
-      }
-      return t('transactions.customRange')
-    default:
-      return t('transactions.allTime')
-  }
-})
+
 
 const dateFilterOptions = computed(() => [
   { value: 'none', label: t('transactions.allTime') },
@@ -354,28 +326,7 @@ const groupedByDate = computed(() => {
   return groups
 })
 
-function resetFilters() {
-  filterType.value = 'all'
-  filterCategory.value = ''
-  filterPocketId.value = ''
-  dateFilterType.value = 'none'
-  customStartDate.value = ''
-  customEndDate.value = ''
-}
 
-function setDateFilter(type: DateFilterType) {
-  dateFilterType.value = type
-  if (type !== 'custom') {
-    customStartDate.value = ''
-    customEndDate.value = ''
-  }
-}
-
-function clearDateFilter() {
-  dateFilterType.value = 'none'
-  customStartDate.value = ''
-  customEndDate.value = ''
-}
 
 // Reset category filter when type changes if the selected category is not available
 watch(filterType, () => {
@@ -492,7 +443,6 @@ onUnmounted(() => {
             :class="{ 'ring-2 ring-brand ring-offset-2 dark:ring-offset-slate-900': showExportDropdown }"
             :disabled="!hasTransactionsToExport" :title="t('transactions.exportFile')"
             @click.stop="showExportDropdown = !showExportDropdown">
-            Import Data
 
             <span class="hidden sm:inline">{{ t('transactions.exportFile') }}</span>
             <font-awesome-icon :icon="['fas', showExportDropdown ? 'chevron-up' : 'chevron-down']"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import BaseModal from '@/components/ui/BaseModal.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -48,6 +48,7 @@ const showWarnings = ref(true)
 const limitError = ref<string | null>(null)
 const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
+const showLimitInfo = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
 // Always use Indonesian examples regardless of language setting
@@ -380,32 +381,19 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
 </script>
 
 <template>
-  <BaseModal :is-open="isOpen" :title="showPreview ? t('textInput.previewTitle') : t('textInput.title')" size="md"
-    @close="handleClose">
+  <BottomSheet :is-open="isOpen" :title="showPreview ? t('textInput.previewTitle') : t('textInput.title')"
+    maxHeight="85" @close="handleClose">
+    <template #header-actions>
+      <button v-if="!tokenStore.isLicenseActive" @click="showLimitInfo = true"
+        class="shrink-0 rounded-full p-2 text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/30 dark:hover:text-amber-300 transition-colors"
+        :aria-label="t('textInput.basicAccountLimit')">
+        <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5" />
+      </button>
+    </template>
     <div class="space-y-4 py-2">
       <!-- Input Section -->
       <div v-if="!showPreview" class="space-y-4">
-        <!-- Usage Limit Warning -->
-        <div v-if="!tokenStore.isLicenseActive"
-          class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
-          <div class="flex items-start gap-2">
-            <font-awesome-icon :icon="['fas', 'info-circle']"
-              class="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
-            <div class="flex-1">
-              <p class="text-xs font-medium text-amber-800 dark:text-amber-300 mb-0.5">
-                {{ t('textInput.basicAccountLimit') }}
-              </p>
-              <p class="text-xs text-amber-700 dark:text-amber-400">
-                <span>{{ t('textInput.basicAccountLimitDesc', {
-                  remaining: tokenStore.getRemainingUsage('text'),
-                  max: tokenStore.MAX_BASIC_USAGE
-                }) }}</span>
-                <button @click="router.push('/profile')" class="underline font-medium">{{ t('textInput.activateLicense')
-                }}</button> {{ t('textInput.activateLicenseForUnlimited') }}
-              </p>
-            </div>
-          </div>
-        </div>
+        <!-- Usage Limit Warning (Moved to Header) -->
 
         <!-- Limit Error -->
         <div v-if="limitError"
@@ -760,5 +748,48 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
         </div>
       </div>
     </template>
-  </BaseModal>
+  </BottomSheet>
+
+  <!-- Limit Info Modal -->
+  <BottomSheet :is-open="showLimitInfo" :title="t('textInput.basicAccountLimit')" @close="showLimitInfo = false"
+    maxHeight="60">
+    <div class="space-y-4">
+      <div class="flex flex-col items-center justify-center py-6 text-center">
+        <!-- Grayscale Crown Icon -->
+        <div class="mb-4 rounded-full bg-slate-100 p-4 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-8 w-8 text-slate-400" />
+        </div>
+        <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+          {{ t('textInput.basicAccountLimit') }}
+        </h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
+          {{ t('textInput.basicAccountLimitDesc', {
+            remaining: tokenStore.getRemainingUsage('text'),
+            max: tokenStore.MAX_BASIC_USAGE
+          }) }}
+        </p>
+      </div>
+
+      <div class="rounded-lg bg-amber-50 p-4 dark:bg-amber-900/20">
+        <div class="flex gap-3">
+          <font-awesome-icon :icon="['fas', 'check-circle']"
+            class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div>
+            <h4 class="font-medium text-amber-900 dark:text-amber-200">{{ t('textInput.activateLicenseForUnlimited') }}
+            </h4>
+            <p class="mt-1 text-sm text-amber-800 dark:text-amber-300">
+              {{ t('textInput.premiumBenefits') }}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <BaseButton class="w-full justify-center" size="lg" @click="router.push('/profile')">
+          <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
+          {{ t('textInput.activateLicense') }}
+        </BaseButton>
+      </div>
+    </div>
+  </BottomSheet>
 </template>

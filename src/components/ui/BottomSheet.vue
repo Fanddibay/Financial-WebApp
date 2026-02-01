@@ -22,6 +22,7 @@ const emit = defineEmits<{
 defineSlots<{
   default(): unknown
   headerBottom?(): unknown
+  'header-actions'?(): unknown
   footer?(): unknown
 }>()
 
@@ -85,11 +86,14 @@ onUnmounted(() => {
                     {{ subtitle }}
                   </p>
                 </div>
-                <button type="button"
-                  class="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
-                  :aria-label="t('common.close')" @click="emit('close')">
-                  <font-awesome-icon :icon="['fas', 'times']" class="h-5 w-5" />
-                </button>
+                <div class="flex items-center gap-2">
+                  <slot name="header-actions" />
+                  <button type="button"
+                    class="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-700 dark:hover:text-slate-300"
+                    :aria-label="t('common.close')" @click="emit('close')">
+                    <font-awesome-icon :icon="['fas', 'times']" class="h-5 w-5" />
+                  </button>
+                </div>
               </div>
               <div v-if="$slots.headerBottom" class="mt-3">
                 <slot name="headerBottom" />

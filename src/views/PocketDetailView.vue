@@ -12,6 +12,7 @@ import PocketActionMenu from '@/components/pockets/PocketActionMenu.vue'
 import EditPocketModal from '@/components/pockets/EditPocketModal.vue'
 import DeletePocketModal from '@/components/pockets/DeletePocketModal.vue'
 import ExportPocketJsonModal from '@/components/pockets/ExportPocketJsonModal.vue'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ExpenseChart from '@/components/charts/ExpenseChart.vue'
@@ -211,9 +212,14 @@ function handleDelete(id: string) {
 
 async function confirmDelete() {
   if (!transactionToDelete.value) return
+
+  const transaction = txStore.transactions.find(t => t.id === transactionToDelete.value)
+  const description = transaction?.description || 'Transaction'
+
   await txStore.deleteTransaction(transactionToDelete.value)
   transactionToDelete.value = null
   showDeleteConfirm.value = false
+  toastStore.success(t('transactions.deleteSuccessDesc', { description }))
 }
 
 function handleAddModalClose() {

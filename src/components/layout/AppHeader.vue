@@ -57,7 +57,7 @@ function handleGetSubscription() {
 
 <template>
   <header
-    class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 pt-[max(2rem,env(safe-area-inset-top))] pb-4 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+    class="sticky top-0 z-40 border-b border-slate-200 bg-white/95 px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
     <div class="mx-auto flex max-w-[430px] flex-col">
       <div class="flex items-center justify-between">
         <div class="flex min-w-0 flex-1 items-center gap-3">
@@ -68,17 +68,12 @@ function handleGetSubscription() {
           </router-link>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            :class="[
-              'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition active:scale-95',
-              tokenStore.isLicenseActive
-                ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
-                : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-500 dark:hover:bg-slate-600',
-            ]"
-            aria-label="Subscription"
-            @click="handleCrownClick"
-          >
+          <button type="button" :class="[
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition active:scale-95',
+            tokenStore.isLicenseActive
+              ? 'bg-amber-100 text-amber-600 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
+              : 'bg-slate-100 text-slate-400 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-500 dark:hover:bg-slate-600',
+          ]" aria-label="Subscription" @click="handleCrownClick">
             <font-awesome-icon :icon="['fas', 'crown']" class="h-5 w-5" />
           </button>
           <div v-if="showGreeting" class="text-right">
@@ -101,12 +96,8 @@ function handleGetSubscription() {
   </header>
 
   <!-- Subscribed (crown) popup -->
-  <BottomSheet
-    :is-open="showSubscribedPopup"
-    :title="t('profile.subscribedPopupTitle')"
-    max-height="60"
-    @close="showSubscribedPopup = false"
-  >
+  <BottomSheet :is-open="showSubscribedPopup" :title="t('profile.subscribedPopupTitle')" max-height="60"
+    @close="showSubscribedPopup = false">
     <p class="text-slate-600 dark:text-slate-300">{{ t('profile.subscribedPopupMessage') }}</p>
     <template #footer>
       <BaseButton class="w-full" @click="showSubscribedPopup = false">
@@ -116,19 +107,16 @@ function handleGetSubscription() {
   </BottomSheet>
 
   <!-- Not subscribed (crown) popup -->
-  <BottomSheet
-    :is-open="showNotSubscribedPopup"
-    :title="t('profile.notSubscribedPopupTitle')"
-    max-height="60"
-    @close="showNotSubscribedPopup = false"
-  >
+  <BottomSheet :is-open="showNotSubscribedPopup" :title="t('profile.notSubscribedPopupTitle')" max-height="60"
+    @close="showNotSubscribedPopup = false">
     <p class="text-slate-600 dark:text-slate-300">{{ t('profile.notSubscribedPopupMessage') }}</p>
     <template #footer>
-      <div class="flex gap-2">
-        <BaseButton class="flex-1" @click="handleGetSubscription">
+      <div class="flex flex-col gap-2">
+        <BaseButton class="w-full text-white" variant="teritary" @click="handleGetSubscription">
+          <font-awesome-icon :icon="['fas', 'shopping-cart']" class="mr-2" />
           {{ t('profile.getTokenCta') }}
         </BaseButton>
-        <BaseButton variant="secondary" class="flex-1" @click="showNotSubscribedPopup = false">
+        <BaseButton variant="secondary" class="w-full" @click="showNotSubscribedPopup = false">
           {{ t('common.close') }}
         </BaseButton>
       </div>

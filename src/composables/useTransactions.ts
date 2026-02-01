@@ -25,17 +25,17 @@ export function useTransactions() {
   const getTransactionById = (id: string) => store.getTransactionById(id)
 
   // Computed helpers
-  const incomeTransactions = computed(() => 
+  const incomeTransactions = computed(() =>
     transactions.value.filter((t) => t.type === 'income')
   )
 
-  const expenseTransactions = computed(() => 
+  const expenseTransactions = computed(() =>
     transactions.value.filter((t) => t.type === 'expense')
   )
 
   const transactionsByCategory = computed(() => {
     const grouped = new Map<string, { total: number; count: number }>()
-    
+
     expenseTransactions.value.forEach((t) => {
       const existing = grouped.get(t.category) || { total: 0, count: 0 }
       grouped.set(t.category, {
@@ -43,7 +43,7 @@ export function useTransactions() {
         count: existing.count + 1,
       })
     })
-    
+
     return Array.from(grouped.entries()).map(([category, data]) => ({
       category,
       ...data,
@@ -52,7 +52,7 @@ export function useTransactions() {
 
   const incomeTransactionsByCategory = computed(() => {
     const grouped = new Map<string, { total: number; count: number }>()
-    
+
     incomeTransactions.value.forEach((t) => {
       const existing = grouped.get(t.category) || { total: 0, count: 0 }
       grouped.set(t.category, {
@@ -60,7 +60,7 @@ export function useTransactions() {
         count: existing.count + 1,
       })
     })
-    
+
     return Array.from(grouped.entries()).map(([category, data]) => ({
       category,
       ...data,
@@ -69,14 +69,14 @@ export function useTransactions() {
 
   // Helper function to get transactions by category with type filter
   const getTransactionsByCategory = (type: 'all' | 'income' | 'expense') => {
-    const filtered = type === 'all' 
+    const filtered = type === 'all'
       ? transactions.value
       : type === 'income'
       ? incomeTransactions.value
       : expenseTransactions.value
 
     const grouped = new Map<string, { total: number; count: number }>()
-    
+
     filtered.forEach((t) => {
       const existing = grouped.get(t.category) || { total: 0, count: 0 }
       grouped.set(t.category, {
@@ -84,7 +84,7 @@ export function useTransactions() {
         count: existing.count + 1,
       })
     })
-    
+
     return Array.from(grouped.entries()).map(([category, data]) => ({
       category,
       ...data,
@@ -93,12 +93,12 @@ export function useTransactions() {
 
   // Helper function to group transactions by date (daily)
   const getTransactionsByDate = (type: 'income' | 'expense') => {
-    const filtered = type === 'income' 
+    const filtered = type === 'income'
       ? incomeTransactions.value
       : expenseTransactions.value
 
     const grouped = new Map<string, { total: number; count: number }>()
-    
+
     filtered.forEach((t) => {
       // Extract date part (YYYY-MM-DD) from ISO string
       const dateKey = t.date.split('T')[0]
@@ -108,7 +108,7 @@ export function useTransactions() {
         count: existing.count + 1,
       })
     })
-    
+
     // Convert to array and sort by date
     const result = Array.from(grouped.entries()).map(([date, data]) => ({
       date,
@@ -118,7 +118,7 @@ export function useTransactions() {
     return result
   }
 
-  const recentTransactions = computed(() => 
+  const recentTransactions = computed(() =>
     [...transactions.value]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 5)
@@ -132,14 +132,14 @@ export function useTransactions() {
     summary,
     categories,
     pocketBalances,
-    
+
     // Computed
     incomeTransactions,
     expenseTransactions,
     transactionsByCategory,
     incomeTransactionsByCategory,
     recentTransactions,
-    
+
     // Methods
     fetchTransactions,
     createTransaction,

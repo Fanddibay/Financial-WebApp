@@ -134,6 +134,15 @@ export default {
     clearHistoryTitle: 'Hapus riwayat chat?',
     clearHistoryMessage: 'Yakin ingin menghapus riwayat chat? Percakapan akan dihapus dan tidak bisa dikembalikan.',
     clearHistoryConfirm: 'Hapus',
+    inputPlaceholder: 'Tanyakan tentang keuangan Anda',
+    suggestionsTitle: 'Saran Pertanyaan',
+    suggestions: {
+      question1: 'Analisis trend pengeluaran bulan ini',
+      question2: 'Apakah ada pemborosan di kategori makanan?',
+      question3: 'Bagaimana cash flow saya minggu ini?',
+      question4: 'Saran untuk menabung lebih banyak',
+      question5: 'Prediksi pengeluaran bulan depan',
+    },
   },
 
   // Profile Page
@@ -627,6 +636,8 @@ export default {
     transactionAddedIncome: 'Transaksi Income Berhasil Ditambahkan!',
     transactionAddedExpense: 'Transaksi Expense Berhasil Ditambahkan!',
     scanner: 'Scanner',
+    emptyTransactionsStateTitle: 'Kamu belum melakukan transaksi nih, yuk mulai lakukan',
+    startTransaction: 'Mulai Transaksi',
   },
 
   // Dashboard
@@ -682,6 +693,7 @@ export default {
     deleteTransaction: 'Hapus Transaksi',
     deleteTransactionConfirm: 'Yakin mau hapus transaksi ini? Tindakan ini tidak bisa dibatalkan.',
     deleteSuccess: 'Transaksi berhasil dihapus!',
+    deleteSuccessDesc: 'Transaksi "{description}" berhasil dihapus.',
     deleteFailed: 'Gagal menghapus transaksi. Silakan coba lagi.',
     exportFile: 'Ekspor file',
     exportExcel: 'Excel',
