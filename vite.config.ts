@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg', 'tesseract/**/*.js', 'tesseract/**/*.wasm', 'tesseract/**/*.traineddata.gz'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg'],
       manifest: {
         name: 'Fanplanner',
         short_name: 'Fanplanner',
@@ -43,7 +43,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,mp4,traineddata.gz}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,mp4}'],
         // Exclude vendor files from precaching to avoid "Not allowed nest placeholder" errors
         // Vendor files will be cached via runtime caching instead
         globIgnores: ['**/vue-vendor*.js', '**/fontawesome*.js', '**/index*.js'],
@@ -93,57 +93,37 @@ export default defineConfig({
               },
             },
           },
-          // Cache Tesseract.js worker files - use NetworkFirst for PWA compatibility
-          // This ensures worker files are always fresh and not blocked by stale cache
+          // Dedicated cache for local Tesseract engine files (runtime caching instead of precaching)
           {
-            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*tesseract.*/i,
-            handler: 'NetworkFirst',
+            urlPattern: /^\/tesseract\/.*/i,
+            handler: 'CacheFirst',
             options: {
-              cacheName: 'tesseract-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days (shorter for freshness)
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-              networkTimeoutSeconds: 10, // Timeout after 10 seconds, then use cache
-            },
-          },
-          // Cache Tesseract.js core WASM files - use NetworkFirst for PWA compatibility
-          {
-            urlPattern: /\.wasm$/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'wasm-cache',
+              cacheName: 'tesseract-engine-cache',
               expiration: {
                 maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                maxAgeSeconds: 60 * 60 * 24 * 90, // 90 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
-              networkTimeoutSeconds: 10,
             },
           },
-          // Cache Tesseract.js language data files - use NetworkFirst for PWA compatibility
+          // Cache Tesseract.js worker files from CDN
           {
-            urlPattern: /\.traineddata$/i,
-            handler: 'NetworkFirst',
+            urlPattern: /^https:\/\/cdn\.jsdelivr\.net\/.*tesseract.*/i,
+            handler: 'CacheFirst',
             options: {
-              cacheName: 'tesseract-lang-cache',
+              cacheName: 'tesseract-cdn-cache',
               expiration: {
-                maxEntries: 10,
+                maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
-              networkTimeoutSeconds: 10,
             },
           },
-          // Cache all CDN assets (for tesseract.js and other libraries) - use NetworkFirst
-          // This ensures Tesseract.js resources are not blocked by stale cache in PWA
+          // Cache all other CDN assets
           {
             urlPattern: /^https:\/\/.*\.(js|wasm|traineddata)$/i,
             handler: 'NetworkFirst',
@@ -151,12 +131,12 @@ export default defineConfig({
               cacheName: 'cdn-cache',
               expiration: {
                 maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days (shorter for freshness)
+                maxAgeSeconds: 60 * 60 * 24 * 7,
               },
               cacheableResponse: {
                 statuses: [0, 200],
               },
-              networkTimeoutSeconds: 10, // Timeout after 10 seconds, then use cache
+              networkTimeoutSeconds: 10,
             },
           },
         ],

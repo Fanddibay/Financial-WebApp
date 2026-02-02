@@ -79,17 +79,18 @@ async function loadTesseract() {
 
 const processing = ref(false)
 const processingProgress = ref(0)
+const previewImage = ref<string | null>(null)
 const error = ref<string | null>(null)
 const errorType = ref<string | null>(null)
-const previewImage = ref<string | null>(null)
-const scannedData = ref<Partial<TransactionFormData> | Partial<TransactionFormData>[] | null>(null)
+const validationFailed = ref(false)
+const showItemBreakdown = ref(false)
 const detailedResult = ref<ReceiptParseResult | null>(null)
+const isEngineDownloading = ref(false) // Track if engine files are being downloaded
+const scannedData = ref<Partial<TransactionFormData> | Partial<TransactionFormData>[] | null>(null)
 const showPreview = ref(false)
 const hasMultipleTransactions = ref(false)
 const showFullscreenImage = ref(false)
-const showItemBreakdown = ref(false)
 const showHeicInfo = ref(true) // Default open
-const validationFailed = ref(false)
 const showLimitInfo = ref(false)
 
 // Image zoom/pan state
@@ -170,6 +171,20 @@ function handleCameraClick() {
   input.click()
 }
 
+// Check if Tesseract engine is likely in cache
+async function checkEngineCached(): Promise<boolean> {
+  if (!('caches' in window)) return false
+  try {
+    const cache = await caches.open('tesseract-engine-cache')
+    // Check for a few key files
+    const core = await cache.match('/tesseract/tesseract-core.wasm.js')
+    const worker = await cache.match('/tesseract/worker.min.js')
+    return !!(core && worker)
+  } catch (_e) {
+    return false
+  }
+}
+
 async function processImage(file: File) {
   // Check license/usage limit
   if (!tokenStore.canUseReceiptScan()) {
@@ -243,10 +258,26 @@ async function processImage(file: File) {
 
     // Load Tesseract if not already loaded
     processingProgress.value = 30
+
+    // Check if offline and not cached
+    const isCached = await checkEngineCached()
+    const isOffline = !navigator.onLine
+
+    if (isOffline && !isCached) {
+      validationFailed.value = true
+      error.value = 'Mode offline: Engine OCR belum terpasang. Harap aktifkan internet sekali untuk unduhan pertama engine.'
+      errorType.value = 'offline-no-cache'
+      processing.value = false
+      return
+    }
+
+    if (!isCached) {
+      isEngineDownloading.value = true
+    }
+
     const TesseractInstance = await loadTesseract()
 
     // Create worker for OCR (required for Tesseract.js v5)
-    // Use bundled worker paths for PWA compatibility
     processingProgress.value = 35
     let worker: any = null
 
@@ -280,30 +311,32 @@ async function processImage(file: File) {
     }
 
     try {
-      // Use local paths for true offline support
       worker = await createWorkerWithTimeout({
         workerPath: '/tesseract/worker.min.js',
         corePath: '/tesseract/tesseract-core.wasm.js',
         langPath: '/tesseract/lang-data',
         logger,
       }, 60000) // 60 second timeout
+
+      isEngineDownloading.value = false
     } catch (workerError) {
+      isEngineDownloading.value = false
       console.error('Local worker creation failed, trying with explicit CDN paths:', workerError)
 
-      // Fallback: Try with explicit CDN paths if local fails (e.g. if files not yet cached)
+      if (isOffline) {
+        throw new Error('Gagal memuat engine OCR lokal di mode offline.')
+      }
+
+      // Fallback: Try with explicit CDN paths if local fails
       try {
         worker = await createWorkerWithTimeout({
           workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
           corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
           langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
           logger,
-        }, 60000) // 60 second timeout
-      } catch (fallbackError) {
-        console.error('Fallback worker creation also failed:', fallbackError)
-        const errorMessage = fallbackError instanceof Error
-          ? fallbackError.message
-          : 'Gagal memuat OCR worker. Pastikan koneksi internet aktif dan coba lagi.'
-        throw new Error(errorMessage)
+        }, 60000)
+      } catch (cdnError) {
+        throw cdnError
       }
     }
 
