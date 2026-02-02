@@ -15,6 +15,7 @@ interface Profile {
   notificationCustomDays: number
   /** Jam notifikasi format 24h, e.g. "09:00" */
   notificationTime: string
+  showBalance: boolean
 }
 
 // Avatar is stored only in AVATAR_STORAGE_KEY so export/import never includes it.
@@ -54,6 +55,7 @@ export const useProfileStore = defineStore('profile', () => {
           notificationCustomDays: typeof rest.notificationCustomDays === 'number' ? Math.max(1, Math.min(365, rest.notificationCustomDays)) : 3,
           notificationTime: typeof rest.notificationTime === 'string' && /^\d{2}:\d{2}$/.test(rest.notificationTime as string) ? (rest.notificationTime as string) : '09:00',
           avatar: getStoredAvatar(),
+          showBalance: (rest.showBalance as boolean) ?? false,
         }
       }
     } catch {
@@ -67,6 +69,7 @@ export const useProfileStore = defineStore('profile', () => {
       notificationCustomDays: 3,
       notificationTime: '09:00',
       avatar: getStoredAvatar(),
+      showBalance: false,
     }
   }
 

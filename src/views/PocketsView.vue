@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { usePocketStore } from '@/stores/pocket'
 import { useTokenStore } from '@/stores/token'
+import { useProfileStore } from '@/stores/profile'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactions } from '@/composables/useTransactions'
 import PageHeader from '@/components/layout/PageHeader.vue'
@@ -17,10 +18,11 @@ import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 const pocketStore = usePocketStore()
 const tokenStore = useTokenStore()
+const profileStore = useProfileStore()
 const { pocketBalances, fetchTransactions } = useTransactions()
 const { getSortedPockets, isAtPocketLimit, isPocketDisabled } = usePocketLimits()
 
-const showTotals = ref(true)
+// Local visibility state removed in favor of global profileStore.profile.showBalance
 const showCreateModal = ref(false)
 const showPocketLimitUpgrade = ref(false)
 const showPocketDisabledSheet = ref(false)
@@ -31,7 +33,7 @@ const totalBalanceAllPockets = computed(() => {
 })
 
 const displayTotalBalance = computed(() =>
-  showTotals.value ? formatIDR(totalBalanceAllPockets.value) : '••••••••',
+  profileStore.profile.showBalance ? formatIDR(totalBalanceAllPockets.value) : '••••••••',
 )
 
 const pocketsWithBalances = computed(() => {
@@ -85,16 +87,18 @@ onMounted(() => {
         </p>
       </div>
       <button type="button"
-        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-brand/40"
-        :aria-label="showTotals ? t('home.hideBalance') : t('home.showBalance')" @click="showTotals = !showTotals">
-        <font-awesome-icon :icon="['fas', showTotals ? 'eye-slash' : 'eye']" class="h-5 w-5" />
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-brand/40"
+        :aria-label="profileStore.profile.showBalance ? t('home.hideBalance') : t('home.showBalance')"
+        @click="profileStore.updateProfile({ showBalance: !profileStore.profile.showBalance })">
+        <font-awesome-icon :icon="['fas', profileStore.profile.showBalance ? 'eye-slash' : 'eye']" class="h-5 w-5" />
       </button>
     </div>
 
     <!-- Pocket grid (2 kolom) + Create Pocket (sama seperti Home sebelumnya) -->
     <div v-if="pocketsWithBalances.length > 0" class="grid grid-cols-2 gap-3">
       <PocketCard v-for="p in pocketsWithBalances" :key="p.id" :pocket="p" :balance="p.balance"
-        :hide-balance="!showTotals" :disabled="p.disabled" @disabled-click="showPocketDisabledSheet = true" />
+        :hide-balance="!profileStore.profile.showBalance" :disabled="p.disabled"
+        @disabled-click="showPocketDisabledSheet = true" />
       <button type="button"
         class="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 text-slate-500 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800/30 dark:hover:border-brand/40"
         @click="handleCreateClick">

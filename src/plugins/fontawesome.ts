@@ -72,8 +72,10 @@ import {
   faExpand,
   faExpandArrowsAlt,
   faShoppingCart,
+  faGlobe,
+  faExternalLinkAlt,
 } from '@fortawesome/free-solid-svg-icons'
-import { faVuejs } from '@fortawesome/free-brands-svg-icons'
+import { faVuejs, faWhatsapp } from '@fortawesome/free-brands-svg-icons'
 
 const icons = [
   faWebAwesome,
@@ -146,7 +148,10 @@ const icons = [
   faExpand,
   faExpandArrowsAlt,
   faShoppingCart,
+  faGlobe,
+  faExternalLinkAlt,
   faVuejs,
+  faWhatsapp,
 ]
 
 library.add(...icons)

@@ -29,7 +29,7 @@ const {
   deleteTransaction,
 } = useTransactions()
 
-const showTotals = ref(true)
+// Local visibility states removed in favor of global profileStore.profile.showBalance
 const showDeleteConfirm = ref(false)
 const showDailyActivitySheet = ref(false)
 const showAddModal = ref(false)
@@ -49,7 +49,7 @@ const totalBalanceAllPockets = computed(() => {
 })
 
 const displayTotalBalance = computed(() =>
-  showTotals.value ? formatIDR(totalBalanceAllPockets.value) : '••••••••',
+  profileStore.profile.showBalance ? formatIDR(totalBalanceAllPockets.value) : '••••••••',
 )
 
 const todayKey = computed(() => new Date().toISOString().split('T')[0])
@@ -154,8 +154,10 @@ onMounted(() => {
           </h2>
           <button type="button"
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/30 bg-white/20 text-white transition hover:bg-white/30 hover:text-white dark:border-white/20 dark:bg-white/15 dark:hover:bg-white/25"
-            :aria-label="showTotals ? t('home.hideBalance') : t('home.showBalance')" @click="showTotals = !showTotals">
-            <font-awesome-icon :icon="['fas', showTotals ? 'eye-slash' : 'eye']" class="h-5 w-5" />
+            :aria-label="profileStore.profile.showBalance ? t('home.hideBalance') : t('home.showBalance')"
+            @click="profileStore.updateProfile({ showBalance: !profileStore.profile.showBalance })">
+            <font-awesome-icon :icon="['fas', profileStore.profile.showBalance ? 'eye-slash' : 'eye']"
+              class="h-5 w-5" />
           </button>
         </div>
 

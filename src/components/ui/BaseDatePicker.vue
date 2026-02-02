@@ -17,10 +17,28 @@ const props = withDefaults(defineProps<Props>(), {
   maxDate: undefined,
 })
 
+// Parse ISO date string (YYYY-MM-DD) in local timezone
+// This prevents timezone offset issues when creating Date objects
+function parseDateString(dateString: string): Date {
+  const parts = dateString.split('-').map(Number)
+  const year = parts[0] ?? new Date().getFullYear()
+  const month = parts[1] ?? 1
+  const day = parts[2] ?? 1
+  return new Date(year, month - 1, day)
+}
+
+// Format Date object to ISO date string (YYYY-MM-DD) in local timezone
+// This prevents timezone offset issues when emitting dates
+function formatDateString(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Get today's date in YYYY-MM-DD format
 function getTodayDateString(): string {
-  const dateStr = new Date().toISOString().split('T')[0]
-  return dateStr || new Date().toLocaleDateString('en-CA') // Fallback to YYYY-MM-DD format
+  return formatDateString(new Date())
 }
 
 // Computed property to get effective maxDate (defaults to today if not provided)
@@ -34,14 +52,14 @@ const emit = defineEmits<{
 
 const isOpen = ref(false)
 const currentMonth = ref(new Date())
-const selectedDate = computed(() => (props.modelValue ? new Date(props.modelValue) : null))
+const selectedDate = computed(() => (props.modelValue ? parseDateString(props.modelValue) : null))
 const viewMode = ref<'calendar' | 'month' | 'year'>('calendar')
 const yearPickerStart = ref(0)
 
 // Format date for display
 const displayValue = computed(() => {
   if (!props.modelValue) return ''
-  const date = new Date(props.modelValue)
+  const date = parseDateString(props.modelValue)
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -115,20 +133,21 @@ function selectDate(date: Date | null) {
 
   // Check min/max constraints (compare date parts only, not time)
   if (props.minDate) {
-    const minDate = new Date(props.minDate)
+    const minDate = parseDateString(props.minDate)
     minDate.setHours(0, 0, 0, 0)
     const compareDate = new Date(date)
     compareDate.setHours(0, 0, 0, 0)
     if (compareDate < minDate) return
   }
   // Use effectiveMaxDate which defaults to today
-  const maxDate = new Date(effectiveMaxDate.value)
+  const maxDate = parseDateString(effectiveMaxDate.value)
   maxDate.setHours(23, 59, 59, 999)
   const compareDate = new Date(date)
   compareDate.setHours(23, 59, 59, 999)
   if (compareDate > maxDate) return
 
-  const dateStr = date?.toISOString().split('T')[0] ?? ''
+  // Format date in local timezone instead of using toISOString (which converts to UTC)
+  const dateStr = formatDateString(date)
   emit('update:modelValue', dateStr)
   isOpen.value = false
 }
@@ -154,17 +173,17 @@ function isToday(date: Date | null): boolean {
 
 function isDisabled(date: Date | null): boolean {
   if (!date) return true
-  
+
   // Compare date parts only, not time
   if (props.minDate) {
-    const minDate = new Date(props.minDate)
+    const minDate = parseDateString(props.minDate)
     minDate.setHours(0, 0, 0, 0)
     const compareDate = new Date(date)
     compareDate.setHours(0, 0, 0, 0)
     if (compareDate < minDate) return true
   }
   // Use effectiveMaxDate which defaults to today
-  const maxDate = new Date(effectiveMaxDate.value)
+  const maxDate = parseDateString(effectiveMaxDate.value)
   maxDate.setHours(23, 59, 59, 999)
   const compareDate = new Date(date)
   compareDate.setHours(23, 59, 59, 999)
@@ -175,7 +194,7 @@ function isDisabled(date: Date | null): boolean {
 // Sync current month with selected date
 watch(() => props.modelValue, (newValue) => {
   if (newValue && !isOpen.value) {
-    currentMonth.value = new Date(newValue)
+    currentMonth.value = parseDateString(newValue)
   }
 })
 
@@ -184,7 +203,7 @@ function toggleCalendar() {
   viewMode.value = 'calendar'
   if (isOpen.value) {
     if (props.modelValue) {
-      currentMonth.value = new Date(props.modelValue)
+      currentMonth.value = parseDateString(props.modelValue)
     }
     yearPickerStart.value = Math.floor(currentYear.value / 10) * 10 - 10
   }

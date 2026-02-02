@@ -181,6 +181,16 @@ export default {
       categorySenior: 'Senior',
       categoryAccessories: 'Accessories',
     },
+    help: {
+      title: 'Help',
+      subtitle: 'Need help? Contact us',
+      whatsapp: 'Chat on WhatsApp',
+      whatsappDesc: 'Contact us via WhatsApp for quick assistance',
+      email: 'Send Email',
+      emailDesc: 'Send an email for detailed inquiries',
+      visitWebsite: 'Visit Website',
+      visitWebsiteDesc: 'Learn more about FanPlanner',
+    },
   },
 
   // Settings

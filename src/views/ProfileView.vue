@@ -259,7 +259,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-28 pt-24">
     <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')">
       <template #right>
         <button type="button" :class="[
@@ -602,6 +602,63 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       </div>
     </BaseCard>
 
+    <!-- Help / Bantuan -->
+    <BaseCard>
+      <div class="space-y-4">
+        <div>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {{ t('profile.help.title') }}
+          </h3>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {{ t('profile.help.subtitle') }}
+          </p>
+        </div>
+
+        <!-- WhatsApp CTA -->
+        <a href="https://wa.me/6287781522324" target="_blank" rel="noopener noreferrer"
+          class="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 transition hover:border-green-300 hover:bg-green-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-green-700 dark:hover:bg-green-900/20">
+          <div
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+            <font-awesome-icon :icon="['fab', 'whatsapp']" class="h-6 w-6 text-green-600 dark:text-green-400" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-semibold text-slate-900 dark:text-slate-100">
+              {{ t('profile.help.whatsapp') }}
+            </h4>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
+              {{ t('profile.help.whatsappDesc') }}
+            </p>
+          </div>
+          <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
+        </a>
+
+        <!-- Email CTA -->
+        <a href="mailto:fandi.bayu110@gmail.com"
+          class="flex items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 transition hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-blue-700 dark:hover:bg-blue-900/20">
+          <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
+            <font-awesome-icon :icon="['fas', 'envelope']" class="h-6 w-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-semibold text-slate-900 dark:text-slate-100">
+              {{ t('profile.help.email') }}
+            </h4>
+            <p class="text-sm text-slate-600 dark:text-slate-400">
+              {{ t('profile.help.emailDesc') }}
+            </p>
+          </div>
+          <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
+        </a>
+
+        <!-- Website Link - Tertiary style -->
+        <a href="https://fanplanner.site" target="_blank" rel="noopener noreferrer"
+          class="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700">
+          <font-awesome-icon :icon="['fas', 'globe']" class="h-4 w-4" />
+          <span>{{ t('profile.help.visitWebsite') }}</span>
+          <font-awesome-icon :icon="['fas', 'external-link-alt']" class="h-3 w-3 text-slate-400" />
+        </a>
+      </div>
+    </BaseCard>
+
     <!-- PWA Install -->
     <BaseCard>
       <button type="button" @click="isPWAInstallOpen = !isPWAInstallOpen"
@@ -717,6 +774,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       </Transition>
     </BaseCard>
 
+
+
     <!-- Notification Toast -->
     <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-2"
       enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
@@ -764,12 +823,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <AvatarPickerModal :is-open="showAvatarPicker" @close="showAvatarPicker = false" />
 
     <!-- Subscribed (crown) popup -->
-    <BottomSheet
-      :is-open="showSubscribedPopup"
-      :title="t('profile.subscribedPopupTitle')"
-      max-height="60"
-      @close="showSubscribedPopup = false"
-    >
+    <BottomSheet :is-open="showSubscribedPopup" :title="t('profile.subscribedPopupTitle')" max-height="60"
+      @close="showSubscribedPopup = false">
       <p class="text-slate-600 dark:text-slate-300">{{ t('profile.subscribedPopupMessage') }}</p>
       <template #footer>
         <BaseButton class="w-full" @click="showSubscribedPopup = false">
@@ -779,12 +834,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     </BottomSheet>
 
     <!-- Not subscribed (crown) popup -->
-    <BottomSheet
-      :is-open="showNotSubscribedPopup"
-      :title="t('profile.notSubscribedPopupTitle')"
-      max-height="60"
-      @close="showNotSubscribedPopup = false"
-    >
+    <BottomSheet :is-open="showNotSubscribedPopup" :title="t('profile.notSubscribedPopupTitle')" max-height="60"
+      @close="showNotSubscribedPopup = false">
       <p class="text-slate-600 dark:text-slate-300">{{ t('profile.notSubscribedPopupMessage') }}</p>
       <template #footer>
         <div class="flex flex-col gap-2">
