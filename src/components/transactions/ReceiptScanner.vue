@@ -180,7 +180,7 @@ async function checkEngineCached(): Promise<boolean> {
     const core = await cache.match('/tesseract/tesseract-core.wasm.js')
     const worker = await cache.match('/tesseract/worker.min.js')
     return !!(core && worker)
-  } catch (_e) {
+  } catch {
     return false
   }
 }
@@ -873,18 +873,37 @@ const errorIcon = computed(() => {
         {{ t('scanner.retake') }}
       </button>
 
-      <!-- Error Display in Preview Mode -->
+      <!-- Informative Fallback / Error Display in Preview Mode -->
       <div v-if="validationFailed && error" class="space-y-3 flex-shrink-0">
-        <div class="rounded-lg p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+        <div :class="[
+          'rounded-lg p-4 border transition-colors',
+          errorType === 'offline-no-cache'
+            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
+            : errorType === 'limit-reached'
+              ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
+              : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'
+        ]">
           <div class="flex items-start gap-3">
             <div class="flex-shrink-0 mt-0.5">
-              <font-awesome-icon :icon="errorIcon" class="h-5 w-5 text-red-600 dark:text-red-400" />
+              <font-awesome-icon :icon="errorIcon" :class="[
+                'h-5 w-5',
+                errorType === 'offline-no-cache' ? 'text-blue-600 dark:text-blue-400' :
+                  errorType === 'limit-reached' ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'
+              ]" />
             </div>
             <div class="flex-1 min-w-0">
-              <p class="font-medium mb-1 text-red-800 dark:text-red-200">
-                {{ t('scanner.scanFailed') }}
+              <p :class="[
+                'font-medium mb-1',
+                errorType === 'offline-no-cache' ? 'text-blue-800 dark:text-blue-200' :
+                  errorType === 'limit-reached' ? 'text-yellow-800 dark:text-yellow-200' : 'text-red-800 dark:text-red-200'
+              ]">
+                {{ errorType === 'offline-no-cache' ? t('scanner.offlineMode') : t('scanner.scanFailed') }}
               </p>
-              <p class="text-sm text-red-700 dark:text-red-300 whitespace-pre-line">
+              <p :class="[
+                'text-sm whitespace-pre-line',
+                errorType === 'offline-no-cache' ? 'text-blue-700 dark:text-blue-300' :
+                  errorType === 'limit-reached' ? 'text-yellow-700 dark:text-yellow-300' : 'text-red-700 dark:text-red-300'
+              ]">
                 {{ error }}
               </p>
             </div>

@@ -43,10 +43,15 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,mp4}'],
-        // Exclude vendor files from precaching to avoid "Not allowed nest placeholder" errors
-        // Vendor files will be cached via runtime caching instead
-        globIgnores: ['**/vue-vendor*.js', '**/fontawesome*.js', '**/index*.js'],
+        // Essential app shell assets only
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Explicitly ignore tesseract directory from precaching scan to avoid build errors
+        globIgnores: [
+          'tesseract/**/*',
+          '**/vue-vendor*.js',
+          '**/fontawesome*.js',
+          '**/index*.js'
+        ],
         // Don't modify files during caching
         dontCacheBustURLsMatching: /\.\w{8}\./,
         runtimeCaching: [
