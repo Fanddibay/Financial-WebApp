@@ -434,7 +434,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-5 px-4 pb-24 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-5 px-4 pb-28 pt-24">
     <PageHeader :title="t('transactions.title')" :subtitle="t('transactions.subtitle')">
       <template #right>
         <div ref="exportDropdownRef" class="relative">

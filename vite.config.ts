@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg', 'tesseract/**/*.js', 'tesseract/**/*.wasm', 'tesseract/**/*.traineddata.gz'],
       manifest: {
         name: 'Fanplanner',
         short_name: 'Fanplanner',
@@ -43,7 +43,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,mp4,traineddata.gz}'],
         // Exclude vendor files from precaching to avoid "Not allowed nest placeholder" errors
         // Vendor files will be cached via runtime caching instead
         globIgnores: ['**/vue-vendor*.js', '**/fontawesome*.js', '**/index*.js'],

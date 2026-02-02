@@ -280,16 +280,17 @@ async function processImage(file: File) {
     }
 
     try {
-      // Try to create worker with bundled paths first (PWA compatible)
-      // Tesseract.js will automatically resolve worker paths from node_modules
+      // Use local paths for true offline support
       worker = await createWorkerWithTimeout({
+        workerPath: '/tesseract/worker.min.js',
+        corePath: '/tesseract/tesseract-core.wasm.js',
+        langPath: '/tesseract/lang-data',
         logger,
       }, 60000) // 60 second timeout
     } catch (workerError) {
-      console.error('Worker creation failed, trying with explicit CDN paths:', workerError)
+      console.error('Local worker creation failed, trying with explicit CDN paths:', workerError)
 
-      // Fallback: Try with explicit CDN paths if bundled paths fail
-      // This handles edge cases where PWA cache might interfere
+      // Fallback: Try with explicit CDN paths if local fails (e.g. if files not yet cached)
       try {
         worker = await createWorkerWithTimeout({
           workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
@@ -607,31 +608,6 @@ function handleImageTouchEnd() {
 }
 
 // Computed properties for UI feedback
-const detectionMessage = computed(() => {
-  if (!detailedResult.value) return ''
-
-  const { detectedAmount, confidenceLevel, sourceKeyword } = detailedResult.value
-
-  if (detectedAmount === 0) {
-    return t('scanner.totalNotDetectedManual')
-  }
-
-  const confidenceText = {
-    high: t('scanner.confidenceHigh'),
-    medium: t('scanner.confidenceMedium'),
-    low: t('scanner.confidenceLow'),
-  }[confidenceLevel]
-
-  const keywordText = sourceKeyword ? ` (${sourceKeyword})` : ''
-
-  // Build message manually since vue-i18n interpolation doesn't work well with formatted currency
-  const template = t('scanner.totalDetected')
-  return template
-    .replace('{amount}', formatIDR(detectedAmount))
-    .replace('{keyword}', keywordText)
-    .replace('{confidence}', confidenceText)
-})
-
 const hasItems = computed(() => {
   return detailedResult.value?.items && detailedResult.value.items.length > 0
 })
@@ -799,7 +775,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-                }}</span>
+              }}</span>
             </button>
             <label for="file-upload-rescan"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm cursor-pointer">
@@ -808,7 +784,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-                }}</span>
+              }}</span>
               <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -838,23 +814,31 @@ const errorIcon = computed(() => {
 
       <!-- Smart Feedback UI -->
       <div v-if="detailedResult && !validationFailed" :class="[
-        'rounded-lg p-4 text-sm flex-shrink-0',
+        'rounded-lg p-3 text-sm flex-shrink-0 relative overflow-hidden',
         detailedResult.detectedAmount > 0
           ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
           : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
       ]">
-        <p class="font-medium mb-1">
-          {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') :
-            t('scanner.totalNotDetected') }}
-        </p>
-        <p class="text-xs sm:text-sm">{{ detectionMessage }}</p>
-        <div v-if="hasItems && !hasMultipleTransactions" class="mt-2">
-          <BaseButton variant="secondary" size="sm" @click="showItemBreakdown = !showItemBreakdown" class="text-xs">
-            {{ showItemBreakdown ? t('scanner.hideItemBreakdown') :
-              t('scanner.viewItemBreakdown') }}
-          </BaseButton>
+        <div class="flex items-center justify-between">
+          <p class="font-medium flex items-center gap-2">
+            <font-awesome-icon v-if="detailedResult.detectedAmount > 0" :icon="['fas', 'check-circle']" />
+            <font-awesome-icon v-else :icon="['fas', 'exclamation-circle']" />
+            {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') : t('scanner.totalNotDetected') }}
+          </p>
+
+          <button v-if="hasItems && !hasMultipleTransactions" @click="showItemBreakdown = !showItemBreakdown"
+            class="text-xs font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity px-1">
+            {{ showItemBreakdown ? t('scanner.hideItemBreakdown') : t('scanner.viewItemBreakdown') }}
+          </button>
         </div>
       </div>
+
+      <!-- Full Width Retake Button (Below Card) -->
+      <button v-if="previewImage && !processing" @click="handleRescan"
+        class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand/40 bg-white dark:bg-slate-800/50 py-3 text-xs font-bold uppercase tracking-wider text-brand hover:border-brand hover:bg-brand/5  transition-all">
+        <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4" />
+        {{ t('scanner.retake') }}
+      </button>
 
       <!-- Error Display in Preview Mode -->
       <div v-if="validationFailed && error" class="space-y-3 flex-shrink-0">
@@ -893,7 +877,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-                }}</span>
+              }}</span>
             </button>
             <label for="file-upload-rescan-preview"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm active:scale-95 cursor-pointer">
@@ -902,7 +886,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-                }}</span>
+              }}</span>
               <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>

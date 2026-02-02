@@ -61,7 +61,7 @@ const chartTypeOptions = computed(() => [
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-24 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-28 pt-24">
     <PageHeader :title="t('dashboard.title')" :subtitle="t('dashboard.subtitle')">
       <template #right>
         <BaseButton variant="secondary" size="sm" @click="handleExportSummary">

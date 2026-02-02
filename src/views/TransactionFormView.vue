@@ -447,13 +447,13 @@ function formatDate(dateString: string): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] min-h-0 space-y-6 overflow-y-auto px-4 pb-24 pt-24">
+  <div class="mx-auto max-w-[430px] min-h-0 space-y-6 overflow-y-auto px-4 pb-28 pt-24">
     <PageHeader :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
       :subtitle="isEdit
-          ? t('transaction.updateTransaction')
-          : editingIndex !== null
-            ? t('transaction.editPendingTransaction')
-            : t('transaction.recordNewTransaction')
+        ? t('transaction.updateTransaction')
+        : editingIndex !== null
+          ? t('transaction.editPendingTransaction')
+          : t('transaction.recordNewTransaction')
         " :show-back="true" />
 
     <!-- Info Banner for Text Input -->

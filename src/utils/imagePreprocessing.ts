@@ -48,18 +48,21 @@ export async function preprocessImageForOCR(imageFile: File): Promise<File> {
 
       for (let i = 0; i < data.length; i += 4) {
         // Convert to grayscale using luminance formula
-        const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
+        const r = data[i] ?? 0
+        const g = data[i + 1] ?? 0
+        const b = data[i + 2] ?? 0
+        const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b)
         grayscale.push(gray)
         minBrightness = Math.min(minBrightness, gray)
         maxBrightness = Math.max(maxBrightness, gray)
       }
 
       // Step 2: Normalize brightness and enhance contrast
-      const contrastFactor = 1.2 // Increase contrast by 20%
+      const contrastFactor = 1.3 // Increase contrast by 30%
       const brightnessRange = maxBrightness - minBrightness || 1
 
       for (let i = 0; i < data.length; i += 4) {
-        const gray = grayscale[i / 4]
+        const gray = grayscale[i / 4] ?? 128
 
         // Normalize to 0-255 range with contrast enhancement
         let normalized = ((gray - minBrightness) / brightnessRange) * 255
@@ -68,17 +71,22 @@ export async function preprocessImageForOCR(imageFile: File): Promise<File> {
         normalized = 128 + (normalized - 128) * contrastFactor
         normalized = Math.max(0, Math.min(255, normalized))
 
-        // Apply sharpening (unsharp mask effect)
-        const sharpened = applySharpening(grayscale, i / 4, width, height, normalized)
-
-        // Set RGB to grayscale value
-        data[i] = sharpened
-        data[i + 1] = sharpened
-        data[i + 2] = sharpened
-        // Alpha channel remains unchanged
+        // Store enhanced gray for thresholding
+        grayscale[i / 4] = normalized
       }
 
-      // Step 3: Apply additional sharpening filter
+      // Step 3: Apply Adaptive Thresholding (Binarization)
+      // This is the most important step for Tesseract OCR accuracy
+      const thresholdedData = applyAdaptiveThreshold(grayscale, width, height)
+
+      for (let i = 0; i < data.length; i += 4) {
+        const val = thresholdedData[i / 4] ?? 255
+        data[i] = val
+        data[i + 1] = val
+        data[i + 2] = val
+      }
+
+      // Step 4: Apply additional sharpening filter to edges
       const sharpenedData = applySharpeningFilter(imageData, width, height)
 
       // Put processed image data back
@@ -107,41 +115,47 @@ export async function preprocessImageForOCR(imageFile: File): Promise<File> {
 }
 
 /**
- * Apply sharpening to a single pixel
+ * Apply Adaptive Thresholding (Binarization)
+ * Uses local mean to decide if a pixel should be black or white
  */
-function applySharpening(
+function applyAdaptiveThreshold(
   grayscale: number[],
-  index: number,
   width: number,
-  height: number,
-  currentValue: number
-): number {
-  const x = (index % width)
-  const y = Math.floor(index / width)
-  const sharpeningFactor = 0.3
+  height: number
+): Uint8ClampedArray {
+  const thresholded = new Uint8ClampedArray(grayscale.length)
+  const windowSize = 25 // Local window size (increase for larger images)
+  const offset = 10 // Subtraction constant
 
-  // Get neighboring pixels (if available)
-  let sum = 0
-  let count = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const index = y * width + x
 
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const nx = x + dx
-      const ny = y + dy
-      if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-        const neighborIndex = ny * width + nx
-        sum += grayscale[neighborIndex]
-        count++
+      // Calculate local mean
+      let sum = 0
+      let count = 0
+      const halfWindow = Math.floor(windowSize / 2)
+
+      for (let wy = -halfWindow; wy <= halfWindow; wy++) {
+        for (let wx = -halfWindow; wx <= halfWindow; wx++) {
+          const ny = y + wy
+          const nx = x + wx
+          if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+            sum += grayscale[ny * width + nx] ?? 128
+            count++
+          }
+        }
       }
+
+      const mean = sum / count
+      const pixelValue = grayscale[index] ?? 128
+
+      // Binarize based on local mean
+      thresholded[index] = pixelValue > mean - offset ? 255 : 0
     }
   }
 
-  if (count === 0) return currentValue
-
-  const avg = sum / count
-  // Apply unsharp mask: original + (original - average) * factor
-  const sharpened = currentValue + (currentValue - avg) * sharpeningFactor
-  return Math.max(0, Math.min(255, sharpened))
+  return thresholded
 }
 
 /**
@@ -166,8 +180,11 @@ function applySharpeningFilter(imageData: ImageData, width: number, height: numb
 
         for (let ky = -1; ky <= 1; ky++) {
           for (let kx = -1; kx <= 1; kx++) {
-            const pixelIndex = ((y + ky) * width + (x + kx)) * 4 + c
-            sum += data[pixelIndex] * kernel[kernelIndex]
+            const py = y + ky
+            const px = x + kx
+            const pixelIndex = (py * width + px) * 4 + c
+            const val = data[pixelIndex] ?? 0
+            sum += val * (kernel[kernelIndex] ?? 0)
             kernelIndex++
           }
         }

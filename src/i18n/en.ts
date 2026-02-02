@@ -395,6 +395,8 @@ export default {
     importConfirmButton: 'Yes, Import',
     importSuccessAppend: 'Data appended. Added {count} transaction(s).',
     importSuccessAppendPockets: 'Data appended. Added {pockets} pocket(s) and {transactions} transaction(s).',
+    offlineTutorialTitle: 'Video Tutorial Unavailable',
+    offlineTutorialDesc: 'Please connect to the internet to play the import & export video tutorial.',
   },
 
   // Transaction
@@ -512,8 +514,10 @@ export default {
     processing: 'Processing receipt...',
     scanFailed: 'Scan Failed',
     warning: 'Warning',
-    receiptScannedSuccess: '✓ Receipt scanned successfully!',
-    totalNotDetected: '⚠️ Total not detected',
+    retake: 'Retake',
+    confidence: 'Confidence',
+    receiptScannedSuccess: 'Receipt scanned successfully!',
+    totalNotDetected: 'Total not detected',
     totalDetected: 'Total detected: {amount}{keyword} - Confidence: {confidence}',
     confidenceHigh: 'High',
     confidenceMedium: 'Medium',

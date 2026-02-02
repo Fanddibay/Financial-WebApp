@@ -85,24 +85,24 @@ function extractNumbers(text: string): NumberMatch[] {
           const beforeMatch = line.substring(Math.max(0, match.index - 5), match.index)
           const afterMatch = line.substring(match.index + match[0].length, match.index + match[0].length + 5)
           const context = (beforeMatch + match[0] + afterMatch).toLowerCase()
-          
+
           // Skip if it looks like a date/time
           if (/\d{1,2}[\/\-:]\d{1,2}/.test(context)) {
             return
           }
 
-          const normalized = normalizeNumber(match[1])
+          const normalized = normalizeNumber(match[1] || '')
           const value = parseFloat(normalized)
-          
+
           // Only include reasonable amounts (>= 100 IDR, <= 1 billion)
           if (!isNaN(value) && value >= 100 && value <= 1000000000) {
             // Check if this number was already added (avoid duplicates)
             const isDuplicate = numbers.some(
-              (n) => n.lineIndex === lineIndex && 
+              (n) => n.lineIndex === lineIndex &&
                      Math.abs(n.position - match.index) < 10 &&
                      Math.abs(n.value - value) < 100
             )
-            
+
             if (!isDuplicate) {
               numbers.push({
                 value,
@@ -171,7 +171,8 @@ function classifyNumber(
 
   // ✅ Target amount (TOTAL)
   const targetPatterns = [
-    /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran)\b/i,
+    /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran|nominal|tagihan)\b/i,
+    /\b(nilai\s*transfer|diterima|total\s*tagihan|total\s*pembelian)\b/i,
   ]
 
   for (const pattern of targetPatterns) {
@@ -209,11 +210,15 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
   const lines = text.split('\n')
   const targetKeywords = [
     { pattern: /\b(total\s*bayar|bayar|bayar\s*total)\b/i, weight: 1.0 },
+    { pattern: /\b(nilai\s*transfer|nominal)\b/i, weight: 1.0 }, // Bank transfers
     { pattern: /\b(grand\s*total|total\s*grand)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*tagihan|total\s*pembayaran)\b/i, weight: 0.95 }, // E-commerce
     { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 }, // Total at end of line
     { pattern: /\b(total)\b/i, weight: 0.9 },
     { pattern: /\b(jumlah|jumlah\s*bayar)\b/i, weight: 0.85 },
     { pattern: /\b(pembayaran|harus\s*bayar)\b/i, weight: 0.8 },
+    { pattern: /\b(tagihan)\b/i, weight: 0.75 },
+    { pattern: /\b(diterima)\b/i, weight: 0.7 }, // Generic for "Received" amount
   ]
 
   let bestMatch: {
@@ -240,18 +245,18 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
           const lineDistance = Math.abs(num.lineIndex - lineIndex)
           const charDistance = Math.abs(num.position - keywordMatch.index)
           const distance = lineDistance * 100 + charDistance
-          
+
           let confidence: 'high' | 'medium' | 'low' = 'low'
           if (weight >= 0.95) confidence = 'high'
           else if (weight >= 0.85) confidence = 'medium'
-          
+
           // Boost confidence if number is on same line or immediately after keyword
           if (lineDistance === 0 && charDistance < 30) {
             if (confidence === 'medium') confidence = 'high'
             if (confidence === 'low') confidence = 'medium'
           }
 
-          if (!bestMatch || distance < bestMatch.distance || 
+          if (!bestMatch || distance < bestMatch.distance ||
               (distance === bestMatch.distance && weight > (targetKeywords.find((k) => k.pattern.test(bestMatch!.keyword))?.weight || 0))) {
             bestMatch = {
               amount: num.value,
@@ -266,10 +271,11 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
   })
 
   if (bestMatch) {
+    const finalMatch = bestMatch as { amount: number, confidence: 'high' | 'medium' | 'low', keyword: string }
     return {
-      amount: bestMatch.amount,
-      confidence: bestMatch.confidence,
-      keyword: bestMatch.keyword,
+      amount: finalMatch.amount,
+      confidence: finalMatch.confidence,
+      keyword: finalMatch.keyword,
     }
   }
 
@@ -304,7 +310,7 @@ function detectTotalTier2(numbers: NumberMatch[], threshold: number = 500): {
 
     // Take the largest number from the bottom half of the receipt
     const bottomHalf = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)))
-    const largest = bottomHalf.reduce((prev, current) => 
+    const largest = bottomHalf.reduce((prev, current) =>
       current.value > prev.value ? current : prev
     )
 
@@ -353,7 +359,7 @@ function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
         ) {
           // Check for quantity (e.g., "1x", "2x")
           const qtyMatch = itemName.match(/(\d+)\s*x\s*$/i)
-          const quantity = qtyMatch ? parseInt(qtyMatch[1], 10) : 1
+          const quantity = qtyMatch ? parseInt(qtyMatch[1] || '1', 10) : 1
 
           items.push({
             name: itemName.replace(/\d+\s*x\s*$/i, '').trim(),
@@ -374,7 +380,11 @@ function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
  * Get today's date string in YYYY-MM-DD format
  */
 function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0]
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /**
@@ -405,33 +415,33 @@ function extractDate(text: string): string {
     if (match) {
       let day: string, month: string, year: string
 
-      if (match[1].length === 4) {
+      const m1 = match[1] ?? ''
+      const m2 = match[2] ?? ''
+      const m3 = match[3] ?? ''
+
+      if (m1.length === 4) {
         // YYYY-MM-DD format
-        year = match[1]
-        month = match[2].padStart(2, '0')
-        day = match[3].padStart(2, '0')
+        year = m1
+        month = m2.padStart(2, '0')
+        day = m3.padStart(2, '0')
       } else {
         // DD/MM/YYYY or MM/DD/YYYY format (assume DD/MM for Indonesian receipts)
-        day = match[1].padStart(2, '0')
-        month = match[2].padStart(2, '0')
-        year = match[3]
+        day = m1.padStart(2, '0')
+        month = m2.padStart(2, '0')
+        year = m3
         if (year.length === 2) {
           year = '20' + year
         }
       }
 
-      try {
-        const dateObj = new Date(`${year}-${month}-${day}`)
-        if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
-          const dateString = dateObj.toISOString().split('T')[0]
-          // If date is in the future, return today instead
-          if (isDateInFuture(dateString)) {
-            return getTodayDateString()
-          }
-          return dateString
+      const dateStr = `${year}-${month}-${day}`
+      const dateObj = new Date(dateStr)
+      if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
+        // If date is in the future, return today instead
+        if (isDateInFuture(dateStr)) {
+          return getTodayDateString()
         }
-      } catch {
-        // Invalid date, continue
+        return dateStr
       }
     }
   }
@@ -448,12 +458,33 @@ function extractMerchant(text: string): string | undefined {
 
   for (const line of lines) {
     const trimmed = line.trim()
+
+    // Platform detection (Highest priority)
+    const platforms = [
+      { name: 'Shopee', pattern: /shopee/i },
+      { name: 'Tokopedia', pattern: /tokopedia|toped/i },
+      { name: 'GrabFood', pattern: /grabfood|grab/i },
+      { name: 'GoFood', pattern: /gofood|gojek|gopay/i },
+      { name: 'BCA', pattern: /bca|bank\s*central\s*asia/i },
+      { name: 'Mandiri', pattern: /mandiri/i },
+      { name: 'BNI', pattern: /bni/i },
+      { name: 'BRI', pattern: /bri/i },
+      { name: 'Indomaret', pattern: /indomaret|indomarco/i },
+      { name: 'Alfamart', pattern: /alfamart|sumber\s*alfaria/i },
+    ]
+
+    for (const platform of platforms) {
+      if (platform.pattern.test(trimmed)) {
+        return platform.name
+      }
+    }
+
     // Look for lines that are likely merchant names (all caps, reasonable length)
     if (
       trimmed.length >= 3 &&
       trimmed.length <= 50 &&
       /^[A-Z\s&]+$/.test(trimmed) &&
-      !/TOTAL|RECEIPT|INVOICE|DATE|TIME/i.test(trimmed)
+      !/TOTAL|RECEIPT|INVOICE|DATE|TIME|NOMINAL|TRANSFER|BAYAR/i.test(trimmed)
     ) {
       return trimmed
     }
@@ -492,6 +523,10 @@ export function parseReceiptText(text: string): Partial<TransactionFormData> | P
       confidenceLevel = tier2Result.confidence
     }
   }
+
+  // Silence unused variable warnings (they are used in ReceiptParseResult)
+  void confidenceLevel
+  void sourceKeyword
 
   // Extract additional metadata (extractDate now always returns a valid date, defaulting to today)
   const date = extractDate(normalizedText)
@@ -538,9 +573,11 @@ function inferCategory(text: string): string {
     Makanan: ['restaurant', 'cafe', 'food', 'grocery', 'market', 'supermarket', 'warung', 'makan', 'minum', 'kopi', 'bakso', 'nasi'],
     Transportasi: ['gas', 'fuel', 'bensin', 'taxi', 'uber', 'grab', 'gojek', 'parking', 'parkir', 'toll', 'tol'],
     Belanja: ['store', 'shop', 'toko', 'mall', 'retail', 'clothing', 'pakaian', 'shoes', 'sepatu'],
-    Tagihan: ['utility', 'listrik', 'air', 'internet', 'phone', 'telepon', 'cable', 'bill', 'tagihan'],
-    Hiburan: ['movie', 'cinema', 'bioskop', 'theater', 'game', 'entertainment'],
-    Kesehatan: ['pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'rumah sakit', 'clinic', 'klinik', 'doctor', 'dokter'],
+    Tagihan: ['utility', 'listrik', 'air', 'internet', 'phone', 'telepon', 'cable', 'bill', 'tagihan', 'topup', 'pulsa'],
+    Hiburan: ['movie', 'cinema', 'bioskop', 'theater', 'game', 'entertainment', 'netflix', 'spotify', 'youtube'],
+    Kesehatan: ['pharmacy', 'apotek', 'drug', 'obat', 'hospital', 'rumah sakit', 'clinic', 'klinik', 'doctor', 'dokter', 'halodoc'],
+    'E-commerce': ['shopee', 'tokopedia', 'lazada', 'blibli', 'bukalapak', 'tiktok\s*shop'],
+    Transfer: ['transfer', 'bca', 'mandiri', 'bni', 'bri', 'm-banking', 'payment', 'va', 'virtual\s*account'],
   }
 
   for (const [category, keywords] of Object.entries(categoryKeywords)) {

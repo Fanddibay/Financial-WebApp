@@ -99,7 +99,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-4 px-4 pb-24 pt-4">
+  <div class="mx-auto max-w-[430px] space-y-4 px-4 pb-28 pt-4">
     <!-- Main content: dashboard is always visible -->
     <!-- Greeting (di atas card ATM) -->
     <div class="px-1 pb-0">
