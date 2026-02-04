@@ -596,8 +596,16 @@ export function parseReceiptText(text: string): Partial<TransactionFormData> | P
     result.description = 'Belanja Shopee'
     result.category = 'Belanja'
   } else if (isBank && type === 'income') {
-    result.description = `Transfer Masuk ${merchant}`
-    result.category = 'Transfer'
+    result.description = merchant ? `Transfer Masuk ${merchant}` : 'Transfer Masuk'
+    // Default to 'Gaji' for income if no specific category inferred
+    if (!result.category || result.category === 'Lainnya' || result.category === 'Transfer') {
+      result.category = 'Gaji'
+    }
+  }
+
+  // User requirement: If category is 'Lainnya' and no specific merchant, clear description
+  if (result.category === 'Lainnya' && !merchant) {
+    result.description = ''
   }
 
   return result

@@ -76,13 +76,12 @@ function getMultiplierValue(multiplier: string): number {
  */
 function parseNaturalAmount(text: string): number {
   const processed = text.toLowerCase()
-    .replace(/seribu/g, ' 1000 ')
-    .replace(/seratus/g, ' 100 ')
-    .replace(/sejuta/g, ' 1000000 ')
+    .replace(/seribu/g, ' 1 ribu ')
+    .replace(/seratus/g, ' 1 ratus ')
+    .replace(/sejuta/g, ' 1 juta ')
     .replace(/sebelas/g, ' 11 ')
     .replace(/sepuluh/g, ' 10 ')
     .replace(/setengah/g, ' 0.5 ')
-    // Replace written numbers (basic ones)
     .replace(/satu/g, ' 1 ')
     .replace(/dua/g, ' 2 ')
     .replace(/tiga/g, ' 3 ')
@@ -92,56 +91,63 @@ function parseNaturalAmount(text: string): number {
     .replace(/tujuh/g, ' 7 ')
     .replace(/delapan/g, ' 8 ')
     .replace(/sembilan/g, ' 9 ')
-    // Standardize decimals
+    // Normalize Indonesian numbers: 50.000 -> 50000
+    .replace(/(\d)\.(\d{3})(?!\d)/g, '$1$2')
     .replace(/(\d),(\d)/g, '$1.$2')
 
-  // Find sequences of numbers and multipliers
-  const regex = new RegExp(`(\\d+(?:\\.\\d+)?)|(${ALL_MULTIPLIER_WORDS})`, 'gi')
-  const matches = Array.from(processed.matchAll(regex))
+  // Improved regex: matches numbers or multipliers with boundaries
+  // We match multipliers that are standalone OR immediately follow a digit
+  const combinedRegex = new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})?|\\b(${ALL_MULTIPLIER_WORDS})\\b`, 'gi')
+  const matches = Array.from(processed.matchAll(combinedRegex))
 
   if (matches.length === 0) return 0
 
-  // Group matches into sequences (tokens that are close to each other)
   let total = 0
-  let currentGroupValue = 0
-  let lastMultiplier = 0
+  let temp = 0
+  let hasMultiplier = false
 
   for (const match of matches) {
     const numStr = match[1]
-    const multStr = match[2]
+    const multAfterNum = match[2]
+    const standaloneMult = match[3]
 
     if (numStr) {
-      const num = parseFloat(numStr)
-      // If we already have a value and this is a "small" number without a multiplier yet
-      // it might be a prefix (e.g., "1" in "1 juta") or a suffix (e.g., "500" in "50 ribu 500")
-      if (currentGroupValue === 0) {
-        currentGroupValue = num
-      } else {
-        // This is a second number in a row, e.g., "1000 500" from a previous replacement
-        // or something like "50 ribu 500"
-        // But wait, the loop should handle multipliers.
-        // Let's just track current pending number.
-        currentGroupValue = num
-      }
-    } else if (multStr) {
-      const mult = getMultiplierValue(multStr)
-
-      if (currentGroupValue === 0) {
-        total += mult
-      } else {
-        if (lastMultiplier === 0 || mult < lastMultiplier) {
-          total += currentGroupValue * mult
+      temp += parseFloat(numStr)
+      if (multAfterNum) {
+        hasMultiplier = true
+        const mult = getMultiplierValue(multAfterNum)
+        if (mult >= 1000) {
+          total += (temp || 1) * mult
+          temp = 0
         } else {
-          total = (total + currentGroupValue) * mult
+          temp = (temp || 1) * mult
         }
       }
-      lastMultiplier = mult
-      currentGroupValue = 0
+    } else if (standaloneMult) {
+      const mult = getMultiplierValue(standaloneMult)
+      if (mult >= 1000) {
+        // Only allow standalone if it's a full word (len > 1) or we have a temp
+        // This prevents single-letter matches like 'b' in 'februari'
+        if (standaloneMult.length > 1 || temp > 0) {
+          hasMultiplier = true
+          total += (temp || 1) * mult
+          temp = 0
+        }
+      } else {
+        // Minor unit (ratus, puluh)
+        if (temp > 0) {
+          hasMultiplier = true
+          temp = (temp || 1) * mult
+        }
+      }
     }
   }
 
-  // Add any remaining number (e.g., the "500" in "50 ribu 500")
-  total += currentGroupValue
+  // Require at least one multiplier to be found for natural amount logic
+  // to prevent picking up years or other standalone numbers
+  if (!hasMultiplier) return 0
+
+  total += temp
 
   return total
 }
@@ -155,19 +161,17 @@ function parseNaturalAmount(text: string): number {
 function parseAmount(text: string): { amount: number; confidence: 'high' | 'medium' | 'low' | 'none' } {
   const lowerText = text.toLowerCase().trim()
 
-  // Pattern 1: Multiple multipliers (HIGHEST PRIORITY)
-  // Matches: "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", "1.5 juta",
-  //          "1juta520rb" (no spaces), "1 juta 500 ribu", etc.
-  // This pattern finds all number-multiplier pairs and sums them
-  // We use a flexible pattern that handles both with and without spaces
+  // Pattern 0: Natural Language / Advanced Summing (HIGHEST PRIORITY for NL)
+  // This handles: "50 ribu 500", "1 juta 500", "seratus lima puluh ribu"
+  // We check for multipliers FIRST to avoid splitting complex phrases
+  if (/(ribu|rb|k|juta|jt|m|milyar|miliar|b|seribu|sejuta|seratus)/i.test(lowerText)) {
+    const naturalAmount = parseNaturalAmount(lowerText)
+    if (naturalAmount > 100) { // Only use if substantial
+      return { amount: naturalAmount, confidence: 'high' }
+    }
+  }
 
-  // Unified pattern that matches number-multiplier pairs with optional space
-  // This pattern will match: "1 juta", "1juta", "520 ribu", "520rb", "1juta520rb", etc.
-  // Pattern explanation:
-  // - (\d+(?:[.,]\d+)?) - matches number with optional decimal
-  // - \s* - optional whitespace
-  // - (ribu|rb|k|juta|jt|m|milyar|miliar|b) - multiplier word
-  // - (?=\s|$|[^\w\d]|\d) - lookahead: space, end, non-word/digit, or another digit (for next number)
+  // Pattern 1: Multiple multipliers (HIGHEST PRIORITY)
   const multiplierPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})(?=\\s|$|[^\\w\\d]|\\d)`, 'gi')
   const allMultiplierMatches = Array.from(lowerText.matchAll(multiplierPattern))
 
@@ -251,11 +255,6 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
     return { amount: totalAmount, confidence: 'high' }
   }
 
-  // Pattern 1b: Natural Language / Advanced Summing (New Priority)
-  const naturalAmount = parseNaturalAmount(lowerText)
-  if (naturalAmount > 0) {
-    return { amount: naturalAmount, confidence: 'high' }
-  }
 
   // Pattern 2: Explicit currency format with dots/commas (Rp 20.000, Rp 5.000.000, 20.000)
   // This handles Indonesian number format where dots are thousand separators
@@ -297,7 +296,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
   // Pattern 3: Plain numbers with 4+ digits (likely already in rupiah)
   const largeNumberPattern = /\b(\d{4,})\b/
   const largeNumberMatch = lowerText.match(largeNumberPattern)
-  if (largeNumberMatch) {
+  if (largeNumberMatch && largeNumberMatch[1]) {
     const amount = parseInt(largeNumberMatch[1].replace(/[.,]/g, ''), 10)
     if (!isNaN(amount) && amount >= 1000 && amount <= 10000000000) {
       return { amount, confidence: 'medium' }
@@ -308,7 +307,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
   // This is low confidence and should be avoided if possible
   const smallNumberPattern = /\b(\d{1,3})\b/
   const smallMatch = lowerText.match(smallNumberPattern)
-  if (smallMatch) {
+  if (smallMatch && smallMatch[1]) {
     const num = parseInt(smallMatch[1], 10)
     // Only assume thousands if there's clear transaction context
     const hasTransactionContext = /(beli|bayar|gaji|transfer|tagihan|pembayaran|pengeluaran|pendapatan)/i.test(lowerText)

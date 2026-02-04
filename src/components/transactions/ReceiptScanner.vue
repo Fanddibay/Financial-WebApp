@@ -808,7 +808,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-              }}</span>
+                }}</span>
             </button>
             <label for="file-upload-rescan"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-4 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm cursor-pointer">
@@ -817,7 +817,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-              }}</span>
+                }}</span>
               <input id="file-upload-rescan" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
@@ -867,7 +867,7 @@ const errorIcon = computed(() => {
       </div>
 
       <!-- Full Width Retake Button (Below Card) -->
-      <button v-if="previewImage && !processing" @click="handleRescan"
+      <button v-if="previewImage && !processing && !validationFailed" @click="handleRescan"
         class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-brand/40 bg-white dark:bg-slate-800/50 py-3 text-xs font-bold uppercase tracking-wider text-brand hover:border-brand hover:bg-brand/5  transition-all">
         <font-awesome-icon :icon="['fas', 'camera']" class="h-4 w-4" />
         {{ t('scanner.retake') }}
@@ -929,7 +929,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.takePhotoButton')
-              }}</span>
+                }}</span>
             </button>
             <label for="file-upload-rescan-preview"
               class="flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-3 transition-all hover:border-brand hover:bg-brand/5 dark:hover:bg-brand/10 hover:shadow-sm active:scale-95 cursor-pointer">
@@ -938,7 +938,7 @@ const errorIcon = computed(() => {
               </div>
               <span class="text-xs font-medium text-slate-900 dark:text-slate-100">{{
                 t('scanner.uploadImageButton')
-              }}</span>
+                }}</span>
               <input id="file-upload-rescan-preview" type="file" accept="image/jpeg,image/png,image/jpg,image/webp"
                 class="hidden" @change="(e) => { handleRescan(); handleFileSelect(e); }" />
             </label>
