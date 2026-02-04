@@ -66,7 +66,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-28 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-32 pt-24">
     <PageHeader :title="t('pocket.title')" :subtitle="t('pocket.pageSubtitle')">
       <template #right>
         <BaseButton variant="primary" size="sm" @click="handleCreateClick">

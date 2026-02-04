@@ -70,7 +70,7 @@ async function loadTesseract() {
     } catch (error) {
       console.error('Failed to load Tesseract.js:', error)
       tesseractLoadPromise = null // Reset promise on error
-      throw new Error('OCR library tidak tersedia. Pastikan koneksi internet Anda aktif dan coba lagi.')
+      throw new Error(t('scanner.loadError'))
     }
   })()
 
@@ -265,7 +265,7 @@ async function processImage(file: File) {
 
     if (isOffline && !isCached) {
       validationFailed.value = true
-      error.value = 'Mode offline: Engine OCR belum terpasang. Harap aktifkan internet sekali untuk unduhan pertama engine.'
+      error.value = t('scanner.offlineNoEngine')
       errorType.value = 'offline-no-cache'
       processing.value = false
       return
@@ -286,7 +286,7 @@ async function processImage(file: File) {
       return Promise.race([
         TesseractInstance.createWorker('eng', 1, options),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Worker creation timeout. Pastikan koneksi internet aktif.')), timeoutMs)
+          setTimeout(() => reject(new Error(t('scanner.workerTimeout'))), timeoutMs)
         )
       ])
     }
@@ -324,7 +324,7 @@ async function processImage(file: File) {
       console.error('Local worker creation failed, trying with explicit CDN paths:', workerError)
 
       if (isOffline) {
-        throw new Error('Gagal memuat engine OCR lokal di mode offline.')
+        throw new Error(t('scanner.offlineLocalError'))
       }
 
       // Fallback: Try with explicit CDN paths if local fails

@@ -20,7 +20,8 @@ export interface TextParseResult {
  * Get today's date string in YYYY-MM-DD format
  */
 function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0]
+  const parts = new Date().toISOString().split('T')
+  return parts[0] || ''
 }
 
 /**
@@ -29,7 +30,8 @@ function getTodayDateString(): string {
 function getYesterdayDateString(): string {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
-  return yesterday.toISOString().split('T')[0]
+  const parts = yesterday.toISOString().split('T')
+  return parts[0] || ''
 }
 
 /**
@@ -37,9 +39,11 @@ function getYesterdayDateString(): string {
  * Used for both parsing amounts and cleaning descriptions
  */
 const MULTIPLIER_WORDS = {
-  ribu: ['ribu', 'rb', 'k'],
-  juta: ['juta', 'jt', 'm'],
-  milyar: ['milyar', 'miliar', 'b']
+  ribu: ['ribu', 'rb', 'k', 'rebu'],
+  juta: ['juta', 'jt', 'm', 'jut'],
+  milyar: ['milyar', 'miliar', 'b'],
+  ratus: ['ratus', 'rts'],
+  puluh: ['puluh', 'plh']
 } as const
 
 /**
@@ -48,7 +52,9 @@ const MULTIPLIER_WORDS = {
 const ALL_MULTIPLIER_WORDS = [
   ...MULTIPLIER_WORDS.ribu,
   ...MULTIPLIER_WORDS.juta,
-  ...MULTIPLIER_WORDS.milyar
+  ...MULTIPLIER_WORDS.milyar,
+  ...MULTIPLIER_WORDS.ratus,
+  ...MULTIPLIER_WORDS.puluh
 ].join('|')
 
 /**
@@ -56,31 +62,105 @@ const ALL_MULTIPLIER_WORDS = [
  */
 function getMultiplierValue(multiplier: string): number {
   const mult = multiplier.toLowerCase()
-  if (MULTIPLIER_WORDS.ribu.includes(mult as any)) {
-    return 1000
-  } else if (MULTIPLIER_WORDS.juta.includes(mult as any)) {
-    return 1000000
-  } else if (MULTIPLIER_WORDS.milyar.includes(mult as any)) {
-    return 1000000000
-  }
+  if ((MULTIPLIER_WORDS.ribu as readonly string[]).includes(mult)) return 1000
+  if ((MULTIPLIER_WORDS.juta as readonly string[]).includes(mult)) return 1000000
+  if ((MULTIPLIER_WORDS.milyar as readonly string[]).includes(mult)) return 1000000000
+  if ((MULTIPLIER_WORDS.ratus as readonly string[]).includes(mult)) return 100
+  if ((MULTIPLIER_WORDS.puluh as readonly string[]).includes(mult)) return 10
   return 1
 }
 
 /**
+ * Advanced token-based parsing for natural language amounts
+ * Handles: "50 ribu 500", "1 juta 200 ribu", "seratus lima puluh ribu"
+ */
+function parseNaturalAmount(text: string): number {
+  const processed = text.toLowerCase()
+    .replace(/seribu/g, ' 1000 ')
+    .replace(/seratus/g, ' 100 ')
+    .replace(/sejuta/g, ' 1000000 ')
+    .replace(/sebelas/g, ' 11 ')
+    .replace(/sepuluh/g, ' 10 ')
+    .replace(/setengah/g, ' 0.5 ')
+    // Replace written numbers (basic ones)
+    .replace(/satu/g, ' 1 ')
+    .replace(/dua/g, ' 2 ')
+    .replace(/tiga/g, ' 3 ')
+    .replace(/empat/g, ' 4 ')
+    .replace(/lima/g, ' 5 ')
+    .replace(/enam/g, ' 6 ')
+    .replace(/tujuh/g, ' 7 ')
+    .replace(/delapan/g, ' 8 ')
+    .replace(/sembilan/g, ' 9 ')
+    // Standardize decimals
+    .replace(/(\d),(\d)/g, '$1.$2')
+
+  // Find sequences of numbers and multipliers
+  const regex = new RegExp(`(\\d+(?:\\.\\d+)?)|(${ALL_MULTIPLIER_WORDS})`, 'gi')
+  const matches = Array.from(processed.matchAll(regex))
+
+  if (matches.length === 0) return 0
+
+  // Group matches into sequences (tokens that are close to each other)
+  let total = 0
+  let currentGroupValue = 0
+  let lastMultiplier = 0
+
+  for (const match of matches) {
+    const numStr = match[1]
+    const multStr = match[2]
+
+    if (numStr) {
+      const num = parseFloat(numStr)
+      // If we already have a value and this is a "small" number without a multiplier yet
+      // it might be a prefix (e.g., "1" in "1 juta") or a suffix (e.g., "500" in "50 ribu 500")
+      if (currentGroupValue === 0) {
+        currentGroupValue = num
+      } else {
+        // This is a second number in a row, e.g., "1000 500" from a previous replacement
+        // or something like "50 ribu 500"
+        // But wait, the loop should handle multipliers.
+        // Let's just track current pending number.
+        currentGroupValue = num
+      }
+    } else if (multStr) {
+      const mult = getMultiplierValue(multStr)
+
+      if (currentGroupValue === 0) {
+        total += mult
+      } else {
+        if (lastMultiplier === 0 || mult < lastMultiplier) {
+          total += currentGroupValue * mult
+        } else {
+          total = (total + currentGroupValue) * mult
+        }
+      }
+      lastMultiplier = mult
+      currentGroupValue = 0
+    }
+  }
+
+  // Add any remaining number (e.g., the "500" in "50 ribu 500")
+  total += currentGroupValue
+
+  return total
+}
+
+/**
  * Parse amount from text
- * Handles: "20 ribu", "20k", "Rp 20.000", "5 juta", "500rb", "Rp 5.000.000", 
+ * Handles: "20 ribu", "20k", "Rp 20.000", "5 juta", "500rb", "Rp 5.000.000",
  *          "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", etc.
  * Priority: Multiple multipliers > Single multiplier > Currency format > Plain numbers
  */
 function parseAmount(text: string): { amount: number; confidence: 'high' | 'medium' | 'low' | 'none' } {
   const lowerText = text.toLowerCase().trim()
-  
+
   // Pattern 1: Multiple multipliers (HIGHEST PRIORITY)
-  // Matches: "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", "1.5 juta", 
+  // Matches: "1 juta 520 ribu", "1juta 520rb", "2 juta 300 ribu 50 ribu", "1.5 juta",
   //          "1juta520rb" (no spaces), "1 juta 500 ribu", etc.
   // This pattern finds all number-multiplier pairs and sums them
   // We use a flexible pattern that handles both with and without spaces
-  
+
   // Unified pattern that matches number-multiplier pairs with optional space
   // This pattern will match: "1 juta", "1juta", "520 ribu", "520rb", "1juta520rb", etc.
   // Pattern explanation:
@@ -90,42 +170,42 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
   // - (?=\s|$|[^\w\d]|\d) - lookahead: space, end, non-word/digit, or another digit (for next number)
   const multiplierPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})(?=\\s|$|[^\\w\\d]|\\d)`, 'gi')
   const allMultiplierMatches = Array.from(lowerText.matchAll(multiplierPattern))
-  
+
+  let totalAmount = 0
+  let hasValidAmount = false
+
   if (allMultiplierMatches.length > 0) {
-    let totalAmount = 0
-    let hasValidAmount = false
-    
     // Sort matches by position in text (left to right) to process in order
     const sortedMatches = [...allMultiplierMatches].sort((a, b) => {
       const aIndex = a.index ?? 0
       const bIndex = b.index ?? 0
       return aIndex - bIndex
     })
-    
+
     // Process all multiplier matches and sum them
     for (const match of sortedMatches) {
-      const numberStr = match[1].replace(/,/g, '.') // Handle comma as decimal separator
+      const numberStr = match[1]!.replace(/,/g, '.') // Handle comma as decimal separator
       const number = parseFloat(numberStr)
-      const multiplier = match[2]
-      
+      const multiplier = match[2]!
+
       if (!isNaN(number) && number > 0) {
         const multiplierValue = getMultiplierValue(multiplier)
         const partialAmount = Math.round(number * multiplierValue)
-        
+
         if (partialAmount > 0 && partialAmount <= 10000000000) {
           totalAmount += partialAmount
           hasValidAmount = true
         }
       }
     }
-    
+
     // If we found multiple multipliers, return the sum (highest confidence)
     if (hasValidAmount && sortedMatches.length > 1) {
       if (totalAmount > 0 && totalAmount <= 10000000000) {
         return { amount: totalAmount, confidence: 'high' }
       }
     }
-    
+
     // If only one multiplier found, use it
     if (hasValidAmount && allMultiplierMatches.length === 1) {
       if (totalAmount > 0 && totalAmount <= 10000000000) {
@@ -133,12 +213,12 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
         // Only prefer currency format if it's significantly different (more than 10%)
         const currencyPattern = /(?:rp\s*)?(\d{1,3}(?:[.,]\d{3})+(?:\.\d{2})?)/gi
         const currencyMatches = Array.from(lowerText.matchAll(currencyPattern))
-        
+
         if (currencyMatches.length > 0) {
           // Check if currency format gives a different (and likely more accurate) result
           let largestCurrency = 0
           for (const currMatch of currencyMatches) {
-            const currStr = currMatch[1]
+            const currStr = currMatch[1] as string
             let normalized = currStr
             if (currStr.includes('.') && currStr.split('.').length > 2) {
               normalized = currStr.replace(/\./g, '')
@@ -150,7 +230,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
               largestCurrency = currAmount
             }
           }
-          
+
           // If currency format is close to multiplier result, prefer currency (more explicit)
           // Otherwise, use multiplier result
           if (largestCurrency > 0 && Math.abs(largestCurrency - totalAmount) / totalAmount < 0.1) {
@@ -166,68 +246,50 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
       }
     }
   }
-  
-  // Pattern 1b: Single multiplier (fallback if multiple not found)
-  // Matches: "20 ribu", "5 juta", "500rb", "15k", "2.5 juta", etc.
-  const singleMultiplierPattern = new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*(${ALL_MULTIPLIER_WORDS})\\b`, 'i')
-  const singleMultiplierMatch = lowerText.match(singleMultiplierPattern)
-  if (singleMultiplierMatch && allMultiplierMatches.length === 0) {
-    const numberStr = singleMultiplierMatch[1].replace(/,/g, '.')
-    const number = parseFloat(numberStr)
-    const multiplier = singleMultiplierMatch[2].toLowerCase()
-    
-    if (!isNaN(number) && number > 0) {
-      const multiplierValue = getMultiplierValue(multiplier)
-      const amount = Math.round(number * multiplierValue)
-      
-      if (!isNaN(amount) && amount > 0 && amount <= 10000000000) {
-        return { amount, confidence: 'high' }
-      }
-    }
+
+  if (totalAmount > 0) {
+    return { amount: totalAmount, confidence: 'high' }
+  }
+
+  // Pattern 1b: Natural Language / Advanced Summing (New Priority)
+  const naturalAmount = parseNaturalAmount(lowerText)
+  if (naturalAmount > 0) {
+    return { amount: naturalAmount, confidence: 'high' }
   }
 
   // Pattern 2: Explicit currency format with dots/commas (Rp 20.000, Rp 5.000.000, 20.000)
   // This handles Indonesian number format where dots are thousand separators
   const currencyPattern = /(?:rp\s*)?(\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?)/gi
   const currencyMatches = Array.from(lowerText.matchAll(currencyPattern))
-  
+
   // Find the largest amount (likely the total)
   let largestAmount = 0
   for (const match of currencyMatches) {
     if (match.index !== undefined) {
-      const amountStr = match[1]
-      // Check if dots are thousand separators (Indonesian format) or decimal point
-      // If it's like "20.000" or "5.000.000", treat dots as thousand separators
+      const amountStr = match[1] as string
       let normalizedStr = amountStr
-      
-      // If it ends with .XX (2 digits), it's a decimal point
+
       if (/\.\d{2}$/.test(amountStr)) {
-        // Has decimal, so dots before are thousand separators
         normalizedStr = amountStr.replace(/\./g, '').replace(',', '.')
       } else if (amountStr.includes('.') && amountStr.split('.').length > 2) {
-        // Multiple dots = thousand separators (Indonesian format)
         normalizedStr = amountStr.replace(/\./g, '')
       } else if (amountStr.includes(',')) {
-        // Comma might be decimal or thousand separator
         if (amountStr.split(',')[1]?.length === 2) {
-          // Two digits after comma = decimal
           normalizedStr = amountStr.replace(/,/g, '.')
         } else {
-          // Otherwise treat as thousand separator
           normalizedStr = amountStr.replace(/,/g, '')
         }
       } else {
-        // No separators, use as is
         normalizedStr = amountStr
       }
-      
+
       const amount = parseFloat(normalizedStr.replace(/[^\d.]/g, ''))
       if (!isNaN(amount) && amount > 0 && amount > largestAmount) {
         largestAmount = amount
       }
     }
   }
-  
+
   if (largestAmount > 0 && largestAmount >= 1000 && largestAmount <= 10000000000) {
     return { amount: Math.round(largestAmount), confidence: 'high' }
   }
@@ -250,7 +312,7 @@ function parseAmount(text: string): { amount: number; confidence: 'high' | 'medi
     const num = parseInt(smallMatch[1], 10)
     // Only assume thousands if there's clear transaction context
     const hasTransactionContext = /(beli|bayar|gaji|transfer|tagihan|pembayaran|pengeluaran|pendapatan)/i.test(lowerText)
-    if (num >= 1 && num <= 999 && hasTransactionContext && !multiplierMatch) {
+    if (num >= 1 && num <= 999 && hasTransactionContext && allMultiplierMatches.length === 0) {
       // Only use this if no multiplier was found
       return { amount: num * 1000, confidence: 'low' }
     }
@@ -383,12 +445,13 @@ function parseDate(text: string): { date: string; confidence: 'high' | 'medium' 
 
   // Relative days
   const daysAgoMatch = lowerText.match(/(\d+)\s*(hari|lusa)\s*(yang\s*)?lalu/i)
-  if (daysAgoMatch) {
+  if (daysAgoMatch && daysAgoMatch[1]) {
     const daysAgo = parseInt(daysAgoMatch[1], 10)
     if (!isNaN(daysAgo) && daysAgo >= 1 && daysAgo <= 30) {
       const date = new Date()
       date.setDate(date.getDate() - daysAgo)
-      return { date: date.toISOString().split('T')[0], confidence: 'medium' }
+      const parts = date.toISOString().split('T')
+      return { date: parts[0] || '', confidence: 'medium' }
     }
   }
 
@@ -403,16 +466,16 @@ function parseDate(text: string): { date: string; confidence: 'high' | 'medium' 
     if (match) {
       let day: string, month: string, year: string
 
-      if (match[1].length === 4) {
+      if (match[1]!.length === 4) {
         // YYYY-MM-DD format
-        year = match[1]
-        month = match[2].padStart(2, '0')
-        day = match[3].padStart(2, '0')
+        year = match[1]!
+        month = match[2]!.padStart(2, '0')
+        day = match[3]!.padStart(2, '0')
       } else {
         // DD/MM/YYYY format
-        day = match[1].padStart(2, '0')
-        month = match[2].padStart(2, '0')
-        year = match[3]
+        day = match[1]!.padStart(2, '0')
+        month = match[2]!.padStart(2, '0')
+        year = match[3]!
         if (year.length === 2) {
           year = '20' + year
         }
@@ -421,7 +484,8 @@ function parseDate(text: string): { date: string; confidence: 'high' | 'medium' 
       try {
         const dateObj = new Date(`${year}-${month}-${day}`)
         if (!isNaN(dateObj.getTime())) {
-          const dateString = dateObj.toISOString().split('T')[0]
+          const parts = dateObj.toISOString().split('T')
+          const dateString = parts[0] || ''
           // Check if date is in the future
           const today = new Date()
           today.setHours(23, 59, 59, 999)
@@ -450,7 +514,7 @@ const REMOVABLE_KEYWORDS = {
 
 /**
  * Extract description from text by removing amounts, dates, type keywords, and multiplier words
- * 
+ *
  * This function ensures that:
  * - All currency amounts are removed (Rp 20.000, 5.000.000, etc.)
  * - All number-multiplier pairs are removed (3 juta, 200 ribu, etc.)
@@ -465,11 +529,11 @@ function extractDescription(text: string): string {
   }
 
   let description = text.trim()
-  
+
   // Step 1: Remove currency formats (Rp 20.000, 5.000.000, etc.)
   // Matches: "Rp 20.000", "5.000.000", "Rp5.000.000", "20,000", etc.
   description = description.replace(/(?:rp\s*)?\d{1,3}(?:[.,]\d{3})*(?:\.\d{2})?/gi, '')
-  
+
   // Step 2: Remove all number-multiplier pairs (3 juta, 200 ribu, etc.)
   // This pattern handles:
   // - With space: "3 juta", "200 ribu"
@@ -478,14 +542,14 @@ function extractDescription(text: string): string {
   // - Multiple formats: "1juta520rb"
   const numberMultiplierPattern = new RegExp(`\\d+(?:[.,]\\d+)?\\s*(${ALL_MULTIPLIER_WORDS})\\b`, 'gi')
   description = description.replace(numberMultiplierPattern, '')
-  
+
   // Step 3: Remove standalone multiplier words that might remain
   // This is critical: after removing number-multiplier pairs, sometimes multiplier words
   // remain as standalone words (e.g., "beli keyboard 3 juta 200 ribu" -> "keyboard juta ribu")
   // We need to remove ALL instances of multiplier words, even if they appear alone
   const standaloneMultiplierPattern = new RegExp(`\\b(${ALL_MULTIPLIER_WORDS})\\b`, 'gi')
   description = description.replace(standaloneMultiplierPattern, '')
-  
+
   // Step 4: Remove date patterns
   // Relative dates: "hari ini", "kemarin", "yesterday", "today", "sekarang"
   // Note: We need to handle multi-word phrases like "hari ini" separately
@@ -493,15 +557,15 @@ function extractDescription(text: string): string {
     const datePattern = new RegExp(`\\b${dateKeyword.replace(/\s+/g, '\\s+')}\\b`, 'gi')
     description = description.replace(datePattern, '')
   }
-  
+
   // Date formats: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, etc.
   description = description.replace(/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/g, '')
-  
+
   // Step 5: Remove type keywords
   // Transaction type indicators: "beli", "bayar", "gaji", "masuk", etc.
   const typeKeywordsPattern = new RegExp(`\\b(${REMOVABLE_KEYWORDS.type.join('|')})\\b`, 'gi')
   description = description.replace(typeKeywordsPattern, '')
-  
+
   // Step 6: Clean up whitespace
   // Replace multiple spaces/newlines/tabs with single space, then trim
   description = description.replace(/\s+/g, ' ').trim()

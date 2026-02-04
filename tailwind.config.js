@@ -16,7 +16,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', ...defaultTheme.fontFamily.sans],
+        sans: ['"TT Commons"', 'Outfit', 'Inter', ...defaultTheme.fontFamily.sans],
       },
       colors: {
         brand: {
@@ -32,4 +32,3 @@ export default {
   },
   plugins: [forms, typography],
 }
-

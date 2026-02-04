@@ -74,6 +74,10 @@ import {
   faShoppingCart,
   faGlobe,
   faExternalLinkAlt,
+  faCreditCard,
+  faBuildingColumns,
+  faBagShopping,
+  faMobileButton,
 } from '@fortawesome/free-solid-svg-icons'
 import { faVuejs, faWhatsapp } from '@fortawesome/free-brands-svg-icons'
 
@@ -150,6 +154,10 @@ const icons = [
   faShoppingCart,
   faGlobe,
   faExternalLinkAlt,
+  faCreditCard,
+  faBuildingColumns,
+  faBagShopping,
+  faMobileButton,
   faVuejs,
   faWhatsapp,
 ]

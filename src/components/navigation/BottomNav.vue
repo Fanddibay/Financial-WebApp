@@ -34,59 +34,60 @@ function openAddModal() {
 
 <template>
   <nav
-    class="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-800">
-    <div class="mx-auto flex max-w-[430px] items-center justify-around px-2 py-4">
-
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-5 w-[calc(100%-24px)] max-w-[400px] rounded-[2.5rem] border border-slate-200/60 bg-white/90 backdrop-blur-xl shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/90 transition-all duration-300">
+    <div class="flex items-center justify-around px-2 py-3">
 
       <!-- Home Button -->
       <button :class="[
-        'flex flex-col items-center gap-1 rounded-xl px-3 py-2 transition',
+        'flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 active:scale-90',
         activeTab === 'home'
-          ? 'bg-brand/10 text-brand dark:bg-brand/20'
-          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+          ? 'text-brand'
+          : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300',
       ]" @click="navigate('/')">
-        <font-awesome-icon :icon="faHouse" class="text-lg" />
-        <span class="text-xs font-medium">{{ t('nav.home') }}</span>
+        <font-awesome-icon :icon="faHouse" class="text-xl" />
+        <span class="text-[10px] font-bold uppercase tracking-wider">{{ t('nav.home') }}</span>
       </button>
 
       <!-- Pockets Button -->
       <button :class="[
-        'flex flex-col items-center gap-1 rounded-xl px-3 py-2 transition',
+        'flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 active:scale-90',
         activeTab === 'pockets'
-          ? 'bg-brand/10 text-brand dark:bg-brand/20'
-          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+          ? 'text-brand'
+          : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300',
       ]" @click="navigate('/pockets')">
-        <font-awesome-icon :icon="faWallet" class="text-lg" />
-        <span class="text-xs font-medium">{{ t('nav.pockets') }}</span>
+        <font-awesome-icon :icon="faWallet" class="text-xl" />
+        <span class="text-[10px] font-bold uppercase tracking-wider">{{ t('nav.pockets') }}</span>
       </button>
 
-      <!-- Add Button (Centered, Larger) -->
-      <button
-        class="relative -mt-8 flex h-16 w-16 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-brand/30"
-        @click="openAddModal">
-        <font-awesome-icon :icon="faPlus" class="text-2xl" />
-      </button>
+      <!-- Add Button (Centered, Floating) -->
+      <div class="relative -mt-12">
+        <button
+          class="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-white shadow-[0_12px_24px_rgba(66,184,131,0.4)] ring-[6px] ring-white dark:ring-slate-900 transition-all duration-300 hover:scale-110 active:scale-95 focus:outline-none"
+          @click="openAddModal">
+          <font-awesome-icon :icon="faPlus" class="text-2xl" />
+        </button>
+      </div>
 
       <!-- Transactions Button -->
       <button :class="[
-        'flex flex-col items-center gap-1 rounded-xl px-3 py-2 transition',
+        'flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 active:scale-90',
         activeTab === 'transactions'
-          ? 'bg-brand/10 text-brand dark:bg-brand/20'
-          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+          ? 'text-brand'
+          : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300',
       ]" @click="navigate('/transactions')">
-        <font-awesome-icon :icon="faReceipt" class="text-lg" />
-        <span class="text-xs font-medium">{{ t('nav.transactions') }}</span>
+        <font-awesome-icon :icon="faReceipt" class="text-xl" />
+        <span class="text-[10px] font-bold uppercase tracking-wider">{{ t('nav.transactions') }}</span>
       </button>
 
       <!-- Profile Button -->
       <button :class="[
-        'flex flex-col items-center gap-1 rounded-xl px-3 py-2 transition',
+        'flex flex-col items-center gap-1 rounded-2xl px-3 py-2 transition-all duration-200 active:scale-90',
         activeTab === 'profile'
-          ? 'bg-brand/10 text-brand dark:bg-brand/20'
-          : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100',
+          ? 'text-brand'
+          : 'text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300',
       ]" @click="navigate('/profile')">
-        <font-awesome-icon :icon="faUser" class="text-lg" />
-        <span class="text-xs font-medium">{{ t('nav.profile') }}</span>
+        <font-awesome-icon :icon="faUser" class="text-xl" />
+        <span class="text-[10px] font-bold uppercase tracking-wider">{{ t('nav.profile') }}</span>
       </button>
     </div>
 

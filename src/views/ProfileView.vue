@@ -20,6 +20,8 @@ import { importData } from '@/utils/dataExport'
 import { usePWAInstall } from '@/composables/usePWAInstall'
 import { useI18n } from 'vue-i18n'
 import { saveLanguage } from '@/i18n'
+import PaymentMethodModal from '@/components/profile/PaymentMethodModal.vue'
+import ManualPaymentModal from '@/components/profile/ManualPaymentModal.vue'
 
 const profileStore = useProfileStore()
 const themeStore = useThemeStore()
@@ -58,6 +60,9 @@ const showDeactivateConfirm = ref(false)
 const isDeactivating = ref(false)
 const showSubscribedPopup = ref(false)
 const showNotSubscribedPopup = ref(false)
+const showPaymentMethods = ref(false)
+const showManualPayment = ref(false)
+const selectedManualMethodId = ref('')
 
 async function handlePasteLicense() {
   try {
@@ -127,7 +132,18 @@ async function handleDeactivateLicense() {
 
 function handleOpenCheckout() {
   showNotSubscribedPopup.value = false
-  window.open('https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe', '_blank')
+  showPaymentMethods.value = true
+}
+
+function handlePaymentMethodSelect(method: string) {
+  if (method === 'visa') {
+    window.open('https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe', '_blank')
+    showPaymentMethods.value = false
+  } else {
+    selectedManualMethodId.value = method
+    showPaymentMethods.value = false
+    showManualPayment.value = true
+  }
 }
 
 async function confirmDeactivateLicense() {
@@ -259,7 +275,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-28 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-6 px-4 pb-32 pt-24">
     <PageHeader :title="t('profile.title')" :subtitle="t('profile.subtitle')">
       <template #right>
         <button type="button" :class="[
@@ -850,5 +866,10 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       </template>
     </BottomSheet>
 
+    <PaymentMethodModal :is-open="showPaymentMethods" @close="showPaymentMethods = false"
+      @select="handlePaymentMethodSelect" />
+
+    <ManualPaymentModal :is-open="showManualPayment" :method-id="selectedManualMethodId"
+      @close="showManualPayment = false" @back="showManualPayment = false; showPaymentMethods = true" />
   </div>
 </template>

@@ -172,7 +172,7 @@ function classifyNumber(
   // ✅ Target amount (TOTAL)
   const targetPatterns = [
     /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran|nominal|tagihan)\b/i,
-    /\b(nilai\s*transfer|diterima|total\s*tagihan|total\s*pembelian)\b/i,
+    /\b(nilai\s*transfer|diterima|total\s*tagihan|total\s*pembelian|total\s*transaksi|total\s*pesanan|payment\s*amount)\b/i,
   ]
 
   for (const pattern of targetPatterns) {
@@ -209,16 +209,17 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
 } | null {
   const lines = text.split('\n')
   const targetKeywords = [
+    { pattern: /\b(total\s*transaksi|nominal\s*transfer|nominal)\b/i, weight: 1.0 },
+    { pattern: /\b(total\s*pesanan|total\s*pembayaran|payment\s*amount)\b/i, weight: 1.0 },
     { pattern: /\b(total\s*bayar|bayar|bayar\s*total)\b/i, weight: 1.0 },
-    { pattern: /\b(nilai\s*transfer|nominal)\b/i, weight: 1.0 }, // Bank transfers
     { pattern: /\b(grand\s*total|total\s*grand)\b/i, weight: 0.95 },
-    { pattern: /\b(total\s*tagihan|total\s*pembayaran)\b/i, weight: 0.95 }, // E-commerce
-    { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 }, // Total at end of line
+    { pattern: /\b(total\s*tagihan)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 },
     { pattern: /\b(total)\b/i, weight: 0.9 },
-    { pattern: /\b(jumlah|jumlah\s*bayar)\b/i, weight: 0.85 },
+    { pattern: /\b(jumlah|jumlah\s*bayar)\b/i, weight: 1.0 }, // Livin Mandiri uses "Jumlah" for transfer
     { pattern: /\b(pembayaran|harus\s*bayar)\b/i, weight: 0.8 },
     { pattern: /\b(tagihan)\b/i, weight: 0.75 },
-    { pattern: /\b(diterima)\b/i, weight: 0.7 }, // Generic for "Received" amount
+    { pattern: /\b(diterima)\b/i, weight: 0.7 },
   ]
 
   let bestMatch: {
@@ -475,6 +476,11 @@ function extractMerchant(text: string): string | undefined {
 
     for (const platform of platforms) {
       if (platform.pattern.test(trimmed)) {
+        // Special case for Shopee: distinguish between Shopee and ShopeePay
+        if (platform.name === 'Shopee') {
+          if (/shopeepay/i.test(trimmed)) return 'ShopeePay'
+          return 'Shopee'
+        }
         return platform.name
       }
     }
@@ -516,7 +522,8 @@ export function parseReceiptText(text: string): Partial<TransactionFormData> | P
     confidenceLevel = tier1Result.confidence
     sourceKeyword = tier1Result.keyword
   } else {
-    // Tier 2: Fallback to largest number
+    // Tier 2: Special Handling for Shopee/Clean Layouts where "Total Pesanan" might not be matched properly
+    // or when there are multiple matching amounts
     const tier2Result = detectTotalTier2(numbers, 1000)
     if (tier2Result) {
       detectedAmount = tier2Result.amount
@@ -524,13 +531,36 @@ export function parseReceiptText(text: string): Partial<TransactionFormData> | P
     }
   }
 
-  // Silence unused variable warnings (they are used in ReceiptParseResult)
+  // Silence unused variable warnings
   void confidenceLevel
   void sourceKeyword
 
-  // Extract additional metadata (extractDate now always returns a valid date, defaulting to today)
+  // A4: Extract metadata first
   const date = extractDate(normalizedText)
   const merchant = extractMerchant(normalizedText)
+  const isBank = merchant && ['BCA', 'Mandiri', 'BNI', 'BRI'].includes(merchant)
+
+  // A5: Infer transaction type (Income vs Expense)
+  let type: 'income' | 'expense' = 'expense'
+  const incomeIndicators = [
+    /transfer\s*berhasil/i,
+    /jumlah\s*masuk/i,
+    /diterima\s*dari/i,
+    /credit\b/i,
+    /nominal\s*transfer/i // In many bank apps, this is the main amount
+  ]
+
+  // If it's a bank receipt and contains income indicators, mark as income
+  if (isBank) {
+    if (incomeIndicators.some(pattern => pattern.test(normalizedText))) {
+      type = 'income'
+    }
+  }
+
+  // Special case for screenshots with "Transfer Berhasil" at the top (Mandiri/Livin)
+  if (/transfer\s*berhasil/i.test(normalizedText) && /rekening\s*sumber/i.test(normalizedText)) {
+    type = 'income'
+  }
 
   // B1: Detect items (optional, for multi-item receipts)
   const items = detectItems(normalizedText, numbers)
@@ -554,11 +584,20 @@ export function parseReceiptText(text: string): Partial<TransactionFormData> | P
 
   // Single transaction fallback
   const result: Partial<TransactionFormData> = {
-    type: 'expense',
+    type,
     amount: detectedAmount,
-    description: merchant || 'Receipt Transaction',
+    description: merchant ? `${merchant} Transaction` : 'Receipt Transaction',
     category: merchant ? inferCategory(merchant) : 'Lainnya',
     date,
+  }
+
+  // Refine description for specific platforms
+  if (merchant === 'Shopee' || merchant === 'ShopeePay') {
+    result.description = 'Belanja Shopee'
+    result.category = 'Belanja'
+  } else if (isBank && type === 'income') {
+    result.description = `Transfer Masuk ${merchant}`
+    result.category = 'Transfer'
   }
 
   return result

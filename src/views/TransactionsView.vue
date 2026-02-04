@@ -395,13 +395,15 @@ function handleScanCompleteMultiple(data: TransactionFormData[]) {
   fetchTransactions()
 }
 
-function handleScroll() {
-  const scrollThreshold = window.innerHeight * 1.5
-  showScrollToTop.value = window.scrollY > scrollThreshold
+function handleScroll(e: Event) {
+  const target = e.target as HTMLElement
+  const scrollThreshold = window.innerHeight * 0.8 // Show sooner
+  showScrollToTop.value = target.scrollTop > scrollThreshold
 }
 
 function scrollToTop() {
-  window.scrollTo({
+  const main = document.querySelector('main')
+  main?.scrollTo({
     top: 0,
     behavior: 'smooth',
   })
@@ -423,18 +425,21 @@ onMounted(() => {
     }
   }
   window.addEventListener('scroll', handleScroll)
+  const main = document.querySelector('main')
+  main?.addEventListener('scroll', handleScroll)
   document.addEventListener('click', closeExportDropdown)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
+  const main = document.querySelector('main')
+  main?.removeEventListener('scroll', handleScroll)
   document.removeEventListener('click', closeExportDropdown)
 })
 
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-5 px-4 pb-28 pt-24">
+  <div class="mx-auto max-w-[430px] space-y-5 px-4 pb-32 pt-24">
     <PageHeader :title="t('transactions.title')" :subtitle="t('transactions.subtitle')">
       <template #right>
         <div ref="exportDropdownRef" class="relative">
@@ -601,7 +606,7 @@ onUnmounted(() => {
       leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 scale-100 translate-y-0"
       leave-to-class="opacity-0 scale-90 translate-y-4">
       <button v-if="showScrollToTop" type="button" @click="scrollToTop"
-        class="fixed bottom-44 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+        class="fixed bottom-48 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-brand text-white shadow-lg transition hover:bg-brand/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2 dark:focus:ring-offset-slate-800"
         title="Scroll to top">
         <font-awesome-icon :icon="['fas', 'arrow-up']" class="h-5 w-5" />
       </button>

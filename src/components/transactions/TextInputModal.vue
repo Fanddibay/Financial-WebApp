@@ -61,6 +61,9 @@ const exampleTexts = computed(() => {
     'Transfer masuk dari bank 2 juta',
     'Beli dispenser 1 juta 520 ribu',
     'Belanja bulanan 2 juta 300 ribu',
+    'Bensin motor puluh ribu',
+    'Makan siang lima puluh ribu lima ratus',
+    'Belanja di pasar seratus ribu',
   ]
 })
 

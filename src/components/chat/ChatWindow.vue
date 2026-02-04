@@ -147,7 +147,7 @@ function handleSuggestionClick(question: string) {
         </div>
         <div>
           <h3 class="font-semibold text-white">Asisten Keuangan</h3>
-          <p class="text-xs text-white/80">AI Financial Assistant</p>
+          <p class="text-xs text-white/80">Chatbot Financial Assistant</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
@@ -285,7 +285,7 @@ function handleSuggestionClick(question: string) {
         {{ limitError }}
       </p>
       <!-- AI Disclaimer -->
-      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 text-start">
         <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-1" />
         Saran ini bersifat umum dan bukan nasihat keuangan profesional
       </p>

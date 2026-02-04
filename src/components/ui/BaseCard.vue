@@ -7,7 +7,7 @@ defineSlots<{
 </script>
 
 <template>
-  <div class="card border border-green-400 dark:border-slate-700 dark:bg-slate-800/70">
+  <div class="card border border-slate-200 dark:border-slate-700 dark:bg-slate-800/70">
     <div v-if="$slots.header" class="mb-4 border-b border-slate-200 pb-4 dark:border-slate-700">
       <slot name="header" />
     </div>

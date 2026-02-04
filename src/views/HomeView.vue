@@ -99,7 +99,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] space-y-4 px-4 pb-28 pt-4">
+  <div class="mx-auto max-w-[430px] space-y-4 px-4 pb-32 pt-4">
     <!-- Main content: dashboard is always visible -->
     <!-- Greeting (di atas card ATM) -->
     <div class="px-1 pb-0">
@@ -141,7 +141,7 @@ onMounted(() => {
           aria-hidden="true" />
         <!-- Top-right accent: visible in light (white circle on green) -->
         <div
-          class="absolute right-0 top-0 h-28 w-28 translate-x-10 -translate-y-10 rounded-full bg-white/25 dark:bg-brand/20"
+          class="absolute -left-24 top-0 h-32 w-32 translate-x-10 -translate-y-10 rounded-full bg-white/25 dark:bg-brand/20"
           aria-hidden="true" />
       </div>
 
