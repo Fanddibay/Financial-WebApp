@@ -17,6 +17,9 @@ export default {
     filter: 'Filter',
     all: 'Semua',
     allCategories: 'Semua Kategori',
+    show: 'Tampilkan',
+    hide: 'Sembunyikan',
+    continue: 'Lanjutkan',
   },
 
   // Navigation
@@ -115,7 +118,7 @@ export default {
     exportJsonTitle: 'Unduh Kantong JSON',
     exportJsonDesc: 'Ekspor kantong ini dan transaksinya sebagai file JSON terenkripsi. Gunakan passphrase yang sama untuk impor di tempat lain.',
     exportJsonPassphrase: 'Passphrase',
-    exportJsonPassphrasePlaceholder: 'Masukkan passphrase (min 4 karakter)',
+    exportJsonPassphrasePlaceholder: 'Masukkan passphrase',
     exportJsonPassphraseError: 'Passphrase minimal 4 karakter',
     exportJsonSuccess: 'Kantong berhasil diekspor.',
     exportJsonButton: 'Unduh',
@@ -193,6 +196,7 @@ export default {
 
   // Settings
   settings: {
+
     title: 'Pengaturan',
     notifications: 'Notifikasi',
     notificationsDesc: 'Aktifkan notifikasi aktivitas transaksi',
@@ -225,6 +229,8 @@ export default {
     languageHelper: 'Perubahan bahasa diterapkan langsung di seluruh aplikasi.',
     indonesian: 'Indonesia',
     english: 'English',
+    export_safe: 'Data Anda akan dienkripsi dengan passphrase. Pastikan Anda mengingat passphrase ini - Anda akan membutuhkannya untuk memulihkan data nanti.',
+
   },
 
   // Notification messages (shown when notification fires)
@@ -301,6 +307,7 @@ export default {
     off: 'Notifikasi Nonaktif',
     active: 'Notifikasi Aktif',
   },
+
 
   // Transaction detail (notification center popup)
   txDetail: {
@@ -395,6 +402,40 @@ export default {
     importSuccessAppendPockets: 'Data ditambahkan. {pockets} kantong dan {transactions} transaksi ditambahkan.',
     offlineTutorialTitle: 'Tutorial Video Tidak Tersedia',
     offlineTutorialDesc: 'Koneksikan internet untuk memutar tutorial video import & export.',
+    exportModal: {
+      title: 'Ekspor Data',
+      subtitle: 'Buat backup terenkripsi dari data Anda.',
+      safeTitle: 'Ekspor Aman',
+      safeDesc: 'Data Anda dienkripsi dengan passphrase. Simpan baik-baik untuk memulihkan backup nanti.',
+      passphraseLabel: 'Passphrase',
+      passphrasePlaceholder: 'Masukkan passphrase yang aman (min 4 karakter)',
+      confirmPassphraseLabel: 'Konfirmasi Passphrase',
+      confirmPassphrasePlaceholder: 'Masukkan ulang passphrase',
+      passphraseTooShort: 'Passphrase harus minimal 4 karakter',
+      passphraseMismatch: 'Passphrase tidak cocok',
+      warningTitle: 'Penting',
+      warningDesc: 'Simpan passphrase Anda dengan aman. Jika hilang, Anda tidak bisa memulihkan backup.',
+      exportButton: 'Ekspor',
+      successMessage: 'Data berhasil diekspor! File backup telah diunduh.',
+      exportFailed: 'Gagal mengekspor data',
+    },
+    importModal: {
+      title: 'Impor Data',
+      subtitle: 'Pulihkan data dari backup terenkripsi.',
+      infoTitle: 'Impor menambah data',
+      infoDesc: 'Data yang diimpor akan ditambahkan ke data Anda. Data yang ada tidak ditimpa. Transaksi dan kantong akan digabung.',
+      fileLabel: 'File Backup',
+      chooseFile: 'Pilih File',
+      noFileSelected: 'Tidak ada file yang dipilih',
+      fileErrorInvalid: 'Silakan pilih file JSON yang valid',
+      fileErrorRequired: 'Silakan pilih file backup',
+      passphraseLabel: 'Passphrase',
+      passphrasePlaceholder: 'Masukkan passphrase saat ekspor',
+      passphraseTooShort: 'Passphrase harus minimal 4 karakter',
+      securityTitle: 'Keamanan',
+      securityDesc: 'Passphrase Anda tidak pernah disimpan. Dekripsi hanya terjadi di memori demi keamanan Anda.',
+      continueButton: 'Lanjutkan',
+    },
   },
 
   // Transaction

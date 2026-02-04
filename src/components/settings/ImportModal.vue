@@ -4,12 +4,15 @@ import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { useI18n } from 'vue-i18n'
 
 interface Props {
   isOpen: boolean
 }
 
 const props = defineProps<Props>()
+
+const { t } = useI18n()
 
 const emit = defineEmits<{
   close: []
@@ -38,7 +41,7 @@ function handleFileSelect(event: Event) {
 
   // Validate file type
   if (!file.type.includes('json') && !file.name.endsWith('.json')) {
-    errors.value.file = 'Silakan pilih file JSON yang valid'
+    errors.value.file = t('dataManagement.importModal.fileErrorInvalid')
     selectedFile.value = null
     return
   }
@@ -51,12 +54,12 @@ function validate() {
   let isValid = true
 
   if (!selectedFile.value) {
-    errors.value.file = 'Silakan pilih file backup'
+    errors.value.file = t('dataManagement.importModal.fileErrorRequired')
     isValid = false
   }
 
   if (!passphrase.value || passphrase.value.length < 4) {
-    errors.value.passphrase = 'Passphrase harus minimal 4 karakter'
+    errors.value.passphrase = t('dataManagement.importModal.passphraseTooShort')
     isValid = false
   }
 
@@ -79,26 +82,22 @@ function handleClose() {
 }
 
 const fileName = computed(() => {
-  return selectedFile.value?.name || 'Tidak ada file yang dipilih'
+  return selectedFile.value?.name || t('dataManagement.importModal.noFileSelected')
 })
 </script>
 
 <template>
-  <BottomSheet :is-open="isOpen" title="Impor Data" subtitle="Pulihkan data dari backup terenkripsi" max-height="70" @close="handleClose">
+  <BottomSheet :is-open="isOpen" :title="t('dataManagement.importModal.title')"
+    :subtitle="t('dataManagement.importModal.subtitle')" max-height="70"
+    @close="handleClose">
     <div class="space-y-4">
-      <div
-        class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-      >
+      <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="flex items-start gap-2">
-          <font-awesome-icon
-            :icon="['fas', 'circle-info']"
-            class="mt-0.5 text-blue-600 dark:text-blue-400"
-          />
+          <font-awesome-icon :icon="['fas', 'circle-info']" class="mt-0.5 text-blue-600 dark:text-blue-400" />
           <div class="flex-1 text-sm text-blue-800 dark:text-blue-300">
-            <p class="font-medium mb-1">Impor menambah data</p>
+            <p class="font-medium mb-1">{{ t('dataManagement.importModal.infoTitle') }}</p>
             <p>
-              Data yang diimpor akan ditambahkan ke data Anda yang ada. Data yang sudah ada
-              tidak akan ditimpa. Transaksi dan kantong dari file akan digabung.
+              {{ t('dataManagement.importModal.infoDesc') }}
             </p>
           </div>
         </div>
@@ -107,30 +106,20 @@ const fileName = computed(() => {
       <div class="space-y-3">
         <div>
           <label class="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-            File Backup
+            {{ t('dataManagement.importModal.fileLabel') }}
           </label>
           <div class="space-y-2">
             <label
-              class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-3 transition hover:border-brand dark:border-slate-600 dark:bg-slate-700"
-            >
-              <font-awesome-icon
-                :icon="['fas', 'upload']"
-                class="text-slate-400"
-              />
+              class="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-300 bg-white px-4 py-3 transition hover:border-brand dark:border-slate-600 dark:bg-slate-700">
+              <font-awesome-icon :icon="['fas', 'upload']" class="text-slate-400" />
               <span class="flex-1 text-sm text-slate-700 dark:text-slate-300">
                 {{ fileName }}
               </span>
               <span
-                class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 dark:bg-slate-600 dark:text-slate-300"
-              >
-                Pilih File
+                class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 dark:bg-slate-600 dark:text-slate-300">
+                {{ t('dataManagement.importModal.chooseFile') }}
               </span>
-              <input
-                type="file"
-                accept=".json,application/json"
-                class="hidden"
-                @change="handleFileSelect"
-              />
+              <input type="file" accept=".json,application/json" class="hidden" @change="handleFileSelect" />
             </label>
             <p v-if="errors.file" class="text-sm text-red-600 dark:text-red-400">
               {{ errors.file }}
@@ -138,43 +127,29 @@ const fileName = computed(() => {
           </div>
         </div>
 
-        <div>
-          <BaseInput
-            v-model="passphrase"
-            label="Passphrase"
-            :type="showPassphrase ? 'text' : 'password'"
-            :error="errors.passphrase"
-            placeholder="Masukkan passphrase yang digunakan saat ekspor"
-          />
-          <div class="mt-1 flex items-center gap-2">
-            <button
-              type="button"
-              @click.stop.prevent="showPassphrase = !showPassphrase"
-              class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors"
-            >
-              <font-awesome-icon
-                :icon="['fas', showPassphrase ? 'eye-slash' : 'eye']"
-                class="h-3 w-3"
-              />
-              <span>{{ showPassphrase ? 'Hide' : 'Show' }}</span>
-            </button>
-          </div>
+        <div class="relative -space-y-8">
+          <BaseInput v-model="passphrase" :label="t('dataManagement.importModal.passphraseLabel')"
+            :type="showPassphrase ? 'text' : 'password'" :error="errors.passphrase"
+            :placeholder="t('dataManagement.importModal.passphrasePlaceholder')" />
+          <button type="button" @click.stop.prevent="showPassphrase = !showPassphrase"
+            class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">
+            <div class="absolute  right-4 top-1/2 -translate-y-0.5">
+              <div class="flex gap-1.5 items-center">
+                <font-awesome-icon :icon="['fas', showPassphrase ? 'eye-slash' : 'eye']" class="h-4 w-4" />
+                <span>{{ showPassphrase ? t('common.hide') : t('common.show') }}</span>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 
-      <div
-        class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-      >
+      <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="flex items-start gap-2">
-          <font-awesome-icon
-            :icon="['fas', 'shield']"
-            class="mt-0.5 text-blue-600 dark:text-blue-400"
-          />
+          <font-awesome-icon :icon="['fas', 'shield']" class="mt-0.5 text-blue-600 dark:text-blue-400" />
           <div class="flex-1 text-sm text-blue-800 dark:text-blue-300">
-            <p class="font-medium mb-1">Keamanan</p>
+            <p class="font-medium mb-1">{{ t('dataManagement.importModal.securityTitle') }}</p>
             <p>
-              Passphrase Anda tidak pernah disimpan. Dekripsi hanya terjadi di memori
-              untuk keamanan Anda.
+              {{ t('dataManagement.importModal.securityDesc') }}
             </p>
           </div>
         </div>
@@ -184,14 +159,13 @@ const fileName = computed(() => {
     <template #footer>
       <div class="flex gap-3">
         <BaseButton variant="secondary" class="flex-1" @click="handleClose" :disabled="isLoading">
-          Batal
+          {{ t('common.cancel') }}
         </BaseButton>
         <BaseButton class="flex-1" @click="handleImport" :loading="isLoading">
           <font-awesome-icon :icon="['fas', 'file-import']" class="mr-2" />
-          Lanjutkan
+          {{ t('dataManagement.importModal.continueButton') }}
         </BaseButton>
       </div>
     </template>
   </BottomSheet>
 </template>
-

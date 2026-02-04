@@ -17,6 +17,9 @@ export default {
     filter: 'Filter',
     all: 'All',
     allCategories: 'All Categories',
+    show: 'Show',
+    hide: 'Hide',
+    continue: 'Continue',
   },
 
   // Navigation
@@ -227,6 +230,8 @@ export default {
     languageHelper: 'Language changes apply instantly across the app.',
     indonesian: 'Indonesia',
     english: 'English',
+    export_safe: 'Your data will be encrypted with a passphrase. Keep this passphrase safe—you will need it to restore your data later.',
+
   },
 
   // Notification messages (shown when notification fires)
@@ -397,6 +402,40 @@ export default {
     importSuccessAppendPockets: 'Data appended. Added {pockets} pocket(s) and {transactions} transaction(s).',
     offlineTutorialTitle: 'Video Tutorial Unavailable',
     offlineTutorialDesc: 'Please connect to the internet to play the import & export video tutorial.',
+    exportModal: {
+      title: 'Export Data',
+      subtitle: 'Create an encrypted backup of your data.',
+      safeTitle: 'Safe Export',
+      safeDesc: 'Your data is encrypted with your passphrase. Keep it secure to restore your backup later.',
+      passphraseLabel: 'Passphrase',
+      passphrasePlaceholder: 'Enter a secure passphrase',
+      confirmPassphraseLabel: 'Confirm Passphrase',
+      confirmPassphrasePlaceholder: 'Re-enter your passphrase',
+      passphraseTooShort: 'Passphrase must be at least 4 characters',
+      passphraseMismatch: 'Passphrases do not match',
+      warningTitle: 'Important',
+      warningDesc: 'Store your passphrase securely. If you lose it, you cannot restore your backup.',
+      exportButton: 'Export',
+      successMessage: 'Data exported! Backup file downloaded.',
+      exportFailed: 'Failed to export data',
+    },
+    importModal: {
+      title: 'Import Data',
+      subtitle: 'Restore data from an encrypted backup.',
+      infoTitle: 'Import adds data',
+      infoDesc: 'Data from the file will be added to your existing data. Existing data is not overwritten. Transactions and pockets will be merged.',
+      fileLabel: 'Backup File',
+      chooseFile: 'Choose File',
+      noFileSelected: 'No file selected',
+      fileErrorInvalid: 'Please select a valid JSON file',
+      fileErrorRequired: 'Please select a backup file',
+      passphraseLabel: 'Passphrase',
+      passphrasePlaceholder: 'Enter the passphrase used during export',
+      passphraseTooShort: 'Passphrase must be at least 4 characters',
+      securityTitle: 'Security',
+      securityDesc: 'Your passphrase is never stored. Decryption only happens in memory for your safety.',
+      continueButton: 'Continue',
+    },
   },
 
   // Transaction

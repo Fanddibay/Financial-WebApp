@@ -72,24 +72,22 @@ function handleClose() {
 </script>
 
 <template>
-  <BottomSheet :is-open="isOpen" :title="t('pocket.exportJsonTitle')" :subtitle="t('pocket.exportJsonDesc')" max-height="60" @close="handleClose">
-    <div class="space-y-3">
-      <BaseInput
-        v-model="passphrase"
-        :label="t('pocket.exportJsonPassphrase')"
-        :type="showPassphrase ? 'text' : 'password'"
-        :error="error"
-        :placeholder="t('pocket.exportJsonPassphrasePlaceholder')"
-      />
-      <button
-        type="button"
-        class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-        @click="showPassphrase = !showPassphrase"
-      >
-        <font-awesome-icon :icon="['fas', showPassphrase ? 'eye-slash' : 'eye']" class="h-3 w-3" />
-        <span>{{ showPassphrase ? 'Hide' : 'Show' }}</span>
+  <BottomSheet :is-open="isOpen" :title="t('pocket.exportJsonTitle')" :subtitle="t('pocket.exportJsonDesc')"
+    max-height="60" @close="handleClose">
+    <div class="space-y-3 relative">
+      <BaseInput v-model="passphrase" :label="t('pocket.exportJsonPassphrase')"
+        :type="showPassphrase ? 'text' : 'password'" :error="error"
+        :placeholder="t('pocket.exportJsonPassphrasePlaceholder')" />
+      <button type="button"
+        class="absolute right-4 top-1/2 -translate-y-[50%] flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+        @click="showPassphrase = !showPassphrase">
+        <div class="flex gap-1.5 items-center">
+          <font-awesome-icon :icon="['fas', showPassphrase ? 'eye-slash' : 'eye']" class="h-4 w-4" />
+          <span>{{ showPassphrase ? 'Hide' : 'Show' }}</span>
+        </div>
       </button>
     </div>
+
     <template #footer>
       <div class="flex gap-3">
         <BaseButton variant="secondary" class="flex-1" :disabled="isLoading" @click="handleClose">
