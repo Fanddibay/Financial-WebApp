@@ -137,7 +137,7 @@ function handleSuggestionClick(question: string) {
 
 <template>
   <div v-if="chatStore.isOpen"
-    class="fixed bottom-0 right-0 left-0 sm:left-auto sm:right-4 z-50 flex h-[calc(88vh-5rem)] sm:h-[600px] w-full sm:w-full sm:max-w-md flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+    class="fixed bottom-4 right-0 left-0 sm:left-auto sm:right-4 z-50 flex h-[calc(88vh-5rem)] sm:h-[600px] w-full sm:w-full sm:max-w-md flex-col rounded-t-2xl sm:rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 bg-brand px-4 py-3 rounded-t-2xl sm:rounded-t-2xl">

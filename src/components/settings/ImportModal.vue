@@ -88,8 +88,7 @@ const fileName = computed(() => {
 
 <template>
   <BottomSheet :is-open="isOpen" :title="t('dataManagement.importModal.title')"
-    :subtitle="t('dataManagement.importModal.subtitle')" max-height="70"
-    @close="handleClose">
+    :subtitle="t('dataManagement.importModal.subtitle')" max-height="70" @close="handleClose">
     <div class="space-y-4">
       <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
         <div class="flex items-start gap-2">
@@ -127,16 +126,16 @@ const fileName = computed(() => {
           </div>
         </div>
 
-        <div class="relative -space-y-8">
+        <div class="relative sm:space-y-0 -space-y-8">
           <BaseInput v-model="passphrase" :label="t('dataManagement.importModal.passphraseLabel')"
             :type="showPassphrase ? 'text' : 'password'" :error="errors.passphrase"
             :placeholder="t('dataManagement.importModal.passphrasePlaceholder')" />
           <button type="button" @click.stop.prevent="showPassphrase = !showPassphrase"
             class="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors">
-            <div class="absolute  right-4 top-1/2 -translate-y-0.5">
+            <div class="absolute sm:top-1/2 sm:translate-y-1  right-4 top-1/2 -translate-y-0.5">
               <div class="flex gap-1.5 items-center">
                 <font-awesome-icon :icon="['fas', showPassphrase ? 'eye-slash' : 'eye']" class="h-4 w-4" />
-                <span>{{ showPassphrase ? t('common.hide') : t('common.show') }}</span>
+                <!-- <span>{{ showPassphrase ? t('common.hide') : t('common.show') }}</span> -->
               </div>
             </div>
           </button>
