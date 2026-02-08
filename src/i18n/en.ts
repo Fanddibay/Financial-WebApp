@@ -251,6 +251,8 @@ export default {
     languageHelper: 'Language changes apply instantly across the app.',
     indonesian: 'Indonesia',
     english: 'English',
+    version: 'Version',
+    versionDesc: 'You\'re on the latest app version.',
     export_safe: 'Your data will be encrypted with a passphrase. Keep this passphrase safe—you will need it to restore your data later.',
 
   },

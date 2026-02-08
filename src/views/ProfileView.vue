@@ -21,6 +21,7 @@ import { importData } from '@/utils/dataExport'
 import { usePWAInstall } from '@/composables/usePWAInstall'
 import { useI18n } from 'vue-i18n'
 import { saveLanguage } from '@/i18n'
+import { APP_VERSION } from '@/constants/app'
 import PaymentMethodModal from '@/components/profile/PaymentMethodModal.vue'
 import ManualPaymentModal from '@/components/profile/ManualPaymentModal.vue'
 
@@ -561,6 +562,17 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
             <font-awesome-icon v-if="themeStore.theme === 'light'" :icon="['fas', 'moon']" class="h-5 w-5" />
             <font-awesome-icon v-else :icon="['fas', 'sun']" class="h-5 w-5" />
           </button>
+        </div>
+
+        <!-- Version -->
+        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.version') }}</h4>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {{ t('settings.versionDesc') }}
+          </p>
+          <p class="mt-2 text-lg font-semibold tabular-nums text-brand dark:text-brand">
+            {{ APP_VERSION }}
+          </p>
         </div>
       </div>
     </BaseCard>

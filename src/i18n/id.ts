@@ -250,6 +250,8 @@ export default {
     languageHelper: 'Perubahan bahasa diterapkan langsung di seluruh aplikasi.',
     indonesian: 'Indonesia',
     english: 'English',
+    version: 'Versi',
+    versionDesc: 'Kamu menggunakan aplikasi versi terbaru.',
     export_safe: 'Data Anda akan dienkripsi dengan passphrase. Pastikan Anda mengingat passphrase ini - Anda akan membutuhkannya untuk memulihkan data nanti.',
 
   },
