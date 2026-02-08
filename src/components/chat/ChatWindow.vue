@@ -318,7 +318,7 @@ function handleSuggestionClick(question: string) {
       </p> -->
       <!-- Upgrade total limit (below text field, Basic only) -->
       <div class="flex items-center gap-1">
-        <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-0" />
+        <!-- <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-0" /> -->
         <p v-if="!tokenStore.isLicenseActive"
           class="mt-0 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
           <span>{{ t('chat.usageLabel', {
