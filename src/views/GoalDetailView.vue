@@ -2,10 +2,11 @@
 import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoalStore } from '@/stores/goal'
+import { useTokenStore } from '@/stores/token'
 import { usePaymentModalStore } from '@/stores/paymentModal'
+import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactionStore } from '@/stores/transaction'
 import { useToastStore } from '@/stores/toast'
-import { useProfileStore } from '@/stores/profile'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
 import WithdrawFromGoalModal from '@/components/goals/WithdrawFromGoalModal.vue'
 import GoalActionMenu from '@/components/goals/GoalActionMenu.vue'
@@ -35,10 +36,11 @@ const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const goalStore = useGoalStore()
+const tokenStore = useTokenStore()
 const txStore = useTransactionStore()
 const toastStore = useToastStore()
-const profileStore = useProfileStore()
 const paymentModalStore = usePaymentModalStore()
+const { isGoalDisabled } = usePocketLimits()
 
 const goalId = computed(() => {
   const id = route.params.id
@@ -46,6 +48,11 @@ const goalId = computed(() => {
 })
 
 const goal = computed(() => (goalId.value ? goalStore.getGoalById(goalId.value) : null))
+
+const goalDisabled = computed(() =>
+  !!goalId.value &&
+  isGoalDisabled(goalId.value, goalStore.goals, tokenStore.isLicenseActive),
+)
 
 const currentBalance = computed(() => {
   if (!goalId.value) return 0
@@ -244,6 +251,42 @@ onMounted(() => {
       </button>
     </div>
 
+    <!-- Disabled goal (Basic, >1): only first goal accessible -->
+    <div v-else-if="goalDisabled" class="space-y-6">
+      <header
+        class="sticky top-0 z-10 -mx-4 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+        <button type="button"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          :aria-label="t('nav.back')" @click="goBack">
+          <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-5 w-5" />
+        </button>
+        <h1 class="truncate text-xl font-semibold text-slate-900 dark:text-slate-100">
+          {{ t('goal.disabled.title') }}
+        </h1>
+      </header>
+      <div class="flex flex-col items-center gap-6 py-8">
+        <div
+          class="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:bg-amber-400/20 dark:text-amber-400">
+          <span class="text-4xl" aria-hidden="true">🎯</span>
+          <span
+            class="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-slate-700 text-white dark:bg-slate-600">
+            <font-awesome-icon :icon="['fas', 'lock']" class="h-3.5 w-3.5" />
+          </span>
+        </div>
+        <p class="text-center text-sm text-slate-600 dark:text-slate-400">
+          {{ t('goal.disabled.description') }}
+        </p>
+        <div class="flex w-full max-w-xs flex-col gap-3">
+          <BaseButton class="w-full" size="lg" @click="paymentModalStore.openPaymentModal()">
+            {{ t('goal.disabled.upgrade') }}
+          </BaseButton>
+          <BaseButton variant="secondary" class="w-full" @click="router.push('/pockets')">
+            {{ t('pocket.disabled.backHome') }}
+          </BaseButton>
+        </div>
+      </div>
+    </div>
+
     <template v-else>
       <!-- Flex layout: fixed top (no scroll), only tab content scrolls -->
       <div class="flex h-[calc(100dvh-5.5rem)] min-h-[280px] flex-col overflow-hidden">
@@ -319,7 +362,7 @@ onMounted(() => {
               @click="handleAddTransaction">
               <font-awesome-icon :icon="['fas', 'plus']" class="h-5 w-5 shrink-0 text-brand" />
               <span class="text-xs font-medium text-slate-700 dark:text-slate-300">{{ t('pocket.addTransaction')
-                }}</span>
+              }}</span>
             </button>
             <button type="button" :disabled="!canWithdraw"
               class="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white py-2.5 transition hover:border-brand/40 hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40 dark:disabled:hover:border-slate-700 dark:disabled:hover:bg-slate-800"
@@ -335,30 +378,30 @@ onMounted(() => {
             {{ t('goal.useFromGoalInsufficient') }}
           </p>
 
-          <!-- Tabs: clean gap and spacing -->
+          <!-- Tabs: same width and style as Pocket detail -->
           <div class="shrink-0 mt-4 border-b border-slate-200 dark:border-slate-700">
-            <div class="flex gap-1 px-4">
+            <div class="flex gap-1 px-0">
               <button type="button" :class="[
-                'flex-1 rounded-t-xl border-b-2 py-3.5 text-sm font-medium transition-colors',
+                'flex-1  px-0 py-3 text-sm font-medium transition',
                 activeTab === 'transactions'
-                  ? 'border-brand bg-white text-brand shadow-sm dark:bg-slate-800 dark:border-brand'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
               ]" @click="activeTab = 'transactions'">
                 {{ t('pocket.tabTransactions') }}
               </button>
               <button type="button" :class="[
-                'flex-1 rounded-t-xl border-b-2 py-3.5 text-sm font-medium transition-colors',
+                'flex-1  px-4 py-3 text-sm font-medium transition',
                 activeTab === 'overview'
-                  ? 'border-brand bg-white text-brand shadow-sm dark:bg-slate-800 dark:border-brand'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
               ]" @click="activeTab = 'overview'">
                 {{ t('pocket.tabOverview') }}
               </button>
               <button v-if="isInvestmentGoal" type="button" :class="[
-                'flex-1 rounded-t-xl border-b-2 py-3.5 text-sm font-medium transition-colors',
+                'flex-1  px-4 py-3 text-sm font-medium transition',
                 activeTab === 'investment-activity'
-                  ? 'border-brand bg-white text-brand shadow-sm dark:bg-slate-800 dark:border-brand'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
+                  ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
               ]" @click="activeTab = 'investment-activity'">
                 {{ t('goal.investmentActivityTitle') }}
               </button>
@@ -388,7 +431,8 @@ onMounted(() => {
           <div v-if="activeTab === 'overview'" class="space-y-4 pt-4 pb-12">
             <!-- Investment Growth (investment goals only) -->
             <div v-if="isInvestmentGoal" class="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-800">
-              <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">📊 {{ t('goal.investmentGrowthTitle') }}</h3>
+              <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">📊 {{ t('goal.investmentGrowthTitle')
+                }}</h3>
               <div class="mt-2 space-y-2">
                 <div class="flex justify-between text-sm">
                   <span class="text-slate-600 dark:text-slate-400">{{ t('goal.currentBalance') }}</span>
@@ -475,25 +519,28 @@ onMounted(() => {
               {{ t('goal.investmentDisclaimerShort') }}
             </p>
             <div v-if="investmentActivityList.length > 0" class="space-y-2">
-              <div
-                v-for="entry in investmentActivityList"
-                :key="entry.id"
-                class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/30"
-              >
+              <div v-for="entry in investmentActivityList" :key="entry.id"
+                class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/30">
                 <div class="min-w-0 flex-1">
                   <p class="font-medium text-slate-900 dark:text-slate-100">
-                    +{{ formatIDR(entry.amount) }} — {{ locale === 'id' ? t('goal.dailyInvestmentReturnId') : t('goal.dailyInvestmentReturn') }}
+                    +{{ formatIDR(entry.amount) }} — {{ locale === 'id' ? t('goal.dailyInvestmentReturnId') :
+                      t('goal.dailyInvestmentReturn') }}
                   </p>
                   <p class="text-xs text-slate-500 dark:text-slate-400">
-                    {{ new Date(entry.date).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' }) }}
+                    {{ new Date(entry.date).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', {
+                      day: 'numeric',
+                      month: 'short', year: 'numeric'
+                    }) }}
                   </p>
                 </div>
-                <span class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                <span
+                  class="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
                   {{ t('goal.simulationBadge') }}
                 </span>
               </div>
             </div>
-            <div v-else class="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-12 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
+            <div v-else
+              class="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-12 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
               <p class="text-sm text-slate-500 dark:text-slate-400">
                 {{ t('goal.startInvestingToSeeGrowth') }}
               </p>

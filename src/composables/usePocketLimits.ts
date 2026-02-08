@@ -1,4 +1,5 @@
 import type { Pocket } from '@/types/pocket'
+import type { Goal } from '@/types/goal'
 import { MAIN_POCKET_ID } from '@/services/pocketService'
 
 /**
@@ -71,6 +72,32 @@ export function getActivePockets(pockets: Pocket[], isPremium: boolean): Pocket[
   return sorted.slice(0, MAX_POCKETS_BASIC)
 }
 
+/** Goals sorted by createdAt ascending (first created = first). */
+export function getSortedGoals(goals: Goal[]): Goal[] {
+  return [...goals].sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))
+}
+
+/** Ids of goals that remain accessible on Basic when user has >1 goal. Only the first (by createdAt) is active. */
+export function getActiveGoalIds(goals: Goal[], isPremium: boolean): Set<string> {
+  if (isPremium || goals.length <= MAX_GOALS_BASIC) return new Set(goals.map((g) => g.id))
+  const sorted = getSortedGoals(goals)
+  const active = sorted.slice(0, MAX_GOALS_BASIC).map((g) => g.id)
+  return new Set(active)
+}
+
+export function isGoalDisabled(goalId: string, goals: Goal[], isPremium: boolean): boolean {
+  if (isPremium || goals.length <= MAX_GOALS_BASIC) return false
+  const active = getActiveGoalIds(goals, isPremium)
+  return !active.has(goalId)
+}
+
+/** Goals that are selectable / accessible (e.g. for Add Transaction). */
+export function getActiveGoals(goals: Goal[], isPremium: boolean): Goal[] {
+  const sorted = getSortedGoals(goals)
+  if (isPremium || goals.length <= MAX_GOALS_BASIC) return sorted
+  return sorted.slice(0, MAX_GOALS_BASIC)
+}
+
 export function usePocketLimits() {
   return {
     getMaxPockets,
@@ -83,5 +110,9 @@ export function usePocketLimits() {
     getActivePocketIds,
     isPocketDisabled,
     getActivePockets,
+    getSortedGoals,
+    getActiveGoalIds,
+    isGoalDisabled,
+    getActiveGoals,
   }
 }

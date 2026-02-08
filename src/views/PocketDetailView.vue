@@ -402,7 +402,7 @@ onMounted(() => {
               @click="handleAddTransaction">
               <font-awesome-icon :icon="['fas', 'plus']" class="h-5 w-5 text-brand" />
               <span class="text-xs font-medium text-slate-700 dark:text-slate-300">{{ t('pocket.addTransaction')
-              }}</span>
+                }}</span>
             </button>
             <button type="button" :disabled="insufficientForMove"
               class="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-slate-200 bg-white py-3 transition hover:border-brand/40 hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40 dark:disabled:hover:border-slate-700 dark:disabled:hover:bg-slate-800"
@@ -428,7 +428,7 @@ onMounted(() => {
           <div class="shrink-0 border-b border-slate-200 dark:border-slate-700">
             <div class="flex gap-1">
               <button type="button" :class="[
-                'flex-1 rounded-t-lg px-4 py-3 text-sm font-medium transition',
+                'flex-1  px-4 py-3 text-sm font-medium transition',
                 activeTab === 'transactions'
                   ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',
@@ -436,7 +436,7 @@ onMounted(() => {
                 {{ t('pocket.tabTransactions') }}
               </button>
               <button type="button" :class="[
-                'flex-1 rounded-t-lg px-4 py-3 text-sm font-medium transition',
+                'flex-1  px-4 py-3 text-sm font-medium transition',
                 activeTab === 'overview'
                   ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-slate-100'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300',

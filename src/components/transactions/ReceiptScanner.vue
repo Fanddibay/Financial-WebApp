@@ -24,7 +24,7 @@ interface Props {
   categories?: string[]
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 const props = withDefaults(defineProps<Props>(), {
   categories: () => [],
 })

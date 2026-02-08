@@ -20,6 +20,7 @@ interface UsageState {
   receiptScans: number
   textInputs: number
   chatMessages: number
+  manualForms: number
   lastResetDate: string
 }
 
@@ -56,10 +57,11 @@ export const useTokenStore = defineStore('token', () => {
             receiptScans: 0,
             textInputs: 0,
             chatMessages: 0,
+            manualForms: 0,
             lastResetDate: today,
           }
         }
-        return usage
+        return { ...usage, manualForms: typeof usage.manualForms === 'number' ? usage.manualForms : 0 }
       }
     } catch {
       // Ignore parse errors
@@ -69,6 +71,7 @@ export const useTokenStore = defineStore('token', () => {
       receiptScans: 0,
       textInputs: 0,
       chatMessages: 0,
+      manualForms: 0,
       lastResetDate: today,
     }
   }
@@ -491,6 +494,7 @@ export const useTokenStore = defineStore('token', () => {
 
   // Usage tracking
   const MAX_BASIC_USAGE = 3
+  const MAX_MANUAL_FORM_BASIC = 10
 
   function canUseReceiptScan(): boolean {
     if (isLicenseActive.value) return true
@@ -505,6 +509,11 @@ export const useTokenStore = defineStore('token', () => {
   function canUseChat(): boolean {
     if (isLicenseActive.value) return true
     return usageState.value.chatMessages < MAX_BASIC_USAGE
+  }
+
+  function canUseManualForm(): boolean {
+    if (isLicenseActive.value) return true
+    return usageState.value.manualForms < MAX_MANUAL_FORM_BASIC
   }
 
   function recordReceiptScan() {
@@ -528,14 +537,23 @@ export const useTokenStore = defineStore('token', () => {
     }
   }
 
-  function getRemainingUsage(feature: 'receipt' | 'text' | 'chat'): number {
+  function recordManualForm() {
+    if (!isLicenseActive.value) {
+      usageState.value.manualForms++
+      saveUsage()
+    }
+  }
+
+  function getRemainingUsage(feature: 'receipt' | 'text' | 'chat' | 'manualForm'): number {
     if (isLicenseActive.value) return Infinity
     const used = {
       receipt: usageState.value.receiptScans,
       text: usageState.value.textInputs,
       chat: usageState.value.chatMessages,
+      manualForm: usageState.value.manualForms,
     }[feature]
-    return Math.max(0, MAX_BASIC_USAGE - used)
+    const max = feature === 'manualForm' ? MAX_MANUAL_FORM_BASIC : MAX_BASIC_USAGE
+    return Math.max(0, max - used)
   }
 
   // Initialize: Verify license status on store creation if token exists
@@ -632,7 +650,10 @@ export const useTokenStore = defineStore('token', () => {
     recordReceiptScan,
     recordTextInput,
     recordChatMessage,
+    recordManualForm,
     getRemainingUsage,
     MAX_BASIC_USAGE,
+    MAX_MANUAL_FORM_BASIC,
+    canUseManualForm,
   }
 })

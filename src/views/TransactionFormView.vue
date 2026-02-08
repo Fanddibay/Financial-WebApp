@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTransactions } from '@/composables/useTransactions'
 import { useAddTransactionFlow } from '@/composables/useAddTransactionFlow'
@@ -14,6 +14,9 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AlertModal from '@/components/ui/AlertModal.vue'
 import PageHeader from '@/components/layout/PageHeader.vue'
+import BottomSheet from '@/components/ui/BottomSheet.vue'
+import { useTokenStore } from '@/stores/token'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
 import { useI18n } from 'vue-i18n'
@@ -25,6 +28,8 @@ const router = useRouter()
 const toastStore = useToastStore()
 const pocketStore = usePocketStore()
 const goalStore = useGoalStore()
+const tokenStore = useTokenStore()
+const paymentModalStore = usePaymentModalStore()
 const { successThenRedirect } = useAddTransactionFlow()
 const { categories, loading, fetchTransactions, createTransaction, updateTransaction, getTransactionById } = useTransactions()
 
@@ -64,6 +69,26 @@ const editingIndex = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
 const showCancelConfirm = ref(false)
 const transactionIndexToDelete = ref<number | null>(null)
+const openActionIndex = ref<number | null>(null)
+
+function closeActionMenu() {
+  openActionIndex.value = null
+}
+
+watch(openActionIndex, (val) => {
+  if (val !== null) {
+    nextTick(() => {
+      document.addEventListener('click', closeActionMenu, { once: true })
+    })
+  }
+})
+onUnmounted(() => {
+  document.removeEventListener('click', closeActionMenu)
+})
+const showManualFormUpgradeModal = ref(false)
+
+const manualFormRemaining = computed(() => tokenStore.getRemainingUsage('manualForm'))
+const manualFormMax = computed(() => tokenStore.MAX_MANUAL_FORM_BASIC)
 
 // Alert modal state
 const showAlert = ref(false)
@@ -252,12 +277,12 @@ async function handleSubmit() {
 
   const error = validateForm(formData.value)
   if (error) {
-    // Determine variant based on error message
-    let variant: 'error' | 'warning' = 'error'
-    if (error.includes('masa depan') || error.includes('future')) {
-      variant = 'warning'
-    }
-    showAlertModal(t('transaction.validationFailed'), error, variant)
+    showAlertModal(t('transaction.validationFailed'), error, 'warning')
+    return
+  }
+
+  if (!isEdit.value && !tokenStore.canUseManualForm()) {
+    showManualFormUpgradeModal.value = true
     return
   }
 
@@ -270,6 +295,7 @@ async function handleSubmit() {
       router.push(returnTo.value || '/')
     } else {
       await createTransaction(formData.value)
+      tokenStore.recordManualForm()
       const dest = returnTo.value || (formData.value.goalId ? `/goals/${formData.value.goalId}` : fromPocketId.value ? `/pockets/${fromPocketId.value}` : '/')
       const type = formData.value.type as 'income' | 'expense'
       const payload = formData.value.goalId
@@ -307,12 +333,7 @@ function handleSaveAndAddMore() {
 
   const error = validateForm(formData.value)
   if (error) {
-    // Determine variant based on error message
-    let variant: 'error' | 'warning' = 'error'
-    if (error.includes('masa depan') || error.includes('future')) {
-      variant = 'warning'
-    }
-    showAlertModal(t('transaction.validationFailed'), error, variant)
+    showAlertModal(t('transaction.validationFailed'), error, 'warning')
     return
   }
 
@@ -350,6 +371,7 @@ function handleSaveAndAddMore() {
 }
 
 function handleEdit(index: number) {
+  closeActionMenu()
   const transaction = pendingTransactions.value[index]
   if (!transaction) return
 
@@ -366,6 +388,7 @@ function handleEdit(index: number) {
 }
 
 function handleDelete(index: number) {
+  closeActionMenu()
   transactionIndexToDelete.value = index
   showDeleteConfirm.value = true
 }
@@ -411,11 +434,17 @@ async function handleSubmitAll() {
     return
   }
 
+  const count = pendingTransactions.value.length
+  if (tokenStore.getRemainingUsage('manualForm') < count) {
+    showManualFormUpgradeModal.value = true
+    return
+  }
+
   try {
-    const count = pendingTransactions.value.length
     for (const transaction of pendingTransactions.value) {
       if (isDateInFuture(transaction.date)) continue
       await createTransaction(transaction)
+      tokenStore.recordManualForm()
     }
     pendingTransactions.value = []
     const dest = returnTo.value || '/'
@@ -456,15 +485,9 @@ function handleCancel() {
   if (pendingTransactions.value.length > 0) {
     showCancelConfirm.value = true
   } else {
-    router.replace({ query: {} }).then(() => {
-      setTimeout(() => { isCancelling.value = false }, 100)
-      if (returnTo.value) router.push(returnTo.value)
-      else router.back()
-    }).catch(() => {
-      isCancelling.value = false
-      if (returnTo.value) router.push(returnTo.value)
-      else router.back()
-    })
+    setTimeout(() => { isCancelling.value = false }, 100)
+    // Use back() so history stays [..., Detail]; replace(returnTo) would duplicate Detail and require 2 back clicks
+    router.back()
   }
 }
 
@@ -472,19 +495,14 @@ function confirmCancel() {
   // CRITICAL: Set canceling flag to prevent any auto-save
   isCancelling.value = true
 
-  // CRITICAL: Clear all pending transactions and query params
+  // CRITICAL: Clear all pending transactions
   pendingTransactions.value = []
   editingIndex.value = null
+  showCancelConfirm.value = false
 
-  router.replace({ query: {} }).then(() => {
-    setTimeout(() => { isCancelling.value = false }, 100)
-    if (returnTo.value) router.push(returnTo.value)
-    else router.back()
-  }).catch(() => {
-    isCancelling.value = false
-    if (returnTo.value) router.push(returnTo.value)
-    else router.back()
-  })
+  setTimeout(() => { isCancelling.value = false }, 100)
+  // Use back() so history stays [..., Detail]; replace(returnTo) would duplicate Detail and require 2 back clicks
+  router.back()
 }
 
 function formatCurrency(amount: number): string {
@@ -509,7 +527,20 @@ function formatDate(dateString: string): string {
         : editingIndex !== null
           ? t('transaction.editPendingTransaction')
           : t('transaction.recordNewTransaction')
-        " :show-back="true" />
+        " :show-back="true">
+      <template v-if="!isEdit && !tokenStore.isLicenseActive" #right>
+        <button type="button"
+          class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-4 py-0.5 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
+          :aria-label="t('transaction.manualFormUsageLabelTap')" :title="t('transaction.manualFormUsageLabelTap')"
+          @click="showManualFormUpgradeModal = true">
+          <font-awesome-icon :icon="['fas', 'circle-info']" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+          <span class="tabular-nums">{{ t('transaction.manualFormUsageLabel', {
+            remaining: manualFormRemaining, max:
+              manualFormMax
+          }) }}</span>
+        </button>
+      </template>
+    </PageHeader>
 
     <!-- Info Banner for Text Input -->
     <div v-if="isFromTextInput"
@@ -541,8 +572,8 @@ function formatDate(dateString: string): string {
               class="flex-1 min-w-[100px]">
               {{ isEdit ? t('transaction.update') : t('transaction.save') }}
             </BaseButton>
-            <div v-if="!isEdit" class="w-full p-4">
-              <BaseButton type="button" variant="secondary" :loading="loading" @click="handleSaveAndAddMore"
+            <div v-if="!isEdit" class="w-full px-0 pt-4">
+              <BaseButton type="button" variant="teritary" :loading="loading" @click="handleSaveAndAddMore"
                 class="w-full">
                 {{ editingIndex !== null ? t('transaction.updateAndAddMore') : t('transaction.saveAndAddMore') }}
               </BaseButton>
@@ -607,18 +638,35 @@ function formatDate(dateString: string): string {
                 <td class="px-2 py-1.5 text-xs text-slate-600 dark:text-slate-400">
                   {{ formatDate(transaction.date) }}
                 </td>
-                <td class="px-2 py-1.5 text-right">
-                  <div class="flex items-center justify-end gap-1">
-                    <button type="button" @click="handleEdit(index)"
-                      class="rounded-lg p-1 text-slate-600 transition hover:bg-slate-100 hover:text-brand dark:text-slate-400 dark:hover:bg-slate-700"
-                      :title="t('common.edit')">
-                      <font-awesome-icon :icon="['fas', 'edit']" class="h-3 w-3" />
+                <td class="px-2 py-1.5 text-right relative">
+                  <div class="flex items-center justify-end">
+                    <button type="button"
+                      class="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                      :aria-label="t('transaction.actions')" :aria-expanded="openActionIndex === index"
+                      @click.stop="openActionIndex = openActionIndex === index ? null : index">
+                      <font-awesome-icon :icon="['fas', 'ellipsis-vertical']" class="h-4 w-4" />
                     </button>
-                    <button type="button" @click="handleDelete(index)"
-                      class="rounded-lg p-1 text-red-600 transition hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
-                      :title="t('common.delete')">
-                      <font-awesome-icon :icon="['fas', 'trash']" class="h-3 w-3" />
-                    </button>
+                    <Transition enter-active-class="transition ease-out duration-100"
+                      enter-from-class="opacity-0 scale-95" enter-to-class="opacity-100 scale-100"
+                      leave-active-class="transition ease-in duration-75" leave-from-class="opacity-100 scale-100"
+                      leave-to-class="opacity-0 scale-95">
+                      <div v-if="openActionIndex === index"
+                        class="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-600 dark:bg-slate-800">
+                        <button type="button"
+                          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"
+                          @click.stop="handleEdit(index)">
+                          <font-awesome-icon :icon="['fas', 'edit']"
+                            class="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+                          {{ t('common.edit') }}
+                        </button>
+                        <button type="button"
+                          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          @click.stop="handleDelete(index)">
+                          <font-awesome-icon :icon="['fas', 'trash']" class="h-3.5 w-3.5" />
+                          {{ t('common.delete') }}
+                        </button>
+                      </div>
+                    </Transition>
                   </div>
                 </td>
               </tr>
@@ -662,6 +710,34 @@ function formatDate(dateString: string): string {
     :message="t('transaction.cancelTransactionConfirm')" :confirm-text="t('common.cancel')"
     :cancel-text="t('transaction.continueEdit')" variant="warning" :icon="['fas', 'exclamation-triangle']"
     @confirm="confirmCancel" @close="showCancelConfirm = false" />
+
+  <!-- Manual form limit: upgrade to premium -->
+  <BottomSheet :is-open="showManualFormUpgradeModal" :title="t('transaction.manualFormBasicLimit')" maxHeight="60"
+    @close="showManualFormUpgradeModal = false">
+    <div class="space-y-4">
+      <div class="flex flex-col items-center justify-center py-0 text-center">
+        <div class="mb-4 rounded-full bg-slate-100 p-3 dark:bg-slate-800">
+          <font-awesome-icon :icon="['fas', 'crown']" class="h-6 w-6 text-slate-400" />
+        </div>
+        <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
+          {{ t('transaction.manualFormBasicLimit') }}
+        </h3>
+        <p class="text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
+          {{ t('transaction.manualFormBasicLimitDesc', {
+            remaining: manualFormRemaining,
+            max: manualFormMax,
+          }) }}
+        </p>
+      </div>
+      <div class="pt-2">
+        <BaseButton class="w-full justify-center" size="lg"
+          @click="showManualFormUpgradeModal = false; paymentModalStore.openPaymentModal()">
+          <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
+          {{ t('transaction.manualFormActivateLicense') }}
+        </BaseButton>
+      </div>
+    </div>
+  </BottomSheet>
 
   <!-- Alert Modal -->
   <AlertModal :is-open="showAlert" :title="alertTitle" :message="alertMessage" :variant="alertVariant"

@@ -18,6 +18,7 @@ import CreateGoalModal from '@/components/goals/CreateGoalModal.vue'
 import PocketLimitUpgradeSheet from '@/components/pockets/PocketLimitUpgradeSheet.vue'
 import PocketDisabledSheet from '@/components/pockets/PocketDisabledSheet.vue'
 import GoalLimitUpgradeSheet from '@/components/goals/GoalLimitUpgradeSheet.vue'
+import GoalDisabledSheet from '@/components/goals/GoalDisabledSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { formatIDR } from '@/utils/currency'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -33,7 +34,7 @@ const tokenStore = useTokenStore()
 const profileStore = useProfileStore()
 const paymentModalStore = usePaymentModalStore()
 const { pocketBalances, fetchTransactions } = useTransactions()
-const { getSortedPockets, isAtPocketLimit, isAtGoalLimit, isPocketDisabled } = usePocketLimits()
+const { getSortedPockets, isAtPocketLimit, isAtGoalLimit, isPocketDisabled, isGoalDisabled } = usePocketLimits()
 
 // Local visibility state removed in favor of global profileStore.profile.showBalance
 const activeTab = ref<'pocket' | 'goal'>('pocket')
@@ -43,6 +44,7 @@ const showCreateGoalModal = ref(false)
 const showPocketLimitUpgrade = ref(false)
 const showGoalLimitUpgrade = ref(false)
 const showPocketDisabledSheet = ref(false)
+const showGoalDisabledSheet = ref(false)
 
 watch(() => paymentModalStore.closeAllModalsTrigger, () => {
   showCreateChoiceModal.value = false
@@ -51,6 +53,7 @@ watch(() => paymentModalStore.closeAllModalsTrigger, () => {
   showPocketLimitUpgrade.value = false
   showGoalLimitUpgrade.value = false
   showPocketDisabledSheet.value = false
+  showGoalDisabledSheet.value = false
 })
 
 const totalBalanceAllPockets = computed(() => {
@@ -74,7 +77,13 @@ const pocketsWithBalances = computed(() => {
   }))
 })
 
-const goalsWithBalances = computed(() => goalStore.goalsWithBalances)
+const goalsWithBalances = computed(() => {
+  const isPremium = tokenStore.isLicenseActive
+  return goalStore.goalsWithBalances.map((g) => ({
+    ...g,
+    disabled: isGoalDisabled(g.id, goalStore.goals, isPremium),
+  }))
+})
 
 function openCreateChoice() {
   showCreateChoiceModal.value = true
@@ -238,7 +247,8 @@ onMounted(() => {
       <!-- Goals grid (2 kolom) + Add Goal -->
       <div v-if="goalsWithBalances.length > 0" class="grid grid-cols-2 gap-3">
         <GoalCard v-for="g in goalsWithBalances" :key="g.id" :goal="g" :current-balance="g.currentBalance"
-          :hide-balance="!profileStore.profile.showBalance" />
+          :hide-balance="!profileStore.profile.showBalance" :disabled="g.disabled"
+          @disabled-click="showGoalDisabledSheet = true" />
         <button type="button"
           class="flex min-h-[88px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 text-slate-500 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800/30 dark:hover:border-brand/40"
           @click="handleCreateClick">
@@ -302,5 +312,6 @@ onMounted(() => {
     <PocketLimitUpgradeSheet :is-open="showPocketLimitUpgrade" @close="showPocketLimitUpgrade = false" />
     <GoalLimitUpgradeSheet :is-open="showGoalLimitUpgrade" @close="showGoalLimitUpgrade = false" />
     <PocketDisabledSheet :is-open="showPocketDisabledSheet" @close="showPocketDisabledSheet = false" />
+    <GoalDisabledSheet :is-open="showGoalDisabledSheet" @close="showGoalDisabledSheet = false" />
   </div>
 </template>

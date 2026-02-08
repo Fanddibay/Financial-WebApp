@@ -178,7 +178,7 @@ export function runDailySimulation(
   }
 
   let totalAdded = 0
-  let currentDate = new Date(last)
+  const currentDate = new Date(last)
   currentDate.setDate(currentDate.getDate() + 1)
 
   const todayDate = new Date(today)
