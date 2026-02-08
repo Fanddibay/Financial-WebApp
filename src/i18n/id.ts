@@ -457,6 +457,7 @@ export default {
       securityTitle: 'Keamanan',
       securityDesc: 'Passphrase Anda tidak pernah disimpan. Dekripsi hanya terjadi di memori demi keamanan Anda.',
       continueButton: 'Lanjutkan',
+      decryptFailed: 'Passphrase salah atau file bukan backup dari aplikasi ini. Cek passphrase lalu coba lagi.',
     },
   },
 

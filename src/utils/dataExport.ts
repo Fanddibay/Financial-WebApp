@@ -347,6 +347,7 @@ export async function importData(
     decryptedString = await decryptData(encryptedData.data, passphrase)
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Dekripsi gagal'
+    if (msg === 'DECRYPT_FAILED') throw error
     if (msg.includes('Incorrect passphrase') || msg.includes('decrypt')) {
       throw new Error('Passphrase salah atau data rusak. Pastikan passphrase yang Anda masukkan benar.')
     }

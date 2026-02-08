@@ -260,10 +260,13 @@ async function handleImportExecute() {
     importFile.value = null
     importPassphrase.value = ''
   } catch (error) {
-    showNotification(
-      'error',
-      error instanceof Error ? error.message : 'Failed to import data',
-    )
+    const msg =
+      error instanceof Error && error.message === 'DECRYPT_FAILED'
+        ? t('dataManagement.importModal.decryptFailed')
+        : error instanceof Error
+          ? error.message
+          : t('dataManagement.importModal.decryptFailed')
+    showNotification('error', msg)
   } finally {
     isLoading.value = false
   }
@@ -811,7 +814,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
         enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
         leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
         <div v-if="notification.type" :class="[
-          'fixed bottom-24 left-1/2 -translate-x-1/2 rounded-lg px-4 py-3 shadow-lg max-w-[90%]',
+          'fixed bottom-24 left-5 right-20 rounded-xl border px-4 py-3 shadow-lg',
           notification.type === 'success'
             ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800'
             : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',

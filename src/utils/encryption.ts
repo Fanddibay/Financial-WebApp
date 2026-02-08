@@ -127,13 +127,10 @@ export async function decryptData(
     // Convert back to string
     const decoder = new TextDecoder()
     return decoder.decode(decrypted)
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('decrypt')) {
-      throw new Error('Passphrase salah atau data rusak')
-    }
-    throw new Error(
-      `Dekripsi gagal: ${error instanceof Error ? error.message : 'Error tidak diketahui'}`,
-    )
+  } catch {
+    // Generic crypto errors (e.g. "The operation failed for an operation-specific reason")
+    // mean wrong passphrase or incompatible/corrupt backup; show friendly message via DECRYPT_FAILED
+    throw new Error('DECRYPT_FAILED')
   }
 }
 

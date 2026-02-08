@@ -457,6 +457,7 @@ export default {
       securityTitle: 'Security',
       securityDesc: 'Your passphrase is never stored. Decryption only happens in memory for your safety.',
       continueButton: 'Continue',
+      decryptFailed: 'Wrong passphrase or file is not a backup from this app. Check passphrase and try again.',
     },
   },
 

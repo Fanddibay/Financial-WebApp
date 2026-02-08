@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -25,10 +25,21 @@ const selectedFile = ref<File | null>(null)
 const passphrase = ref('')
 const isLoading = ref(false)
 const showPassphrase = ref(false)
+const fileInputRef = ref<HTMLInputElement | null>(null)
 const errors = ref({
   file: '',
   passphrase: '',
 })
+
+function resetForm() {
+  selectedFile.value = null
+  passphrase.value = ''
+  showPassphrase.value = false
+  errors.value = { file: '', passphrase: '' }
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
 
 function handleFileSelect(event: Event) {
   const target = event.target as HTMLInputElement
@@ -75,11 +86,17 @@ function handleImport() {
 }
 
 function handleClose() {
-  selectedFile.value = null
-  passphrase.value = ''
-  errors.value = { file: '', passphrase: '' }
+  resetForm()
   emit('close')
 }
+
+// Reset when modal is closed (e.g. parent closes after "Lanjutkan" so handleClose is not called)
+watch(
+  () => props.isOpen,
+  (isOpen, wasOpen) => {
+    if (wasOpen && !isOpen) resetForm()
+  },
+)
 
 const fileName = computed(() => {
   return selectedFile.value?.name || t('dataManagement.importModal.noFileSelected')
@@ -118,7 +135,7 @@ const fileName = computed(() => {
                 class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 dark:bg-slate-600 dark:text-slate-300">
                 {{ t('dataManagement.importModal.chooseFile') }}
               </span>
-              <input type="file" accept=".json,application/json" class="hidden" @change="handleFileSelect" />
+              <input ref="fileInputRef" type="file" accept=".json,application/json" class="hidden" @change="handleFileSelect" />
             </label>
             <p v-if="errors.file" class="text-sm text-red-600 dark:text-red-400">
               {{ errors.file }}
