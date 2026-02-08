@@ -268,6 +268,15 @@ onMounted(() => {
           class="flex w-full min-w-full shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-6 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
           <span class="text-2xl text-slate-400 dark:text-slate-500" aria-hidden="true">🎯</span>
           <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ t('goal.noGoalsYet') }}</p>
+          <BaseButton
+            variant="secondary"
+            size="sm"
+            class="mt-3"
+            @click="goToGoalsTab"
+          >
+            <font-awesome-icon :icon="['fas', 'plus']" class="mr-1.5 h-3 w-3" />
+            {{ t('goal.addGoal') }}
+          </BaseButton>
         </div>
       </div>
     </div>

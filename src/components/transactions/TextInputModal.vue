@@ -11,6 +11,7 @@ import type { TransactionFormData } from '@/types/transaction'
 import { useTransactions } from '@/composables/useTransactions'
 import { MAIN_POCKET_ID } from '@/services/pocketService'
 import { formatIDR } from '@/utils/currency'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { useTokenStore } from '@/stores/token'
 import { useI18n } from 'vue-i18n'
 import idMessages from '@/i18n/id'
@@ -42,6 +43,7 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const paymentModalStore = usePaymentModalStore()
 const tokenStore = useTokenStore()
 const { createTransaction, fetchTransactions } = useTransactions()
 const inputText = ref('')
@@ -56,6 +58,9 @@ const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
 const showLimitInfo = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+
+const textUsageRemaining = computed(() => tokenStore.getRemainingUsage('text'))
+const textUsageMax = computed(() => tokenStore.MAX_BASIC_USAGE)
 
 // Goals: income-only examples. Pocket: general (income + expense)
 const exampleTexts = computed(() => {
@@ -350,11 +355,9 @@ function handleClose() {
 }
 
 // Navigate to profile and close modal
-function navigateToProfile() {
+function onActivateLicense() {
   showLimitInfo.value = false
-  emit('edit-navigate') // Close parent AddTransactionModal
-  emit('close')
-  router.push('/profile')
+  paymentModalStore.openPaymentModal()
 }
 
 
@@ -389,10 +392,15 @@ const canSubmit = computed(() => {
   <BottomSheet :is-open="isOpen" :title="showPreview ? t('textInput.previewTitle') : t('textInput.title')"
     maxHeight="85" @close="handleClose">
     <template #header-actions>
-      <button v-if="!tokenStore.isLicenseActive" @click="showLimitInfo = true"
-        class="shrink-0 rounded-full p-2 text-amber-500 hover:bg-amber-50 hover:text-amber-600 dark:text-amber-400 dark:hover:bg-amber-900/30 dark:hover:text-amber-300 transition-colors"
-        :aria-label="t('textInput.basicAccountLimit')">
-        <font-awesome-icon :icon="['fas', 'circle-info']" class="h-5 w-5" />
+      <button
+        v-if="!tokenStore.isLicenseActive"
+        type="button"
+        @click="showLimitInfo = true"
+        class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
+        :aria-label="t('textInput.usageLabelTap')"
+        :title="t('textInput.usageLabelTap')">
+        <span class="tabular-nums">{{ t('textInput.usageLabel', { remaining: textUsageRemaining, max: textUsageMax }) }}</span>
+        <font-awesome-icon :icon="['fas', 'circle-info']" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
       </button>
     </template>
     <div class="space-y-4 py-2">
@@ -688,7 +696,7 @@ const canSubmit = computed(() => {
       </div> -->
 
       <div class="pt-2">
-        <BaseButton class="w-full justify-center" size="lg" @click="navigateToProfile">
+        <BaseButton class="w-full justify-center" size="lg" @click="onActivateLicense">
           <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
           {{ t('textInput.activateLicense') }}
         </BaseButton>

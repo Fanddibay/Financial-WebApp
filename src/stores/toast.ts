@@ -6,6 +6,7 @@ export type ToastType =
   | 'error'
   | 'warning'
   | 'info'
+  | 'delete'
   | 'transaction-income'
   | 'transaction-expense'
 
@@ -80,6 +81,11 @@ export const useToastStore = defineStore('toast', () => {
     return showToast(message, 'info', duration)
   }
 
+  /** Toast for delete actions: red styling. */
+  function deleteToast(message: string, duration?: number) {
+    return showToast(message, 'delete', duration ?? 3000)
+  }
+
   /** Toast for transaction added: green (income) or red (expense). Optional action e.g. "Lihat transaksi" → pocket. */
   function transactionAdded(
     message: string,
@@ -101,6 +107,7 @@ export const useToastStore = defineStore('toast', () => {
     error,
     warning,
     info,
+    deleteToast,
     transactionAdded,
   }
 })

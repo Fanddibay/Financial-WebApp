@@ -8,8 +8,12 @@ import AdminBottomNav from '@/components/admin/AdminBottomNav.vue'
 import ChatButton from '@/components/chat/ChatButton.vue'
 import ChatWindow from '@/components/chat/ChatWindow.vue'
 import Toast from '@/components/ui/Toast.vue'
+import PaymentMethodModal from '@/components/profile/PaymentMethodModal.vue'
+import ManualPaymentModal from '@/components/profile/ManualPaymentModal.vue'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 
 const route = useRoute()
+const paymentModalStore = usePaymentModalStore()
 
 // Hide header and nav for admin routes (but show admin nav on main admin pages)
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
@@ -47,5 +51,18 @@ const showAdminNav = computed(() => {
 
     <!-- Toast Notifications -->
     <Toast />
+
+    <!-- Global Payment Modals (Upgrade to Pro from anywhere) -->
+    <PaymentMethodModal
+      :is-open="paymentModalStore.showPaymentMethodModal"
+      @close="paymentModalStore.closePaymentModal()"
+      @select="paymentModalStore.onPaymentMethodSelect"
+    />
+    <ManualPaymentModal
+      :is-open="paymentModalStore.showManualPaymentModal"
+      :method-id="paymentModalStore.selectedManualMethodId"
+      @close="paymentModalStore.closeManualPayment()"
+      @back="paymentModalStore.backFromManualToMethod()"
+    />
   </div>
 </template>

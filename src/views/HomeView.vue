@@ -276,6 +276,15 @@ onMounted(() => {
         >
           <span class="text-2xl text-slate-400 dark:text-slate-500" aria-hidden="true">🎯</span>
           <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ t('goal.noGoalsYet') }}</p>
+          <BaseButton
+            variant="secondary"
+            size="sm"
+            class="mt-3"
+            @click="goToGoalsTab"
+          >
+            <font-awesome-icon :icon="['fas', 'plus']" class="mr-1.5 h-3 w-3" />
+            {{ t('goal.addGoal') }}
+          </BaseButton>
         </div>
       </div>
     </div>

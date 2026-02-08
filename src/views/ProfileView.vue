@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useProfileStore } from '@/stores/profile'
 import { useThemeStore } from '@/stores/theme'
 import { useTransactionStore } from '@/stores/transaction'
@@ -30,6 +31,8 @@ const pocketStore = usePocketStore()
 const tokenStore = useTokenStore()
 const { isInstallable, isInstalled, isInstalling, install } = usePWAInstall()
 const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 
 const isEditing = ref(false)
 const editName = ref(profileStore.profile.name)
@@ -63,6 +66,20 @@ const showNotSubscribedPopup = ref(false)
 const showPaymentMethods = ref(false)
 const showManualPayment = ref(false)
 const selectedManualMethodId = ref('')
+
+// When navigated from "Upgrade Pro" anywhere: open payment method modal, then clean URL
+watch(
+  () => route.query.open,
+  (open) => {
+    if (open === 'payment') {
+      showPaymentMethods.value = true
+      nextTick(() => {
+        router.replace({ path: '/profile', hash: '#license' })
+      })
+    }
+  },
+  { immediate: true },
+)
 
 async function handlePasteLicense() {
   try {

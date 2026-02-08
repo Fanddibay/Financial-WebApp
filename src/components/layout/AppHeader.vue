@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { useProfileStore } from '@/stores/profile'
 import { useTokenStore } from '@/stores/token'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
@@ -10,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 import { useGreeting } from '@/composables/useGreeting'
 
 const route = useRoute()
+const paymentModalStore = usePaymentModalStore()
 const profileStore = useProfileStore()
 const tokenStore = useTokenStore()
 const { t } = useI18n()
@@ -51,7 +53,7 @@ function handleCrownClick() {
 
 function handleGetSubscription() {
   showNotSubscribedPopup.value = false
-  window.open('https://fanbayy.lemonsqueezy.com/checkout/buy/db17c48d-ec06-4575-b419-bd32433e0cbe', '_blank')
+  paymentModalStore.openPaymentModal()
 }
 </script>
 

@@ -10,9 +10,11 @@ interface Props {
   subtitle?: string
   /** Max height: '60' for 60vh, '70' for 70vh, '85' for 85vh (default) */
   maxHeight?: '60' | '70' | '85'
+  /** Overlay z-index (default 50). Use higher value (e.g. 200) for modals that must appear above others. */
+  overlayZIndex?: number
 }
 
-withDefaults(defineProps<Props>(), { maxHeight: '85' })
+const props = withDefaults(defineProps<Props>(), { maxHeight: '85', overlayZIndex: 50 })
 const { t } = useI18n()
 
 const emit = defineEmits<{
@@ -59,7 +61,7 @@ onUnmounted(() => {
     <Transition enter-active-class="transition-opacity duration-250 ease-out" enter-from-class="opacity-0"
       enter-to-class="opacity-100" leave-active-class="transition-opacity duration-200 ease-in"
       leave-from-class="opacity-100" leave-to-class="opacity-0">
-      <div v-if="isOpen" class="fixed inset-0 z-50 flex flex-col justify-end bg-black/50" @click="handleBackdropClick">
+      <div v-if="isOpen" :class="['fixed inset-0 flex flex-col justify-end bg-black/50']" :style="{ zIndex: props.overlayZIndex }" @click="handleBackdropClick">
         <Transition enter-active-class="transition-transform duration-350 ease-[cubic-bezier(0.32,0.72,0,1)]"
           enter-from-class="translate-y-full" enter-to-class="translate-y-0"
           leave-active-class="transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"

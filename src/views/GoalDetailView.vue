@@ -180,7 +180,7 @@ async function confirmDelete() {
   await txStore.deleteTransaction(transactionToDelete.value)
   transactionToDelete.value = null
   showDeleteConfirm.value = false
-  toastStore.success(t('transactions.deleteSuccessDesc', { description }))
+  toastStore.deleteToast(t('transactions.deleteSuccessDesc', { description }))
 }
 
 function handleAddModalClose() {
@@ -199,10 +199,12 @@ function handleEditGoalSaved(data: { name: string; icon: string; targetAmount: n
 }
 
 function handleDeleteGoalConfirm() {
-  if (!goalId.value) return
+  if (!goalId.value || !goal.value) return
+  const goalName = goal.value.name
   goalStore.deleteGoal(goalId.value)
-  toastStore.success(t('goal.deleteSuccess'))
-  router.push('/pockets')
+  showDeleteGoalModal.value = false
+  toastStore.deleteToast(t('goal.deleteSuccess', { name: goalName }))
+  router.push('/pockets?tab=goal')
 }
 
 function handleExportJsonSuccess(message: string) {

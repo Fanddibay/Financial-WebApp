@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { usePocketStore } from '@/stores/pocket'
 import { useTransactionStore } from '@/stores/transaction'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { useToastStore } from '@/stores/toast'
 import { useTokenStore } from '@/stores/token'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
@@ -39,6 +40,7 @@ const route = useRoute()
 const router = useRouter()
 const pocketStore = usePocketStore()
 const txStore = useTransactionStore()
+const paymentModalStore = usePaymentModalStore()
 const toastStore = useToastStore()
 const tokenStore = useTokenStore()
 const { isPocketDisabled } = usePocketLimits()
@@ -223,7 +225,7 @@ async function confirmDelete() {
   await txStore.deleteTransaction(transactionToDelete.value)
   transactionToDelete.value = null
   showDeleteConfirm.value = false
-  toastStore.success(t('transactions.deleteSuccessDesc', { description }))
+  toastStore.deleteToast(t('transactions.deleteSuccessDesc', { description }))
 }
 
 function handleAddModalClose() {
@@ -244,11 +246,16 @@ function handleEditPocketSaved(data: { name: string; icon: string; color: string
 async function handleDeletePocketConfirm() {
   if (!pocketId.value || !pocket.value) return
   if (pocket.value.id === MAIN_POCKET_ID) return
-  await txStore.deleteByPocketId(pocketId.value)
-  pocketStore.deletePocket(pocketId.value)
-  showDeletePocketModal.value = false
-  router.replace('/')
-  toastStore.success(t('pocket.deleteSuccess'))
+  const pocketName = pocket.value.name
+  try {
+    await txStore.deleteByPocketId(pocketId.value)
+    pocketStore.deletePocket(pocketId.value)
+    showDeletePocketModal.value = false
+    toastStore.deleteToast(t('pocket.deleteSuccess', { name: pocketName }))
+    await router.replace('/pockets')
+  } catch (e) {
+    toastStore.error(e instanceof Error ? e.message : t('common.error'))
+  }
 }
 
 function handleExportJsonSuccess(message: string) {
@@ -302,7 +309,7 @@ onMounted(() => {
           {{ t('pocket.disabled.description') }}
         </p>
         <div class="flex w-full max-w-xs flex-col gap-3">
-          <BaseButton class="w-full" size="lg" @click="router.push({ path: '/profile', hash: '#license' })">
+          <BaseButton class="w-full" size="lg" @click="paymentModalStore.openPaymentModal()">
             {{ t('pocket.disabled.upgrade') }}
           </BaseButton>
           <BaseButton variant="secondary" class="w-full" @click="router.push('/')">

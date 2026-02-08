@@ -12,7 +12,7 @@ export default defineConfig({
     vueDevTools(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.svg', 'logo.svg', 'ico.svg'],
+      includeAssets: ['favicon.ico', 'favicon.svg', 'logo-app.svg', 'logo-app.png'],
       manifest: {
         name: 'Fanplanner',
         short_name: 'Fanplanner',
@@ -24,21 +24,40 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: 'ico.svg',
+            src: 'logo-app.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any',
           },
           {
-            src: 'ico.svg',
+            src: 'logo-app.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'maskable',
           },
           {
-            src: 'favicon.ico',
-            sizes: '64x64 32x32 24x24 16x16',
-            type: 'image/x-icon',
+            src: 'logo-app.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'logo-app.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any',
+          },
+          {
+            src: 'logo-app.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: 'logo-app.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
           },
         ],
       },

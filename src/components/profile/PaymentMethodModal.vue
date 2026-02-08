@@ -67,7 +67,7 @@ function handleContinue() {
 
 <template>
   <BottomSheet :is-open="isOpen" :title="t('payment.selectMethodTitle')" :subtitle="t('payment.selectMethodSubtitle')"
-    @close="emit('close')">
+    :overlay-z-index="200" @close="emit('close')">
     <div class="space-y-3">
       <button v-for="method in paymentMethods" :key="method.id" type="button"
         class="flex w-full items-center gap-4 rounded-xl border-2 p-4 text-left transition-all active:scale-[0.98]"

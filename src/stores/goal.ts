@@ -4,11 +4,17 @@ import type { Goal, CreateGoalData } from '@/types/goal'
 import * as goalService from '@/services/goalService'
 import * as investmentGoalService from '@/services/investmentGoalService'
 import { useTransactionStore } from '@/stores/transaction'
+import { useTokenStore } from '@/stores/token'
+import { MAX_GOALS_BASIC } from '@/composables/usePocketLimits'
+
+/** Thrown when Basic user tries to create more than 1 goal. */
+export const GOAL_LIMIT_REACHED = 'GOAL_LIMIT_REACHED'
 
 export const useGoalStore = defineStore('goal', () => {
   const goals = ref<Goal[]>([])
 
   const txStore = useTransactionStore()
+  const tokenStore = useTokenStore()
 
   // Transaction-based balance per goal (deposits - withdrawals)
   const goalBalances = computed(() => {
@@ -91,6 +97,12 @@ export const useGoalStore = defineStore('goal', () => {
   }
 
   function createGoal(data: CreateGoalData): Goal {
+    const isPremium = tokenStore.isLicenseActive
+    if (!isPremium && goals.value.length >= MAX_GOALS_BASIC) {
+      const err = new Error('GOAL_LIMIT_REACHED') as Error & { code: string }
+      err.code = GOAL_LIMIT_REACHED
+      throw err
+    }
     const created = goalService.createGoal(data)
     goals.value = goalService.getAllGoals()
     return created

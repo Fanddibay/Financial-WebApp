@@ -9,10 +9,18 @@ import { MAIN_POCKET_ID } from '@/services/pocketService'
 export const MAX_POCKETS_BASIC = 2
 export const MAX_POCKETS_PREMIUM = Infinity
 
+/** Basic plan: 1 goal only. Premium: unlimited. */
+export const MAX_GOALS_BASIC = 1
+export const MAX_GOALS_PREMIUM = Infinity
+
 export type PlanType = 'basic' | 'premium'
 
 export function getMaxPockets(plan: PlanType): number {
   return plan === 'premium' ? MAX_POCKETS_PREMIUM : MAX_POCKETS_BASIC
+}
+
+export function getMaxGoals(plan: PlanType): number {
+  return plan === 'premium' ? MAX_GOALS_PREMIUM : MAX_GOALS_BASIC
 }
 
 export function canAddPocket(isPremium: boolean, currentCount: number): boolean {
@@ -22,6 +30,15 @@ export function canAddPocket(isPremium: boolean, currentCount: number): boolean 
 
 export function isAtPocketLimit(isPremium: boolean, currentCount: number): boolean {
   return !canAddPocket(isPremium, currentCount)
+}
+
+export function canAddGoal(isPremium: boolean, currentCount: number): boolean {
+  const limit = getMaxGoals(isPremium ? 'premium' : 'basic')
+  return currentCount < limit
+}
+
+export function isAtGoalLimit(isPremium: boolean, currentCount: number): boolean {
+  return !canAddGoal(isPremium, currentCount)
 }
 
 /** Main first, then rest by createdAt ascending. */
@@ -57,8 +74,11 @@ export function getActivePockets(pockets: Pocket[], isPremium: boolean): Pocket[
 export function usePocketLimits() {
   return {
     getMaxPockets,
+    getMaxGoals,
     canAddPocket,
     isAtPocketLimit,
+    canAddGoal,
+    isAtGoalLimit,
     getSortedPockets,
     getActivePocketIds,
     isPocketDisabled,

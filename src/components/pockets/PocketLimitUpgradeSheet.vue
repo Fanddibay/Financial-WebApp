@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { useI18n } from 'vue-i18n'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 
 defineProps<{ isOpen: boolean }>()
 const emit = defineEmits<{ close: [] }>()
 const { t } = useI18n()
-const router = useRouter()
+const paymentModalStore = usePaymentModalStore()
 
 function handleUpgrade() {
   emit('close')
-  router.push({ path: '/profile', hash: '#license' })
+  paymentModalStore.openPaymentModal()
 }
 
 function handleCancel() {

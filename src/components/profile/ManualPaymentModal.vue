@@ -52,7 +52,7 @@ function handleIHavePaid() {
 
 <template>
   <BottomSheet :is-open="isOpen" :title="t('payment.detailsTitle')" :subtitle="t('payment.detailsSubtitle')"
-    @close="emit('close')">
+    :overlay-z-index="200" @close="emit('close')">
     <div class="space-y-6">
       <!-- Info Card -->
       <div class="rounded-2xl border border-slate-100 bg-slate-50 p-5 dark:border-slate-700 dark:bg-slate-800/50">

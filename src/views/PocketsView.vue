@@ -2,7 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePocketStore } from '@/stores/pocket'
-import { useGoalStore } from '@/stores/goal'
+import { useGoalStore, GOAL_LIMIT_REACHED } from '@/stores/goal'
+import { useToastStore } from '@/stores/toast'
 import { useTokenStore } from '@/stores/token'
 import { useProfileStore } from '@/stores/profile'
 import { usePocketLimits } from '@/composables/usePocketLimits'
@@ -15,6 +16,7 @@ import CreatePocketModal from '@/components/pockets/CreatePocketModal.vue'
 import CreateGoalModal from '@/components/goals/CreateGoalModal.vue'
 import PocketLimitUpgradeSheet from '@/components/pockets/PocketLimitUpgradeSheet.vue'
 import PocketDisabledSheet from '@/components/pockets/PocketDisabledSheet.vue'
+import GoalLimitUpgradeSheet from '@/components/goals/GoalLimitUpgradeSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { formatIDR } from '@/utils/currency'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
@@ -25,10 +27,11 @@ const route = useRoute()
 const router = useRouter()
 const pocketStore = usePocketStore()
 const goalStore = useGoalStore()
+const toastStore = useToastStore()
 const tokenStore = useTokenStore()
 const profileStore = useProfileStore()
 const { pocketBalances, fetchTransactions } = useTransactions()
-const { getSortedPockets, isAtPocketLimit, isPocketDisabled } = usePocketLimits()
+const { getSortedPockets, isAtPocketLimit, isAtGoalLimit, isPocketDisabled } = usePocketLimits()
 
 // Local visibility state removed in favor of global profileStore.profile.showBalance
 const activeTab = ref<'pocket' | 'goal'>('pocket')
@@ -36,6 +39,7 @@ const showCreateChoiceModal = ref(false)
 const showCreateModal = ref(false)
 const showCreateGoalModal = ref(false)
 const showPocketLimitUpgrade = ref(false)
+const showGoalLimitUpgrade = ref(false)
 const showPocketDisabledSheet = ref(false)
 
 const totalBalanceAllPockets = computed(() => {
@@ -76,22 +80,41 @@ function chooseCreatePocket() {
 
 function chooseCreateGoal() {
   showCreateChoiceModal.value = false
+  if (isAtGoalLimit(tokenStore.isLicenseActive, goalStore.goals.length)) {
+    showGoalLimitUpgrade.value = true
+    return
+  }
   showCreateGoalModal.value = true
 }
 
 function handleCreateClick() {
-  if (activeTab.value === 'pocket') chooseCreatePocket()
-  else chooseCreateGoal()
+  if (activeTab.value === 'pocket') {
+    chooseCreatePocket()
+  } else {
+    chooseCreateGoal()
+  }
 }
 
 function handleCreatePocket(data: { name: string; icon: string; type: 'spending' | 'saving'; color?: string }) {
   pocketStore.createPocket(data)
   showCreateModal.value = false
+  toastStore.success(t('pocket.createSuccess', { name: data.name }))
 }
 
 function handleCreateGoal(data: { name: string; icon: string; targetAmount: number; durationMonths: number; color?: string }) {
-  goalStore.createGoal(data)
-  showCreateGoalModal.value = false
+  try {
+    goalStore.createGoal(data)
+    showCreateGoalModal.value = false
+    toastStore.success(t('goal.createSuccess', { name: data.name }))
+  } catch (e) {
+    const err = e as Error & { code?: string }
+    if (err.code === GOAL_LIMIT_REACHED) {
+      showCreateGoalModal.value = false
+      showGoalLimitUpgrade.value = true
+    } else {
+      throw e
+    }
+  }
 }
 
 // Sync URL with tab so Back from goal detail returns to the same tab
@@ -266,6 +289,7 @@ onMounted(() => {
     <CreatePocketModal :is-open="showCreateModal" @close="showCreateModal = false" @created="handleCreatePocket" />
     <CreateGoalModal :is-open="showCreateGoalModal" @close="showCreateGoalModal = false" @created="handleCreateGoal" />
     <PocketLimitUpgradeSheet :is-open="showPocketLimitUpgrade" @close="showPocketLimitUpgrade = false" />
+    <GoalLimitUpgradeSheet :is-open="showGoalLimitUpgrade" @close="showGoalLimitUpgrade = false" />
     <PocketDisabledSheet :is-open="showPocketDisabledSheet" @close="showPocketDisabledSheet = false" />
   </div>
 </template>

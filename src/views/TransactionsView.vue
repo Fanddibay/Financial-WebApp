@@ -375,7 +375,7 @@ async function confirmDelete() {
     try {
       await deleteTransaction(idToDelete)
       await nextTick()
-      toastStore.success(t('transactions.deleteSuccess'))
+      toastStore.deleteToast(t('transactions.deleteSuccess'))
     } catch (error) {
       console.error('Error deleting transaction:', error)
       toastStore.error(t('transactions.deleteFailed'))
@@ -497,8 +497,7 @@ onUnmounted(() => {
             :class="{ 'ring-2 ring-brand ring-offset-2 dark:ring-offset-slate-900': showExportDropdown }"
             :disabled="!hasTransactionsToExport" :title="t('transactions.exportFile')"
             @click.stop="showExportDropdown = !showExportDropdown">
-            Export File
-            <span class="hidden sm:inline">{{ t('transactions.exportFile') }}</span>
+            {{ t('transactions.exportFile') }}
             <font-awesome-icon :icon="['fas', showExportDropdown ? 'chevron-up' : 'chevron-down']"
               class="h-3 w-3 text-slate-400" />
 
