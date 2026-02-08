@@ -239,7 +239,10 @@ onMounted(() => {
         style="scrollbar-width: thin;">
         <template v-if="goalsWithBalances.length">
           <button v-for="g in goalsWithBalances" :key="g.id" type="button"
-            class="flex w-[80%] min-w-[80%] shrink-0 flex-col rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-brand/40 hover:shadow dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40"
+            :class="[
+              'flex shrink-0 flex-col rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-brand/40 hover:shadow dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40',
+              goalsWithBalances.length === 1 ? 'w-full min-w-full' : 'w-[80%] min-w-[80%]',
+            ]"
             @click="goToGoal(g.id)">
             <div class="flex items-center gap-2">
               <span class="text-lg" aria-hidden="true">{{ g.icon }}</span>
@@ -262,7 +265,7 @@ onMounted(() => {
           </button>
         </template>
         <div v-else
-          class="flex w-[80%] min-w-[80%] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-6 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
+          class="flex w-full min-w-full shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-6 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
           <span class="text-2xl text-slate-400 dark:text-slate-500" aria-hidden="true">🎯</span>
           <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ t('goal.noGoalsYet') }}</p>
         </div>
