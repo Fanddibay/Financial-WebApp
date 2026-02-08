@@ -8,6 +8,7 @@ import BaseCard from '@/components/ui/BaseCard.vue'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { parseTextInput, type TextParseResult } from '@/utils/textParser'
 import type { TransactionFormData } from '@/types/transaction'
+import type { AddTransactionPayload } from '@/composables/useAddTransactionFlow'
 import { useTransactions } from '@/composables/useTransactions'
 import { MAIN_POCKET_ID } from '@/services/pocketService'
 import { formatIDR } from '@/utils/currency'
@@ -39,7 +40,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<{
   close: []
   'edit-navigate': []
-  'submit-complete': [payload?: { pocketId: string; amount: number; type: 'income' | 'expense' }]
+  'submit-complete': [payload?: AddTransactionPayload]
 }>()
 
 const router = useRouter()
@@ -294,8 +295,11 @@ async function handleSubmit() {
     await createTransaction(transactionData)
     await fetchTransactions()
     tokenStore.recordTextInput()
+    const type = validatedType as 'income' | 'expense'
     const pl = props.originRoute
-      ? { pocketId, amount: validatedAmount, type: validatedType as 'income' | 'expense' }
+      ? goalId
+        ? { goalId, amount: validatedAmount, type }
+        : { pocketId, amount: validatedAmount, type }
       : undefined
     emit('submit-complete', pl)
     emit('close')

@@ -213,11 +213,10 @@ async function handleScanComplete(data: Omit<TransactionFormData, 'pocketId'>) {
     fetchTransactions()
     showScanner.value = false
     emit('close')
-    const pl: AddTransactionPayload = {
-      pocketId,
-      amount: data.amount,
-      type: data.type as 'income' | 'expense',
-    }
+    const type = data.type as 'income' | 'expense'
+    const pl: AddTransactionPayload = goalId
+      ? { goalId, amount: data.amount, type }
+      : { pocketId, amount: data.amount, type }
     successThenRedirect(originRoute.value || '/', pl)
   } catch (error: unknown) {
     const err = error as Error & { currentBalance?: number; amount?: number }
