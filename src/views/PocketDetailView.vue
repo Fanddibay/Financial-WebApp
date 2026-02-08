@@ -448,7 +448,7 @@ onMounted(() => {
         </div>
 
         <!-- Scrollable tab content: extend to bottom nav; pb-24 so last items visible above nav -->
-        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-4 pb-4 px-4"
+        <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pt-4 pb-12 px-4"
           style="scroll-behavior: smooth; -webkit-overflow-scrolling: touch;">
           <!-- Tab: Transactions -->
           <div v-show="activeTab === 'transactions'" class="space-y-4">

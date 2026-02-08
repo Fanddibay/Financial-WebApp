@@ -821,29 +821,31 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 
 
 
-        <!-- Notification Toast -->
-        <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-2"
-            enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
-            leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
-            <div v-if="notification.type" :class="[
-                'fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg px-4 py-3 shadow-lg max-w-[90%]',
-                notification.type === 'success'
-                    ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800'
-                    : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
-            ]">
-                <div class="flex items-center gap-3">
-                    <font-awesome-icon
-                        :icon="['fas', notification.type === 'success' ? 'check-circle' : 'exclamation-triangle']"
-                        :class="[
-                            'text-lg',
-                            notification.type === 'success'
-                                ? 'text-green-600 dark:text-green-400'
-                                : 'text-red-600 dark:text-red-400',
-                        ]" />
-                    <p class="text-sm font-medium">{{ notification.message }}</p>
+        <!-- Notification Toast (Teleport ke body agar z-index di atas bottom nav) -->
+        <Teleport to="body">
+            <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="opacity-0 translate-y-2"
+                enter-to-class="opacity-100 translate-y-0" leave-active-class="transition-all duration-200 ease-in"
+                leave-from-class="opacity-100 translate-y-0" leave-to-class="opacity-0 translate-y-2">
+                <div v-if="notification.type" :class="[
+                    'fixed bottom-24 left-1/2 -translate-x-1/2 rounded-lg px-4 py-3 shadow-lg max-w-[90%]',
+                    notification.type === 'success'
+                        ? 'bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800'
+                        : 'bg-red-50 text-red-800 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800',
+                ]" style="z-index: 2147483647">
+                    <div class="flex items-center gap-3">
+                        <font-awesome-icon
+                            :icon="['fas', notification.type === 'success' ? 'check-circle' : 'exclamation-triangle']"
+                            :class="[
+                                'text-lg',
+                                notification.type === 'success'
+                                    ? 'text-green-600 dark:text-green-400'
+                                    : 'text-red-600 dark:text-red-400',
+                            ]" />
+                        <p class="text-sm font-medium">{{ notification.message }}</p>
+                    </div>
                 </div>
-            </div>
-        </Transition>
+            </Transition>
+        </Teleport>
 
         <!-- Modals -->
         <ExportModal :is-open="showExportModal" @close="showExportModal = false" @success="handleExportSuccess"

@@ -160,11 +160,10 @@ const chartOptions = computed(() => ({
 </script>
 
 <template>
-  <div class="relative flex items-center justify-center py-4">
+  <div class="relative flex items-center justify-center py-4 pb-6">
     <div class="relative mx-auto" style="width: 280px; height: 280px;">
-      <Doughnut :data="chartData" :options="chartOptions" />
-      <!-- Centered total inside donut -->
-      <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <!-- Teks saldo di layer belakang (tampak lewat lubang donut); chart + tooltip di depan -->
+      <div class="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
         <div class="text-center">
           <p :class="[
             'text-xs font-medium mb-1',
@@ -183,6 +182,9 @@ const chartOptions = computed(() => ({
             {{ formatIDR(totalExpenses) }}
           </p>
         </div>
+      </div>
+      <div class="relative z-10" style="width: 280px; height: 280px;">
+        <Doughnut :data="chartData" :options="chartOptions" />
       </div>
     </div>
   </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { usePaymentModalStore } from '@/stores/paymentModal'
@@ -28,6 +28,11 @@ const router = useRouter()
 
 const { t } = useI18n()
 const selectedMethod = ref('')
+
+// Reset pilihan saat modal ditutup agar tidak terbawa saat dibuka lagi
+watch(() => props.isOpen, (open) => {
+  if (!open) selectedMethod.value = ''
+})
 
 const paymentMethods = [
   {

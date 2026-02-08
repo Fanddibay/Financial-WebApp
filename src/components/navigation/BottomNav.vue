@@ -38,7 +38,7 @@ function openAddModal() {
 
 <template>
   <nav
-    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-5 w-[calc(100%-24px)] max-w-[400px] rounded-[2.5rem] border border-slate-200/60 bg-white/90 backdrop-blur-xl shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/90 transition-all duration-300">
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[calc(100%-24px)] max-w-[400px] rounded-[2.5rem] border border-slate-200/60 bg-white/90 backdrop-blur-xl shadow-2xl dark:border-slate-700/60 dark:bg-slate-900/90 transition-all duration-300">
     <div class="flex items-center justify-around px-2 py-3">
 
       <!-- Home Button -->
