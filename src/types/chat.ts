@@ -8,6 +8,20 @@ export interface ChatMessage {
 export interface ChatContext {
   /** User's active language ('id' | 'en'). Chatbot responds in this language. */
   locale?: 'id' | 'en'
+  /** Goals with current balance and target for goal-related questions */
+  goals?: Array<{
+    name: string
+    icon?: string
+    currentBalance: number
+    targetAmount: number
+    progressPercent: number
+    type?: 'saving' | 'investment'
+    annualReturnPercentage?: number
+  }>
+  /** Total assets (pockets + goals) for "total aset" questions */
+  totalAssets?: number
+  /** Pockets with balance for "kantong/dompet" questions */
+  pockets?: Array<{ name: string; balance: number }>
   transactions?: {
     totalIncome: number
     totalExpenses: number

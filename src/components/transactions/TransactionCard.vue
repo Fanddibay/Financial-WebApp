@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import type { Transaction } from '@/types/transaction'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { formatIDR } from '@/utils/currency'
 import { getCategoryIcon } from '@/utils/categoryIcons'
 import { usePocketStore } from '@/stores/pocket'
+import { useGoalStore } from '@/stores/goal'
 import { useI18n } from 'vue-i18n'
 
 interface Props {
@@ -12,6 +14,8 @@ interface Props {
   /** When listing per-pocket, pass current pocket id to show transfer direction (from/to). */
   contextPocketId?: string
   hideActions?: boolean
+  /** List style: no card border/background, full-width row with bottom border only */
+  flat?: boolean
 }
 
 const props = defineProps<Props>()
@@ -22,7 +26,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const router = useRouter()
 const pocketStore = usePocketStore()
+const goalStore = useGoalStore()
 
 const openMenuId = inject<{ value: string | null }>('transactionMenuOpenId', { value: null })
 const setOpenMenuId = inject<(id: string | null) => void>('transactionMenuSetOpenId', () => { })
@@ -96,14 +102,27 @@ const displayTitle = computed(() => {
 })
 
 const pocketLabel = computed(() => {
-  if (isTransfer.value) {
-    const from = pocketStore.getPocketById(props.transaction.pocketId)?.name ?? ''
-    const to = props.transaction.transferToPocketId
-      ? pocketStore.getPocketById(props.transaction.transferToPocketId)?.name ?? ''
-      : ''
+  const tx = props.transaction
+  if (tx.type === 'transfer') {
+    if (tx.goalId && tx.transferToPocketId) {
+      const goalName = goalStore.getGoalById(tx.goalId)?.name ?? ''
+      const pocketName = pocketStore.getPocketById(tx.transferToPocketId)?.name ?? ''
+      return goalName && pocketName ? `${goalName} → ${pocketName}` : ''
+    }
+    if (tx.transferToGoalId) {
+      const fromName = pocketStore.getPocketById(tx.pocketId)?.name ?? ''
+      const toName = goalStore.getGoalById(tx.transferToGoalId)?.name ?? ''
+      return fromName && toName ? `${fromName} → ${toName}` : ''
+    }
+    const from = pocketStore.getPocketById(tx.pocketId)?.name ?? ''
+    const to = tx.transferToPocketId ? pocketStore.getPocketById(tx.transferToPocketId)?.name ?? '' : ''
     return from && to ? `${from} → ${to}` : ''
   }
-  const pocket = pocketStore.getPocketById(props.transaction.pocketId)
+  if (tx.goalId) {
+    const goal = goalStore.getGoalById(tx.goalId)
+    return goal?.name ?? ''
+  }
+  const pocket = pocketStore.getPocketById(tx.pocketId)
   return pocket?.name ?? ''
 })
 
@@ -142,11 +161,36 @@ function handleDelete() {
   setOpenMenuId(null)
   emit('delete', props.transaction.id)
 }
+
+function handleCardClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.closest('button') || target.closest('[role="menu"]') || isMenuOpen.value) return
+  
+  const tx = props.transaction
+  
+  if (tx.goalId && tx.type === 'income') {
+    router.push(`/goals/${tx.goalId}`)
+  } else if (tx.transferToGoalId) {
+    router.push(`/goals/${tx.transferToGoalId}`)
+  } else if (tx.goalId && tx.transferToPocketId) {
+    router.push(`/goals/${tx.goalId}`)
+  } else if (tx.transferToPocketId) {
+    router.push(`/pockets/${tx.transferToPocketId}`)
+  } else if (tx.pocketId) {
+    router.push(`/pockets/${tx.pocketId}`)
+  }
+}
 </script>
 
 <template>
   <div ref="rootRef"
-    :class="['relative flex items-center justify-between gap-4 rounded-xl border p-3.5 transition hover:shadow-sm', cardClass]">
+    :class="[
+      'relative flex cursor-pointer items-center justify-between gap-4 transition',
+      flat
+        ? 'border-b border-slate-200 py-3 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/50'
+        : ['rounded-xl border p-3.5 hover:shadow-sm', cardClass],
+    ]"
+    @click="handleCardClick">
     <!-- Left: icon + details -->
     <div class="min-w-0 flex-1">
       <div class="flex items-start gap-3">

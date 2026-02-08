@@ -582,8 +582,10 @@ function extractDescription(text: string): string {
 /**
  * Main parsing function
  * Parse natural language text to extract transaction data
+ * @param text - The text to parse
+ * @param forcedType - Optional: force transaction type (e.g., 'income' for goals)
  */
-export function parseTextInput(text: string): TextParseResult {
+export function parseTextInput(text: string, forcedType?: 'income' | 'expense'): TextParseResult {
   const errors: string[] = []
   const warnings: string[] = []
 
@@ -609,9 +611,12 @@ export function parseTextInput(text: string): TextParseResult {
     warnings.push('Jumlah yang terdeteksi memiliki keyakinan rendah. Silakan periksa kembali sebelum menyimpan.')
   }
 
-  // Detect transaction type
-  const typeResult = detectTransactionType(text)
-  if (typeResult.confidence === 'none') {
+  // Detect transaction type (or use forced type)
+  const typeResult = forcedType
+    ? { type: forcedType, confidence: 'high' as const }
+    : detectTransactionType(text)
+
+  if (!forcedType && typeResult.confidence === 'none') {
     warnings.push('Tipe transaksi tidak terdeteksi dengan jelas. Default: Expense. Gunakan kata seperti "beli", "bayar" untuk expense atau "gaji", "masuk" untuk income.')
   }
 

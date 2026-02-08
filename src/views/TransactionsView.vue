@@ -5,6 +5,7 @@ import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactions } from '@/composables/useTransactions'
 import { useToastStore } from '@/stores/toast'
 import { usePocketStore } from '@/stores/pocket'
+import { useGoalStore } from '@/stores/goal'
 import { useTokenStore } from '@/stores/token'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
@@ -17,6 +18,7 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { exportToXLSX, exportToPDF } from '@/utils/export'
 import type { TransactionFormData, TransactionType } from '@/types/transaction'
 import { getCategoryWithIcon } from '@/utils/categoryIcons'
+import { formatIDR } from '@/utils/currency'
 import { useI18n } from 'vue-i18n'
 
 const { t, locale } = useI18n()
@@ -32,6 +34,7 @@ const {
   createTransaction,
 } = useTransactions()
 const pocketStore = usePocketStore()
+const goalStore = useGoalStore()
 const tokenStore = useTokenStore()
 const { getActivePockets } = usePocketLimits()
 
@@ -46,6 +49,8 @@ const showScrollToTop = ref(false)
 const showExportNoDataModal = ref(false)
 const showExportDropdown = ref(false)
 const exportDropdownRef = ref<HTMLElement | null>(null)
+const showInsufficientBalanceModal = ref(false)
+const insufficientBalanceMessage = ref('')
 
 const transactionMenuOpenId = ref<string | null>(null)
 provide('transactionMenuOpenId', transactionMenuOpenId)
@@ -185,8 +190,17 @@ const filteredTransactions = computed(() => {
   }
 
   if (filterPocketId.value) {
-    const pid = filterPocketId.value
-    result = result.filter((t) => t.pocketId === pid || t.transferToPocketId === pid)
+    const raw = filterPocketId.value
+    if (raw.startsWith('goal:')) {
+      const gid = raw.slice(5)
+      result = result.filter((t) => t.goalId === gid || t.transferToGoalId === gid)
+    } else {
+      result = result.filter((t) => {
+        if (t.type === 'income' && t.goalId) return false
+        if (t.type === 'transfer' && t.transferToGoalId && t.pocketId === raw) return false
+        return t.pocketId === raw || t.transferToPocketId === raw
+      })
+    }
   }
 
   // Filter by date range
@@ -218,11 +232,15 @@ const filteredTransactions = computed(() => {
   })
 })
 
-const pocketOptions = computed(() => {
+const walletFilterOptions = computed(() => {
   const base = [{ value: '', label: t('transactions.allWallets') }]
-  const active = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
-  const list = active.map((p) => ({ value: p.id, label: `${p.icon} ${p.name}` }))
-  return [...base, ...list]
+  const activePockets = getActivePockets(pocketStore.pockets, tokenStore.isLicenseActive)
+  const pocketList = activePockets.map((p) => ({ value: p.id, label: `${p.icon} ${p.name}` }))
+  const goalList = goalStore.goals.map((g) => ({
+    value: `goal:${g.id}`,
+    label: `${g.icon} ${g.name}`,
+  }))
+  return [...base, ...pocketList, ...goalList]
 })
 
 const filteredSummary = computed(() => {
@@ -383,16 +401,42 @@ function handleExportPDF() {
   exportToPDF(filteredTransactions.value, filteredSummary.value, filename)
 }
 
-function handleScanComplete(data: TransactionFormData) {
-  createTransaction(data)
-  fetchTransactions()
+async function handleScanComplete(data: TransactionFormData) {
+  try {
+    await createTransaction(data)
+    fetchTransactions()
+  } catch (error: unknown) {
+    const err = error as Error & { currentBalance?: number; amount?: number }
+    if (err.message === 'INSUFFICIENT_POCKET_BALANCE' && err.currentBalance != null && err.amount != null) {
+      insufficientBalanceMessage.value = t('pocket.insufficientBalanceMessage', {
+        balance: formatIDR(err.currentBalance),
+        amount: formatIDR(err.amount),
+      })
+      showInsufficientBalanceModal.value = true
+    } else {
+      console.error('Error creating transaction:', error)
+    }
+  }
 }
 
-function handleScanCompleteMultiple(data: TransactionFormData[]) {
-  data.forEach((transaction) => {
-    createTransaction(transaction)
-  })
-  fetchTransactions()
+async function handleScanCompleteMultiple(data: TransactionFormData[]) {
+  try {
+    for (const transaction of data) {
+      await createTransaction(transaction)
+    }
+    fetchTransactions()
+  } catch (error: unknown) {
+    const err = error as Error & { currentBalance?: number; amount?: number }
+    if (err.message === 'INSUFFICIENT_POCKET_BALANCE' && err.currentBalance != null && err.amount != null) {
+      insufficientBalanceMessage.value = t('pocket.insufficientBalanceMessage', {
+        balance: formatIDR(err.currentBalance),
+        amount: formatIDR(err.amount),
+      })
+      showInsufficientBalanceModal.value = true
+    } else {
+      console.error('Error creating transactions:', error)
+    }
+  }
 }
 
 function handleScroll(e: Event) {
@@ -416,6 +460,7 @@ function closeExportDropdown(e?: MouseEvent) {
 
 onMounted(() => {
   pocketStore.fetchPockets()
+  goalStore.fetchGoals()
   fetchTransactions()
   const q = route.query.pocketId
   if (q && typeof q === 'string') {
@@ -423,6 +468,10 @@ onMounted(() => {
     if (active.some((p) => p.id === q)) {
       filterPocketId.value = q
     }
+  }
+  const goalQ = route.query.goalId
+  if (goalQ && typeof goalQ === 'string' && goalStore.getGoalById(goalQ)) {
+    filterPocketId.value = `goal:${goalQ}`
   }
   window.addEventListener('scroll', handleScroll)
   const main = document.querySelector('main')
@@ -516,7 +565,7 @@ onUnmounted(() => {
             class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500 pointer-events-none" />
           <select v-model="filterPocketId"
             class="w-full appearance-none rounded-xl border border-slate-200 bg-white py-2.5 pl-8 pr-7 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            <option v-for="opt in pocketOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+            <option v-for="opt in walletFilterOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
           </select>
           <font-awesome-icon :icon="['fas', 'chevron-down']"
             class="absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -555,7 +604,7 @@ onUnmounted(() => {
         aria-hidden="true">
         <font-awesome-icon :icon="['fas', 'receipt']" class="h-10 w-10" />
       </span>
-      <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+      <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
         {{
           searchQuery || filterCategory || filterType !== 'all' || filterPocketId || dateFilterType !== 'none'
             ? t('transactions.noTransactionsFiltered')
@@ -593,6 +642,10 @@ onUnmounted(() => {
     <!-- Export no-data alert -->
     <AlertModal :is-open="showExportNoDataModal" :title="t('transactions.exportNoDataTitle')"
       :message="t('transactions.exportNoDataMessage')" variant="info" @close="showExportNoDataModal = false" />
+
+    <!-- Insufficient pocket balance warning -->
+    <AlertModal :is-open="showInsufficientBalanceModal" :title="t('pocket.insufficientBalanceTitle')"
+      :message="insufficientBalanceMessage" variant="warning" @close="showInsufficientBalanceModal = false" />
 
     <!-- Delete Confirmation Modal -->
     <ConfirmModal :is-open="showDeleteConfirm" :title="t('transactions.deleteTransaction')"

@@ -70,7 +70,7 @@ const buttonVariants = {
       <div :class="['mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full', bgColors[variant]]">
         <FontAwesomeIcon :icon="iconToUse" :class="['text-3xl', iconColors[variant]]" />
       </div>
-      <h3 class="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+      <h3 class="mb-2 text-xl font-semibold text-slate-900 dark:text-slate-100">
         {{ title }}
       </h3>
       <p class="mb-6 text-sm text-slate-600 dark:text-slate-400">
@@ -86,4 +86,3 @@ const buttonVariants = {
     </template>
   </BaseModal>
 </template>
-

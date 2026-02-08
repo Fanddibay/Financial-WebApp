@@ -12,6 +12,10 @@ export interface Transaction {
   pocketId: string
   /** Set only when type === 'transfer': target pocket for internal transfer */
   transferToPocketId?: string
+  /** Set when transaction is for a Goal (income only) */
+  goalId?: string
+  /** Set when type === 'transfer' and target is a Goal */
+  transferToGoalId?: string
 }
 
 export interface TransactionFormData {
@@ -21,6 +25,8 @@ export interface TransactionFormData {
   category: string
   date: string
   pocketId: string
+  /** Set when transaction is for a Goal (income only) */
+  goalId?: string
 }
 
 export interface TransactionFilters {

@@ -340,10 +340,6 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 
         <!-- View Mode -->
         <div v-else class="space-y-4">
-          <div>
-            <label class="text-sm font-medium text-slate-600 dark:text-slate-400">{{ t('profile.name') }}</label>
-            <p class="mt-1 text-slate-900 dark:text-slate-100">{{ displayName }}</p>
-          </div>
           <BaseButton variant="secondary" class="w-full" @click="startEditing">
             <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
             {{ t('profile.editProfile') }}
@@ -355,7 +351,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <!-- Token & License -->
     <div id="license">
       <BaseCard>
-        <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
+        <h3 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
         <div class="space-y-4">
           <!-- Activate License Card -->
           <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
@@ -501,7 +497,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
 
     <!-- Settings -->
     <BaseCard>
-      <h3 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
+      <h3 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
       <div class="space-y-4">
         <!-- Notifications: coming soon -->
         <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
@@ -567,7 +563,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <!-- Data Management -->
     <BaseCard>
       <div class="mb-4 flex items-center justify-between gap-3">
-        <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
           {{ t('dataManagement.title') }}
         </h3>
         <button type="button"
@@ -622,7 +618,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
     <BaseCard>
       <div class="space-y-4">
         <div>
-          <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
             {{ t('profile.help.title') }}
           </h3>
           <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -684,7 +680,7 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
             <font-awesome-icon :icon="['fas', isInstalled ? 'check-circle' : 'download']" class="text-brand" />
           </div>
           <div>
-            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            <h3 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
               {{ t('pwa.title') }}
             </h3>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">

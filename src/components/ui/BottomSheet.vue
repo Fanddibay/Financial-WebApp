@@ -79,7 +79,7 @@ onUnmounted(() => {
               class="shrink-0 border-b border-slate-200 px-4 pb-2 pt-0 dark:border-slate-700">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <h2 v-if="title" class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  <h2 v-if="title" class="text-xl font-semibold text-slate-900 dark:text-slate-100">
                     {{ title }}
                   </h2>
                   <p v-if="subtitle" class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

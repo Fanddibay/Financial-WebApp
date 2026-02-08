@@ -17,7 +17,7 @@ const activeTab = computed(() => {
   const currentPath = route.path
 
   if (currentPath === '/') return 'home'
-  if (currentPath.startsWith('/pockets')) return 'pockets'
+  if (currentPath.startsWith('/pockets') || currentPath.startsWith('/goals')) return 'pockets'
   if (currentPath.startsWith('/transactions')) return 'transactions'
   if (currentPath === '/profile') return 'profile'
   return 'home'

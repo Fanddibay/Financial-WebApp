@@ -92,6 +92,7 @@ const hasMultipleTransactions = ref(false)
 const showFullscreenImage = ref(false)
 const showHeicInfo = ref(true) // Default open
 const showLimitInfo = ref(false)
+const showOcrPreview = ref(false)
 
 // Image zoom/pan state
 const imageScale = ref(1)
@@ -281,10 +282,10 @@ async function processImage(file: File) {
     processingProgress.value = 35
     let worker: any = null
 
-    // Helper function to create worker with timeout
-    const createWorkerWithTimeout = async (options: any, timeoutMs = 60000): Promise<any> => {
+    // Helper: create worker with timeout; lang can be 'eng' or 'eng+ind' for better Indonesian receipts
+    const createWorkerWithTimeout = async (options: any, timeoutMs = 60000, lang = 'eng'): Promise<any> => {
       return Promise.race([
-        TesseractInstance.createWorker('eng', 1, options),
+        TesseractInstance.createWorker(lang, 1, options),
         new Promise((_, reject) =>
           setTimeout(() => reject(new Error(t('scanner.workerTimeout'))), timeoutMs)
         )
@@ -310,33 +311,38 @@ async function processImage(file: File) {
       }
     }
 
+    const localOptions = {
+      workerPath: '/tesseract/worker.min.js',
+      corePath: '/tesseract/tesseract-core.wasm.js',
+      langPath: '/tesseract/lang-data',
+      logger,
+    }
+
     try {
-      worker = await createWorkerWithTimeout({
-        workerPath: '/tesseract/worker.min.js',
-        corePath: '/tesseract/tesseract-core.wasm.js',
-        langPath: '/tesseract/lang-data',
-        logger,
-      }, 60000) // 60 second timeout
-
+      worker = await createWorkerWithTimeout(localOptions, 60000, 'eng+ind')
       isEngineDownloading.value = false
-    } catch (workerError) {
-      isEngineDownloading.value = false
-      console.error('Local worker creation failed, trying with explicit CDN paths:', workerError)
-
-      if (isOffline) {
-        throw new Error(t('scanner.offlineLocalError'))
-      }
-
-      // Fallback: Try with explicit CDN paths if local fails
+    } catch {
       try {
-        worker = await createWorkerWithTimeout({
-          workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
-          corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
-          langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
-          logger,
-        }, 60000)
-      } catch (cdnError) {
-        throw cdnError
+        worker = await createWorkerWithTimeout(localOptions, 60000, 'eng')
+        isEngineDownloading.value = false
+      } catch (localError) {
+        isEngineDownloading.value = false
+        console.error('Local worker creation failed, trying with explicit CDN paths:', localError)
+
+        if (isOffline) {
+          throw new Error(t('scanner.offlineLocalError'))
+        }
+
+        try {
+          worker = await createWorkerWithTimeout({
+            workerPath: 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js',
+            corePath: 'https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core.wasm.js',
+            langPath: 'https://cdn.jsdelivr.net/npm/tesseract.js-data@5',
+            logger,
+          }, 60000, 'eng')
+        } catch (cdnError) {
+          throw cdnError
+        }
       }
     }
 
@@ -534,6 +540,7 @@ function handleClose() {
   showPreview.value = false
   showFullscreenImage.value = false
   showItemBreakdown.value = false
+  showOcrPreview.value = false
   showHeicInfo.value = true // Reset to open when closing
   error.value = null
   errorType.value = null
@@ -562,6 +569,7 @@ function handleRescan() {
   showPreview.value = false
   showFullscreenImage.value = false
   showItemBreakdown.value = false
+  showOcrPreview.value = false
   showHeicInfo.value = true // Reset to open when rescanning
   error.value = null
   errorType.value = null
@@ -644,6 +652,18 @@ function handleImageTouchEnd() {
 const hasItems = computed(() => {
   return detailedResult.value?.items && detailedResult.value.items.length > 0
 })
+
+const confidenceLabel = computed(() => {
+  const level = detailedResult.value?.confidenceLevel
+  if (!level) return ''
+  return level === 'high' ? t('scanner.confidenceHigh') : level === 'medium' ? t('scanner.confidenceMedium') : t('scanner.confidenceLow')
+})
+
+function formatDisplayDate(isoDate: string | undefined): string {
+  if (!isoDate) return '—'
+  const [y, m, d] = isoDate.split('-')
+  return `${d}/${m}/${y}`
+}
 
 // Get error icon based on error type
 const errorIcon = computed(() => {
@@ -845,25 +865,66 @@ const errorIcon = computed(() => {
         </p>
       </div>
 
-      <!-- Smart Feedback UI -->
-      <div v-if="detailedResult && !validationFailed" :class="[
-        'rounded-lg p-3 text-sm flex-shrink-0 relative overflow-hidden',
-        detailedResult.detectedAmount > 0
-          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-          : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
-      ]">
-        <div class="flex items-center justify-between">
-          <p class="font-medium flex items-center gap-2">
-            <font-awesome-icon v-if="detailedResult.detectedAmount > 0" :icon="['fas', 'check-circle']" />
-            <font-awesome-icon v-else :icon="['fas', 'exclamation-circle']" />
+      <!-- Scan result summary card: clear and easy to read -->
+      <div v-if="detailedResult && !validationFailed"
+        class="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden flex-shrink-0">
+        <div class="px-4 py-3 border-b border-slate-100 dark:border-slate-700">
+          <h4 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {{ t('scanner.scanResultTitle') }}
+          </h4>
+        </div>
+        <div class="p-4 space-y-3">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('scanner.detectedAmountLabel') }}</span>
+            <span :class="[
+              'text-lg font-bold tabular-nums',
+              detailedResult.detectedAmount > 0 ? 'text-slate-900 dark:text-slate-100' : 'text-amber-600 dark:text-amber-400',
+            ]">
+              {{ detailedResult.detectedAmount > 0 ? formatIDR(detailedResult.detectedAmount) : '—' }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.detectedDateLabel') }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-200">{{ formatDisplayDate(detailedResult.date) }}</span>
+          </div>
+          <div v-if="detailedResult.merchant" class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.detectedMerchantLabel') }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[60%]">{{ detailedResult.merchant }}</span>
+          </div>
+          <div v-if="confidenceLabel" class="flex items-center justify-between gap-2 text-sm">
+            <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.confidence') }}</span>
+            <span class="font-medium text-slate-700 dark:text-slate-300">{{ confidenceLabel }}</span>
+          </div>
+        </div>
+        <div :class="[
+          'px-4 py-2.5 flex items-center justify-between border-t border-slate-100 dark:border-slate-700',
+          detailedResult.detectedAmount > 0 ? 'bg-green-50/50 dark:bg-green-900/10' : 'bg-amber-50/50 dark:bg-amber-900/10',
+        ]">
+          <p class="text-xs font-medium flex items-center gap-2" :class="detailedResult.detectedAmount > 0 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'">
+            <font-awesome-icon v-if="detailedResult.detectedAmount > 0" :icon="['fas', 'check-circle']" class="h-4 w-4" />
+            <font-awesome-icon v-else :icon="['fas', 'exclamation-circle']" class="h-4 w-4" />
             {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') : t('scanner.totalNotDetected') }}
           </p>
-
           <button v-if="hasItems && !hasMultipleTransactions" @click="showItemBreakdown = !showItemBreakdown"
-            class="text-xs font-semibold underline underline-offset-2 hover:opacity-80 transition-opacity px-1">
+            class="text-xs font-semibold text-brand hover:underline underline-offset-2">
             {{ showItemBreakdown ? t('scanner.hideItemBreakdown') : t('scanner.viewItemBreakdown') }}
           </button>
         </div>
+      </div>
+
+      <!-- Collapsible: teks yang terbaca (OCR) untuk verifikasi -->
+      <div v-if="detailedResult" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden flex-shrink-0">
+        <button type="button" @click="showOcrPreview = !showOcrPreview"
+          class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors">
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ showOcrPreview ? t('scanner.hideOcrText') : t('scanner.viewOcrText') }}</span>
+          <font-awesome-icon :icon="['fas', showOcrPreview ? 'chevron-up' : 'chevron-down']" class="h-4 w-4 text-slate-500" />
+        </button>
+        <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0" enter-to-class="opacity-100 max-h-64"
+          leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 max-h-64" leave-to-class="opacity-0 max-h-0">
+          <div v-if="showOcrPreview" class="px-4 pb-4">
+            <pre class="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-words font-sans max-h-48 overflow-y-auto rounded-lg bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-600">{{ detailedResult.normalizedText || detailedResult.rawOcrText }}</pre>
+          </div>
+        </Transition>
       </div>
 
       <!-- Full Width Retake Button (Below Card) -->

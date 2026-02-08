@@ -5,6 +5,7 @@ import { useTransactions } from '@/composables/useTransactions'
 import { useAddTransactionFlow } from '@/composables/useAddTransactionFlow'
 import { useToastStore } from '@/stores/toast'
 import { usePocketStore } from '@/stores/pocket'
+import { useGoalStore } from '@/stores/goal'
 import { MAIN_POCKET_ID } from '@/services/pocketService'
 import type { TransactionFormData } from '@/types/transaction'
 import TransactionForm from '@/components/transactions/TransactionForm.vue'
@@ -23,6 +24,7 @@ const route = useRoute()
 const router = useRouter()
 const toastStore = useToastStore()
 const pocketStore = usePocketStore()
+const goalStore = useGoalStore()
 const { successThenRedirect } = useAddTransactionFlow()
 const { categories, loading, fetchTransactions, createTransaction, updateTransaction, getTransactionById } = useTransactions()
 
@@ -49,6 +51,7 @@ const formData = ref<TransactionFormData>({
   category: '',
   date: getTodayDate(),
   pocketId: MAIN_POCKET_ID,
+  goalId: undefined,
 })
 
 const isFromTextInput = ref(false)
@@ -87,6 +90,7 @@ const defaultFormData: TransactionFormData = {
   category: '',
   date: getTodayDate(),
   pocketId: MAIN_POCKET_ID,
+  goalId: undefined,
 }
 
 const pocketOptions = computed(() =>
@@ -126,6 +130,7 @@ watch(
 
 onMounted(async () => {
   pocketStore.fetchPockets()
+  goalStore.fetchGoals()
   if (isEdit.value) {
     const id = transactionId.value
     if (!id) {
@@ -146,6 +151,11 @@ onMounted(async () => {
         category: transaction.category,
         date: transaction.date,
         pocketId: transaction.pocketId,
+        goalId: transaction.goalId,
+      }
+      // If editing a goal transaction that is income, prevent changing to expense
+      if (transaction.goalId && transaction.type === 'income') {
+        // Type will be locked in TransactionForm component
       }
     } else {
       router.push('/transactions')
@@ -158,10 +168,26 @@ onMounted(async () => {
       fromPocketId.value = query.pocketId
       applySavingPocketDefaults()
     }
+    // Handle goalId - goals can only receive income; redirect back to goal after save
+    if (query.goalId && typeof query.goalId === 'string') {
+      formData.value.goalId = query.goalId
+      formData.value.type = 'income' // Force income for goals
+      if (!returnTo.value) returnTo.value = `/goals/${query.goalId}`
+      // Set default category for goal income
+      if (!formData.value.category) {
+        formData.value.category = t('transaction.categorySalary')
+      }
+    }
     applyDefaultCategory()
     if (query.from === 'text-input') {
       isFromTextInput.value = true
-      if (query.type) formData.value.type = query.type as 'income' | 'expense'
+      // For goals, force income type even from text input
+      if (query.goalId && typeof query.goalId === 'string') {
+        formData.value.goalId = query.goalId
+        formData.value.type = 'income' // Force income for goals
+      } else if (query.type) {
+        formData.value.type = query.type as 'income' | 'expense'
+      }
       if (query.amount) {
         const amount = parseFloat(query.amount as string)
         if (!isNaN(amount) && amount > 0) formData.value.amount = amount
@@ -198,6 +224,10 @@ function validateForm(data: TransactionFormData): string | null {
   }
   if (isDateInFuture(data.date)) {
     return t('transaction.dateFutureError')
+  }
+  // Goals can only receive income transactions
+  if (data.goalId && data.type !== 'income') {
+    return t('goal.onlyIncomeAllowed')
   }
   return null
 }
@@ -240,15 +270,23 @@ async function handleSubmit() {
       router.push(returnTo.value || '/')
     } else {
       await createTransaction(formData.value)
-      const dest = returnTo.value || (fromPocketId.value ? `/pockets/${fromPocketId.value}` : '/')
+      const dest = returnTo.value || (formData.value.goalId ? `/goals/${formData.value.goalId}` : fromPocketId.value ? `/pockets/${fromPocketId.value}` : '/')
       const type = formData.value.type as 'income' | 'expense'
-      successThenRedirect(dest, {
-        pocketId: formData.value.pocketId,
-        amount: formData.value.amount,
-        type,
-      })
+      const payload = formData.value.goalId
+        ? { goalId: formData.value.goalId, amount: formData.value.amount, type }
+        : { pocketId: formData.value.pocketId, amount: formData.value.amount, type }
+      successThenRedirect(dest, payload)
     }
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as Error & { currentBalance?: number; amount?: number }
+    if (err.message === 'INSUFFICIENT_POCKET_BALANCE' && err.currentBalance != null && err.amount != null) {
+      showAlertModal(
+        t('pocket.insufficientBalanceTitle'),
+        t('pocket.insufficientBalanceMessage', { balance: formatIDR(err.currentBalance), amount: formatIDR(err.amount) }),
+        'warning',
+      )
+      return
+    }
     console.error('Error saving transaction:', error)
     showAlertModal(t('transaction.saveFailed'), t('transaction.saveFailedDesc'), 'error')
   }
@@ -374,7 +412,16 @@ async function handleSubmitAll() {
     pendingTransactions.value = []
     const dest = returnTo.value || '/'
     successThenRedirect(dest, { multi: true, count })
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as Error & { currentBalance?: number; amount?: number }
+    if (err.message === 'INSUFFICIENT_POCKET_BALANCE' && err.currentBalance != null && err.amount != null) {
+      showAlertModal(
+        t('pocket.insufficientBalanceTitle'),
+        t('pocket.insufficientBalanceMessage', { balance: formatIDR(err.currentBalance), amount: formatIDR(err.amount) }),
+        'warning',
+      )
+      return
+    }
     console.error('Error saving transactions:', error)
     showAlertModal(t('transaction.saveAllFailed'), t('transaction.saveAllFailedDesc'), 'error')
   }
@@ -503,7 +550,7 @@ function formatDate(dateString: string): string {
     <!-- Pending Transactions Table (only show when not editing and has pending items) -->
     <div v-if="!isEdit && pendingTransactions.length > 0" class="space-y-4">
       <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">
           {{ t('transaction.pendingTransactions') }} ({{ pendingTransactions.length }})
         </h2>
       </div>

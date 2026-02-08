@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useTransactionStore } from '@/stores/transaction'
+import { useGoalStore } from '@/stores/goal'
+import { usePocketStore } from '@/stores/pocket'
 
 import { useTokenStore } from '@/stores/token'
 import { analyzeFinancialData } from '@/services/financialAI'
@@ -17,6 +19,8 @@ const showClearChatConfirm = ref(false)
 const router = useRouter()
 const chatStore = useChatStore()
 const transactionStore = useTransactionStore()
+const goalStore = useGoalStore()
+const pocketStore = usePocketStore()
 
 const tokenStore = useTokenStore()
 
@@ -33,6 +37,9 @@ const insightQuestions = computed(() => [
   t('chat.suggestions.question3'),
   t('chat.suggestions.question4'),
   t('chat.suggestions.question5'),
+  t('chat.suggestions.question6'),
+  t('chat.suggestions.question7'),
+  t('chat.suggestions.question8'),
 ])
 
 const hasMessages = computed(() => chatStore.messages.length > 0)
@@ -74,9 +81,30 @@ async function handleSend() {
 
   // Get comprehensive financial context using financial analysis
   const analysis = analyzeFinancialData(transactionStore.transactions)
+  const goalsForContext = goalStore.goalsWithBalances.map((g) => ({
+    name: g.name,
+    icon: g.icon,
+    currentBalance: g.currentBalance ?? 0,
+    targetAmount: g.targetAmount,
+    progressPercent: g.targetAmount > 0 ? Math.min(100, Math.round(((g.currentBalance ?? 0) / g.targetAmount) * 100)) : 0,
+    type: g.type,
+    annualReturnPercentage: g.annualReturnPercentage,
+  }))
+
+  const pocketBal = transactionStore.pocketBalances
+  const pocketsTotal = Object.values(pocketBal).reduce((s, n) => s + n, 0)
+  const goalsTotal = Object.values(goalStore.goalDisplayBalances).reduce((s, n) => s + n, 0)
+  const totalAssets = pocketsTotal + goalsTotal
+  const pocketsList = pocketStore.pockets.map((p) => ({
+    name: p.name,
+    balance: pocketBal[p.id] ?? 0,
+  }))
 
   const context = {
     locale: (locale.value === 'en' ? 'en' : 'id') as 'id' | 'en',
+    goals: goalsForContext,
+    totalAssets,
+    pockets: pocketsList,
     transactions: {
       totalIncome: analysis.totalIncome,
       totalExpenses: analysis.totalExpenses,

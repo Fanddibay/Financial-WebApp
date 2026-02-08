@@ -78,7 +78,11 @@ const pocketTransactions = computed(() => {
   const id = pocketId.value
   if (!id) return []
   return txStore.transactions
-    .filter((tx) => tx.pocketId === id || tx.transferToPocketId === id)
+    .filter((tx) => {
+      if (tx.type === 'income' && tx.goalId) return false
+      if (tx.type === 'transfer' && tx.transferToGoalId && tx.pocketId === id) return false
+      return tx.pocketId === id || tx.transferToPocketId === id
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 })
 
@@ -281,7 +285,7 @@ onMounted(() => {
           :aria-label="t('nav.back')" @click="goBack">
           <font-awesome-icon :icon="['fas', 'chevron-left']" class="h-5 w-5" />
         </button>
-        <h1 class="truncate text-lg font-semibold text-slate-900 dark:text-slate-100">
+        <h1 class="truncate text-xl font-semibold text-slate-900 dark:text-slate-100">
           {{ t('pocket.disabled.title') }}
         </h1>
       </header>

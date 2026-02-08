@@ -42,6 +42,20 @@ export interface FinancialAnalysis {
     threshold: number
     excess: number
   }>
+  /** Optional: user's savings goals for goal-related answers */
+  goals?: Array<{
+    name: string
+    icon?: string
+    currentBalance: number
+    targetAmount: number
+    progressPercent: number
+    type?: 'saving' | 'investment'
+    annualReturnPercentage?: number
+  }>
+  /** Total assets (pockets + goals) for "total aset" questions */
+  totalAssets?: number
+  /** Pockets with balance for "kantong/dompet" questions */
+  pockets?: Array<{ name: string; balance: number }>
 }
 
 /**
@@ -199,6 +213,17 @@ export class LocalFinancialAI {
       return this.getGreeting(locale)
     }
 
+    // General finance concepts (no data needed)
+    if (this.matches(lowerMessage, ['dana darurat', 'emergency fund', 'dana darurat apa'])) {
+      return this.getGeneralFinanceTip('emergency', locale)
+    }
+    if (this.matches(lowerMessage, ['50 30 20', 'aturan 50 30 20', 'budget 50 30 20', 'rule of thumb'])) {
+      return this.getGeneralFinanceTip('503020', locale)
+    }
+    if (this.matches(lowerMessage, ['cara menabung', 'how to save', 'tips menabung', 'mulai menabung'])) {
+      return this.getGeneralFinanceTip('saving', locale)
+    }
+
     // Spending health
     if (this.matches(lowerMessage, ['sehat', 'healthy', 'baik', 'bagus', 'spending healthy'])) {
       return this.analyzeSpendingHealth(locale)
@@ -249,13 +274,109 @@ export class LocalFinancialAI {
       return this.getGeneralAdvice(locale)
     }
 
+    // Goal-related: list, progress, target, tabungan goal
+    if (
+      this.matches(lowerMessage, [
+        'goal',
+        'goals',
+        'target',
+        'progress',
+        'tabungan goal',
+        'target tabungan',
+        'progress goal',
+        'goal saya',
+        'daftar goal',
+        'list goal',
+        'berapa progress',
+        'kapan tercapai',
+        'savings goal',
+        'my goals',
+        'goal progress',
+      ])
+    ) {
+      return this.getGoalsSummary(locale)
+    }
+
+    // Total assets (pockets + goals)
+    if (
+      this.matches(lowerMessage, [
+        'total aset',
+        'total asset',
+        'total saldo',
+        'total balance',
+        'seluruh saldo',
+        'semua saldo',
+        'total harta',
+        'total uang',
+        'berapa total',
+        'aset saya',
+        'my assets',
+        'total saya',
+      ])
+    ) {
+      return this.getTotalAssets(locale)
+    }
+
+    // Pockets / kantong / dompet
+    if (
+      this.matches(lowerMessage, [
+        'kantong',
+        'pocket',
+        'dompet',
+        'pockets',
+        'saldo kantong',
+        'pocket balance',
+        'daftar kantong',
+        'list pocket',
+        'isi kantong',
+        'isi dompet',
+      ])
+    ) {
+      return this.getPocketsSummary(locale)
+    }
+
+    // Investment goals: return, investasi
+    if (
+      this.matches(lowerMessage, [
+        'investasi',
+        'investment',
+        'return investasi',
+        'investment return',
+        'goal investasi',
+        'investment goal',
+        'simulasi return',
+        'return simulasi',
+        'pertumbuhan investasi',
+        'investment growth',
+      ])
+    ) {
+      return this.getInvestmentGoalsInfo(locale)
+    }
+
+    // App features / what can you do / bantuan
+    if (
+      this.matches(lowerMessage, [
+        'fitur',
+        'feature',
+        'bantuan',
+        'help',
+        'bisa apa',
+        'what can you',
+        'apa yang bisa',
+        'cara pakai',
+        'how to use',
+      ])
+    ) {
+      return this.getFeaturesHelp(locale)
+    }
+
     // Trend analysis
     if (this.matches(lowerMessage, ['trend', 'tren', 'perkembangan', 'perubahan', 'naik turun'])) {
       return this.analyzeTrends(locale)
     }
 
-    // Default response with helpful suggestions
-    return this.getDefaultResponse(locale)
+    // Fallback: tidak mengerti, tampilkan saran pertanyaan
+    return this.getFallbackWithSuggestions(locale)
   }
 
   private matches(message: string, keywords: string[]): boolean {
@@ -264,6 +385,22 @@ export class LocalFinancialAI {
 
   private msg(id: string, en: string, locale: 'id' | 'en'): string {
     return locale === 'en' ? en : id
+  }
+
+  private getGeneralFinanceTip(topic: 'emergency' | '503020' | 'saving', locale: 'id' | 'en'): string {
+    if (topic === 'emergency') {
+      return locale === 'en'
+        ? `🛡️ **Emergency fund**\n\nAn emergency fund is money set aside for unexpected events (job loss, medical, repairs). A common rule: save **3–6 months of expenses**. Keep it in an accessible account (e.g. savings). Once you have it, you can focus on goals and investments. If you have goals in the app, consider adding an "Emergency fund" goal!`
+        : `🛡️ **Dana darurat**\n\nDana darurat adalah uang yang disisihkan untuk kejadian tak terduga (kehilangan pekerjaan, kesehatan, perbaikan). Aturan umum: siapkan **3–6 bulan pengeluaran**. Simpan di rekening yang mudah diakses (misal tabungan). Setelah punya, Anda bisa fokus ke goal lain dan investasi. Di aplikasi, Anda bisa buat goal "Dana darurat"!`
+    }
+    if (topic === '503020') {
+      return locale === 'en'
+        ? `📐 **50/30/20 rule**\n\nA simple budgeting guideline:\n• **50%** – Needs (rent, food, utilities, transport)\n• **30%** – Wants (hobbies, dining out, subscriptions)\n• **20%** – Savings & debt repayment\n\nAdjust to your situation. The key is to separate needs from wants and always save something. Track your categories in the app to see how you compare!`
+        : `📐 **Aturan 50/30/20**\n\nPanduan anggaran sederhana:\n• **50%** – Kebutuhan (sewa, makan, listrik, transport)\n• **30%** – Keinginan (hobi, makan di luar, langganan)\n• **20%** – Tabungan & bayar utang\n\nSesuaikan dengan kondisi Anda. Yang penting pisahkan kebutuhan dan keinginan, dan usahakan tetap menabung. Lacak kategori di aplikasi untuk bandingkan!`
+    }
+    return locale === 'en'
+      ? `💰 **How to start saving**\n\n• **Pay yourself first** – Set aside savings at the start of the month, not what’s left.\n• **Start small** – Even a small amount builds the habit.\n• **Use goals** – In the app, create goals (e.g. vacation, down payment) and allocate regularly.\n• **Reduce leaks** – Cut unused subscriptions and unnecessary small expenses.\n• **Track spending** – Knowing where money goes helps you save more.\n\nYou can ask me "Where can I save?" for suggestions based on your data.`
+      : `💰 **Cara mulai menabung**\n\n• **Bayar diri dulu** – Sisihkan tabungan di awal bulan, bukan sisa uang.\n• **Mulai kecil** – Jumlah kecil pun tetap membentuk kebiasaan.\n• **Pakai goal** – Di aplikasi, buat goal (liburan, DP, dll) dan alokasikan rutin.\n• **Kurangi bocor** – Hapus langganan tidak dipakai dan pengeluaran kecil yang tidak perlu.\n• **Lacak pengeluaran** – Tahu kemana uang pergi membantu Anda hemat.\n\nTanya "Dimana saya bisa hemat?" untuk saran berdasarkan data Anda.`
   }
 
   private getGreeting(locale: 'id' | 'en' = 'id'): string {
@@ -688,31 +825,73 @@ export class LocalFinancialAI {
 
   private getGeneralAdvice(locale: 'id' | 'en' = 'id'): string {
     const { balance, savingsRate, totalIncome } = this.analysis
+    const goals = this.analysis.goals ?? []
+    const hasGoals = goals.length > 0
 
     const title = locale === 'en' ? '💡 **General Financial Advice:**\n\n' : '💡 **Saran Keuangan Umum:**\n\n'
     let response = title
 
     if (balance > 0 && savingsRate >= 20) {
-      response += `✅ Keuangan Anda sudah dalam kondisi baik! Tetap pertahankan kebiasaan baik ini.\n\n`
-      response += `💪 **Langkah selanjutnya:**\n`
-      response += `• Pertimbangkan investasi untuk pertumbuhan jangka panjang\n`
-      response += `• Buat dana darurat (3-6 bulan pengeluaran)\n`
-      response += `• Set goals finansial jangka pendek dan panjang`
+      response += locale === 'en'
+        ? `✅ Your finances are in good shape! Keep up the good habits.\n\n`
+        : `✅ Keuangan Anda sudah dalam kondisi baik! Tetap pertahankan kebiasaan baik ini.\n\n`
+      response += locale === 'en' ? `💪 **Next steps:**\n` : `💪 **Langkah selanjutnya:**\n`
+      response += locale === 'en'
+        ? `• Consider investment for long-term growth\n`
+        : `• Pertimbangkan investasi untuk pertumbuhan jangka panjang\n`
+      response += locale === 'en'
+        ? `• Build an emergency fund (3–6 months of expenses)\n`
+        : `• Buat dana darurat (3–6 bulan pengeluaran)\n`
+      response += locale === 'en'
+        ? `• Set short- and long-term financial goals`
+        : `• Buat goal finansial jangka pendek dan panjang`
+      if (hasGoals) {
+        response += locale === 'en'
+          ? `\n• Keep allocating to your savings goals in the app`
+          : `\n• Terus alokasikan ke goal tabungan di aplikasi`
+      }
     } else if (balance > 0) {
-      response += `✅ Saldo positif adalah awal yang baik!\n\n`
-      response += `💪 **Tips meningkatkan tabungan:**\n`
-      response += `• Target tabungan 20% dari pendapatan\n`
-      response += `• Otomatiskan tabungan di awal bulan\n`
-      response += `• Kurangi pengeluaran tidak penting\n`
-      response += `• Review dan kurangi langganan yang tidak digunakan`
+      response += locale === 'en'
+        ? `✅ A positive balance is a good start!\n\n`
+        : `✅ Saldo positif adalah awal yang baik!\n\n`
+      response += locale === 'en' ? `💪 **Tips to save more:**\n` : `💪 **Tips meningkatkan tabungan:**\n`
+      response += locale === 'en'
+        ? `• Aim to save 20% of income\n`
+        : `• Target tabungan 20% dari pendapatan\n`
+      response += locale === 'en'
+        ? `• Automate savings at the start of the month\n`
+        : `• Otomatiskan tabungan di awal bulan\n`
+      response += locale === 'en'
+        ? `• Cut non-essential spending\n`
+        : `• Kurangi pengeluaran tidak penting\n`
+      response += locale === 'en'
+        ? `• Review and cancel unused subscriptions`
+        : `• Review dan kurangi langganan yang tidak digunakan`
+      if (hasGoals) {
+        response += locale === 'en'
+          ? `\n• Allocate regularly to your goals (even small amounts help)`
+          : `\n• Alokasikan rutin ke goal (meski sedikit tetap membantu)`
+      }
     } else {
-      response += `⚠️ Pengeluaran melebihi pendapatan perlu segera ditangani.\n\n`
-      response += `💪 **Tindakan segera:**\n`
-      response += `• Identifikasi dan kurangi pengeluaran tidak penting\n`
-      response += `• Buat anggaran ketat dan patuhi\n`
-      response += `• Cari cara tambah pendapatan (side income)\n`
-      response += `• Prioritaskan pembayaran utang jika ada\n`
-      response += `• Konsultasi dengan financial advisor jika perlu`
+      response += locale === 'en'
+        ? `⚠️ Expenses exceeding income need to be addressed soon.\n\n`
+        : `⚠️ Pengeluaran melebihi pendapatan perlu segera ditangani.\n\n`
+      response += locale === 'en' ? `💪 **Immediate actions:**\n` : `💪 **Tindakan segera:**\n`
+      response += locale === 'en'
+        ? `• Identify and cut non-essential spending\n`
+        : `• Identifikasi dan kurangi pengeluaran tidak penting\n`
+      response += locale === 'en'
+        ? `• Create a strict budget and stick to it\n`
+        : `• Buat anggaran ketat dan patuhi\n`
+      response += locale === 'en'
+        ? `• Look for ways to increase income (side income)\n`
+        : `• Cari cara tambah pendapatan (side income)\n`
+      response += locale === 'en'
+        ? `• Prioritize debt repayment if any\n`
+        : `• Prioritaskan pembayaran utang jika ada\n`
+      response += locale === 'en'
+        ? `• Consider a financial advisor if needed`
+        : `• Konsultasi dengan financial advisor jika perlu`
     }
 
     response += this.msg(
@@ -720,6 +899,148 @@ export class LocalFinancialAI {
       '\n\n📌 **Remember:** This advice is general and not professional financial advice. Adjust to your personal situation.',
       locale,
     )
+    return response
+  }
+
+  private getTotalAssets(locale: 'id' | 'en' = 'id'): string {
+    const total = this.analysis.totalAssets
+    if (total == null) {
+      return locale === 'en'
+        ? 'I don\'t have data about your pockets and goals here. Open the Pockets / Goals page in the app to see your total assets (pockets + goals).'
+        : 'Saya tidak punya data kantong dan goal Anda di sini. Buka halaman Kantong / Goal di aplikasi untuk melihat total aset (kantong + goal).'
+    }
+    const title = locale === 'en' ? '💰 **Your Total Assets:**\n\n' : '💰 **Total Aset Anda:**\n\n'
+    const desc = locale === 'en'
+      ? `Total aset Anda (saldo semua kantong + semua goal) saat ini: **${formatIDR(total)}**.\n\n`
+      : `Total aset Anda (saldo semua kantong + semua goal) saat ini: **${formatIDR(total)}**.\n\n`
+    const tip = locale === 'en'
+      ? '💡 You can see the breakdown in the app under Pockets (tab Kantong vs Goal).'
+      : '💡 Rincian bisa dilihat di aplikasi di halaman Kantong (tab Kantong vs Goal).'
+    return title + desc + tip
+  }
+
+  private getPocketsSummary(locale: 'id' | 'en' = 'id'): string {
+    const pockets = this.analysis.pockets ?? []
+    if (pockets.length === 0) {
+      return locale === 'en'
+        ? 'You don\'t have any pockets yet. Create pockets in the app (Pockets → Create) to organize your money (e.g. spending, savings).'
+        : 'Anda belum punya kantong. Buat kantong di aplikasi (Kantong → Buat) untuk mengatur uang (misal: belanja, tabungan).'
+    }
+    const title = locale === 'en' ? '💼 **Your Pockets:**\n\n' : '💼 **Kantong Anda:**\n\n'
+    let response = title
+    pockets.forEach((p) => {
+      response += `• **${p.name}**: ${formatIDR(p.balance)}\n`
+    })
+    const total = pockets.reduce((s, p) => s + p.balance, 0)
+    response += '\n' + (locale === 'en' ? `**Total:** ${formatIDR(total)}` : `**Total:** ${formatIDR(total)}`)
+    response += '\n\n' + (locale === 'en'
+      ? '💡 Goals (tabungan/investasi) ada di tab Goal di halaman yang sama.'
+      : '💡 Goal (tabungan/investasi) ada di tab Goal di halaman yang sama.')
+    return response
+  }
+
+  private getInvestmentGoalsInfo(locale: 'id' | 'en' = 'id'): string {
+    const goals = this.analysis.goals ?? []
+    const investmentGoals = goals.filter((g) => g.type === 'investment')
+    if (investmentGoals.length === 0) {
+      return locale === 'en'
+        ? 'You don\'t have any investment goals yet. In the app you can create a goal and choose type "Investment" to simulate growth with an estimated annual return. Saving goals don\'t have return simulation.'
+        : 'Anda belum punya goal investasi. Di aplikasi Anda bisa buat goal dan pilih tipe "Investasi" untuk simulasi pertumbuhan dengan estimasi return tahunan. Goal tabungan tidak ada simulasi return.'
+    }
+    const title = locale === 'en'
+      ? `📈 **Your investment goals (${investmentGoals.length}):**\n\n`
+      : `📈 **Goal investasi Anda (${investmentGoals.length}):**\n\n`
+    let response = title
+    investmentGoals.forEach((g) => {
+      response += `• **${g.name}**: ${formatIDR(g.currentBalance)}`
+      if ((g.annualReturnPercentage ?? 0) > 0) {
+        response += locale === 'en'
+          ? ` — estimated return ${g.annualReturnPercentage}%/year\n`
+          : ` — estimasi return ${g.annualReturnPercentage}%/tahun\n`
+      } else {
+        response += '\n'
+      }
+    })
+    response += '\n' + (locale === 'en'
+      ? '💡 Return is simulated daily in the app. Open the goal detail → Investment Activity tab to see history.'
+      : '💡 Return disimulasi per hari di aplikasi. Buka detail goal → tab Aktivitas Investasi untuk melihat riwayat.')
+    return response
+  }
+
+  private getFeaturesHelp(locale: 'id' | 'en' = 'id'): string {
+    const hasGoals = (this.analysis.goals?.length ?? 0) > 0
+    const hasPockets = (this.analysis.pockets?.length ?? 0) > 0
+    if (locale === 'en') {
+      let r = '**What I can help with:**\n\n'
+      r += '📊 **Your finances:** Balance, income vs expense, spending health, top categories, overspending, monthly/weekly summaries.\n\n'
+      r += '💼 **Pockets & goals:** '
+      if (hasPockets) r += 'Pocket balances and total assets. '
+      if (hasGoals) r += 'Savings/investment goal progress and tips. '
+      r += '\n\n📈 **Investment goals:** If you have investment-type goals, I can tell you about their estimated return and growth.\n\n'
+      r += '💡 **General:** Emergency fund, 50/30/20 rule, how to save, financial advice.\n\n'
+      r += 'Try asking: "How is my financial health?", "Total assets?", "Goal progress?", or "Where can I save?"'
+      return r
+    }
+    let r = '**Yang bisa saya bantu:**\n\n'
+    r += '📊 **Keuangan Anda:** Saldo, pendapatan vs pengeluaran, kesehatan finansial, kategori terbanyak, pengeluaran berlebihan, ringkasan bulanan/mingguan.\n\n'
+    r += '💼 **Kantong & goal:** '
+    if (hasPockets) r += 'Saldo kantong dan total aset. '
+    if (hasGoals) r += 'Progress goal tabungan/investasi dan tips. '
+    r += '\n\n📈 **Goal investasi:** Jika Anda punya goal tipe investasi, saya bisa jelaskan estimasi return dan pertumbuhannya.\n\n'
+    r += '💡 **Umum:** Dana darurat, aturan 50/30/20, cara menabung, saran keuangan.\n\n'
+    r += 'Coba tanya: "Kesehatan keuangan saya?", "Total aset?", "Progress goal?", atau "Dimana saya bisa hemat?"'
+    return r
+  }
+
+  private getGoalsSummary(locale: 'id' | 'en' = 'id'): string {
+    const goals = this.analysis.goals ?? []
+
+    if (goals.length === 0) {
+      return locale === 'en'
+        ? `🎯 **Savings goals**\n\nYou don't have any goals set yet. Creating goals helps you stay focused and track progress (e.g. down payment, vacation, emergency fund).\n\nGo to the app → Goals → Create a goal and start allocating money from your pockets. I can then help you with progress and tips! 😊`
+        : `🎯 **Goal tabungan**\n\nAnda belum punya goal. Membuat goal membantu fokus dan melacak progress (misal: DP rumah, liburan, dana darurat).\n\nBuka aplikasi → Goal → Buat goal dan alokasikan dari dompet. Nanti saya bisa bantu cek progress dan tips! 😊`
+    }
+
+    const title =
+      locale === 'en'
+        ? `🎯 **Your savings goals (${goals.length}):**\n\n`
+        : `🎯 **Goal tabungan Anda (${goals.length}):**\n\n`
+    let response = title
+
+    const totalTarget = goals.reduce((s, g) => s + g.targetAmount, 0)
+    const totalCurrent = goals.reduce((s, g) => s + g.currentBalance, 0)
+    const overallPercent = totalTarget > 0 ? Math.min(100, Math.round((totalCurrent / totalTarget) * 100)) : 0
+
+    goals.forEach((g, i) => {
+      const left = g.targetAmount - g.currentBalance
+      response += `**${i + 1}. ${g.name}**\n`
+      response +=
+        locale === 'en'
+          ? `   • Current: ${formatIDR(g.currentBalance)} / ${formatIDR(g.targetAmount)} (${g.progressPercent}%)\n`
+          : `   • Saat ini: ${formatIDR(g.currentBalance)} / ${formatIDR(g.targetAmount)} (${g.progressPercent}%)\n`
+      if (g.progressPercent >= 100) {
+        response += this.msg('   ✅ Target tercapai!\n\n', '   ✅ Target reached!\n\n', locale)
+      } else if (left > 0) {
+        response +=
+          locale === 'en'
+            ? `   • Left to save: ${formatIDR(left)}\n\n`
+            : `   • Sisa untuk ditabung: ${formatIDR(left)}\n\n`
+      }
+    })
+
+    response +=
+      locale === 'en'
+        ? `📊 **Overall:** ${formatIDR(totalCurrent)} of ${formatIDR(totalTarget)} (${overallPercent}%)\n\n`
+        : `📊 **Total:** ${formatIDR(totalCurrent)} dari ${formatIDR(totalTarget)} (${overallPercent}%)\n\n`
+
+    if (goals.some((g) => g.progressPercent > 0 && g.progressPercent < 100)) {
+      response += this.msg(
+        '💡 **Tips:** Konsisten alokasikan dari dompet ke goal; bahkan jumlah kecil tetap membantu. Cek halaman Goal di aplikasi untuk detail.',
+        '💡 **Tips:** Consistently allocate from your pockets to goals; even small amounts help. Check the Goal page in the app for details.',
+        locale,
+      )
+    }
+
     return response
   }
 
@@ -775,36 +1096,43 @@ export class LocalFinancialAI {
     return response
   }
 
-  private getDefaultResponse(locale: 'id' | 'en' = 'id'): string {
-    return locale === 'en'
-      ? `I understand your question. As a financial assistant, I can help with:\n\n` +
-        `📊 **Analysis & Insights:**\n` +
-        `• "Is my spending healthy?" - Financial health analysis\n` +
-        `• "What's my balance?" - Check balance and insights\n` +
-        `• "Where can I save?" - Savings suggestions\n` +
-        `• "Top spending categories?" - Category analysis\n\n` +
-        `📅 **Summaries:**\n` +
-        `• "Monthly summary" - Last 6 months\n` +
-        `• "Weekly summary" - Last 4 weeks\n\n` +
-        `💡 **Advice:**\n` +
-        `• "Financial advice" - General tips and recommendations\n` +
-        `• "Savings potential" - Savings potential analysis\n` +
-        `• "Overspending detection" - Identify excessive spending\n\n` +
-        `Try asking one of the above, or ask something specific about your finances! 😊`
-      : `Saya memahami pertanyaan Anda. Sebagai asisten keuangan, saya bisa membantu dengan:\n\n` +
-        `📊 **Analisis & Insight:**\n` +
-        `• "Apakah pengeluaran saya sehat?" - Analisis kesehatan finansial\n` +
-        `• "Berapa saldo saya?" - Cek saldo dan insight\n` +
-        `• "Dimana saya bisa hemat?" - Saran penghematan\n` +
-        `• "Kategori pengeluaran terbanyak?" - Analisis kategori\n\n` +
-        `📅 **Ringkasan:**\n` +
-        `• "Ringkasan bulanan" - Ringkasan 6 bulan terakhir\n` +
-        `• "Ringkasan mingguan" - Ringkasan 4 minggu terakhir\n\n` +
-        `💡 **Saran:**\n` +
-        `• "Saran keuangan" - Tips dan rekomendasi umum\n` +
-        `• "Potensi tabungan" - Analisis potensi menabung\n` +
-        `• "Deteksi boros" - Identifikasi pengeluaran berlebihan\n\n` +
-        `Coba tanyakan salah satu di atas, atau tanyakan hal spesifik tentang keuangan Anda! 😊`
+  /**
+   * Fallback when the user's message doesn't match any intent.
+   * Friendly "sorry I didn't understand" + list of suggested questions.
+   */
+  private getFallbackWithSuggestions(locale: 'id' | 'en' = 'id'): string {
+    const introEn =
+      "I'm sorry, I didn't quite understand your question. I can help with your finances and with features in this app. You can try asking things like:\n\n"
+    const introId =
+      'Mohon maaf, saya belum mengerti pertanyaan Anda. Saya bisa membantu seputar keuangan dan fitur aplikasi ini. Anda bisa menanyakan hal-hal seperti:\n\n'
+
+    const suggestionsEn = [
+      '• "How is my financial health?" — Spending & balance analysis',
+      '• "What\'s my balance?" or "Total assets?" — Your money overview',
+      '• "How are my goals?" / "Goal progress?" — Savings & investment goals',
+      '• "Where can I save more?" — Savings suggestions',
+      '• "Summary of this month\'s spending" — Monthly overview',
+      '• "Top spending categories?" — Where your money goes',
+      '• "General financial advice" — Tips and recommendations',
+      '• "Pocket balances?" — Saldo per kantong',
+      '• "Investment goals / return?" — Info goal investasi & return',
+      '• "Overspending detection?" — Deteksi pengeluaran berlebihan',
+    ]
+    const suggestionsId = [
+      '• "Bagaimana kesehatan keuangan saya?" — Analisis pengeluaran & saldo',
+      '• "Berapa saldo saya?" / "Total aset?" — Ringkasan uang Anda',
+      '• "Progress goal saya?" / "Bagaimana goal saya?" — Goal tabungan & investasi',
+      '• "Dimana saya bisa hemat?" — Saran penghematan',
+      '• "Ringkasan pengeluaran bulan ini" — Ringkasan bulanan',
+      '• "Kategori pengeluaran terbanyak?" — Kemana uang Anda mengalir',
+      '• "Saran keuangan umum" — Tips dan rekomendasi',
+      '• "Saldo kantong?" — Saldo per kantong',
+      '• "Goal investasi / return?" — Info goal investasi & return',
+      '• "Deteksi pengeluaran berlebihan?" — Identifikasi pengeluaran boros',
+    ]
+
+    const list = locale === 'en' ? suggestionsEn : suggestionsId
+    return (locale === 'en' ? introEn : introId) + list.join('\n') + '\n\n😊'
   }
 
   private formatMonth(monthKey: string): string {

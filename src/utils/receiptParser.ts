@@ -24,17 +24,21 @@ export interface ReceiptItem {
  * Normalize OCR output:
  * - Remove extra spaces & symbols
  * - Standardize number formats (58,000, 58.000 → 58000)
- * - Fix common OCR errors (O -> 0, I -> 1, etc.)
+ * - Fix common OCR errors (O->0, I/l->1, S->5 in numbers, B->8, etc.)
+ * - Works for both receipts (struk) and invoices (faktur)
  */
 function normalizeOcrText(text: string): string {
   return text
     .replace(/\s+/g, ' ') // Multiple spaces to single space
-    // Fix common OCR errors in number contexts
+    // Fix common OCR errors in number contexts (receipt & invoice)
     .replace(/(\d)\s*[Oo]\s*(\d)/g, '$10$2') // O between numbers -> 0
     .replace(/(\d)\s*[Il|]\s*(\d)/g, '$11$2') // I or l between numbers -> 1
     .replace(/\b[Oo]\s*(\d)/g, '0$1') // O at start of number -> 0
     .replace(/(\d)\s*[Oo]\b/g, '$10') // O at end of number -> 0
-    // Preserve common receipt symbols
+    .replace(/([Rp\s])([S5])(\d{2,})/gi, '$15$3') // S misread as 5 after Rp
+    .replace(/(\d)[B8](\d)/g, '$18$2') // B in number -> 8
+    .replace(/(\d)\s*[Zz]\s*(\d)/g, '$12$2') // Z in number -> 2
+    // Preserve common receipt/invoice symbols
     .replace(/[^\w\s\d.,:/-]/g, '') // Remove special symbols except common ones
     .trim()
 }
@@ -72,7 +76,9 @@ function extractNumbers(text: string): NumberMatch[] {
     // - 10000.00 (with decimals)
     // - Numbers at end of line (common for prices)
     const numberPatterns = [
-      /(?:Rp\s*\.?\s*)?(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Standard format
+      /(?:Rp\.?\s*|IDR\s*|Rupiah\s*)?(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Rp / IDR / Rupiah
+      /(?:total|amount|nominal|jumlah|bayar|tagihan)\s*:?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Label: number (invoice)
+      /(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)\s*(?:\.|,|$)/g, // Number at end of line/sentence
       /(\d{3,}(?:[.,]\d{2})?)/g, // Large numbers (3+ digits) that might be prices
       /(\d+[.,]\d{3,})/g, // Numbers with thousand separators
     ]
@@ -169,10 +175,13 @@ function classifyNumber(
     }
   }
 
-  // ✅ Target amount (TOTAL)
+  // ✅ Target amount (TOTAL) — receipt & invoice
   const targetPatterns = [
     /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran|nominal|tagihan)\b/i,
     /\b(nilai\s*transfer|diterima|total\s*tagihan|total\s*pembelian|total\s*transaksi|total\s*pesanan|payment\s*amount)\b/i,
+    /\b(amount\s*due|balance\s*due|total\s*amount|invoice\s*total|faktur|invoice)\b/i,
+    /\b(yang\s*harus\s*dibayar|nominal\s*pembayaran|total\s*pembayaran|jumlah\s*yang\s*dibayar)\b/i,
+    /\b(terbilang|nominal\s*transfer|nilai\s*pembayaran)\b/i,
   ]
 
   for (const pattern of targetPatterns) {
@@ -209,17 +218,18 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
 } | null {
   const lines = text.split('\n')
   const targetKeywords = [
-    { pattern: /\b(total\s*transaksi|nominal\s*transfer|nominal)\b/i, weight: 1.0 },
-    { pattern: /\b(total\s*pesanan|total\s*pembayaran|payment\s*amount)\b/i, weight: 1.0 },
-    { pattern: /\b(total\s*bayar|bayar|bayar\s*total)\b/i, weight: 1.0 },
-    { pattern: /\b(grand\s*total|total\s*grand)\b/i, weight: 0.95 },
-    { pattern: /\b(total\s*tagihan)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*transaksi|nominal\s*transfer|nominal\s*pembayaran)\b/i, weight: 1.0 },
+    { pattern: /\b(total\s*pesanan|total\s*pembayaran|payment\s*amount|amount\s*due)\b/i, weight: 1.0 },
+    { pattern: /\b(total\s*bayar|bayar|bayar\s*total|yang\s*harus\s*dibayar)\b/i, weight: 1.0 },
+    { pattern: /\b(grand\s*total|total\s*grand|balance\s*due)\b/i, weight: 0.95 },
+    { pattern: /\b(total\s*tagihan|total\s*amount|invoice\s*total)\b/i, weight: 0.95 },
     { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 },
     { pattern: /\b(total)\b/i, weight: 0.9 },
-    { pattern: /\b(jumlah|jumlah\s*bayar)\b/i, weight: 1.0 }, // Livin Mandiri uses "Jumlah" for transfer
+    { pattern: /\b(jumlah|jumlah\s*bayar|jumlah\s*yang\s*dibayar)\b/i, weight: 1.0 },
     { pattern: /\b(pembayaran|harus\s*bayar)\b/i, weight: 0.8 },
-    { pattern: /\b(tagihan)\b/i, weight: 0.75 },
+    { pattern: /\b(tagihan|faktur|invoice)\b/i, weight: 0.85 },
     { pattern: /\b(diterima)\b/i, weight: 0.7 },
+    { pattern: /\b(nilai\s*pembayaran|terbilang)\b/i, weight: 0.75 },
   ]
 
   let bestMatch: {
@@ -399,68 +409,110 @@ function isDateInFuture(dateString: string): boolean {
   return date > today
 }
 
+const MONTH_NAMES_ID = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember']
+const MONTH_NAMES_EN = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
+
 /**
- * Extract date from receipt text
+ * Extract date from receipt or invoice text
+ * Supports: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, "Tanggal: ...", "Date: ...", "5 Feb 2026", "05 Februari 2026"
  * Returns today's date if extraction fails or date is in the future
  */
 function extractDate(text: string): string {
+  const lines = text.split('\n')
+  const fullText = text
+
+  // Try "Tanggal: DD/MM/YYYY" or "Date: YYYY-MM-DD" etc. first
+  const labelPatterns = [
+    /(?:tanggal|tgl|date|issued?)\s*:?\s*(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/i,
+    /(?:tanggal|tgl|date|issued?)\s*:?\s*(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/i,
+    /(?:tanggal|tgl|date)\s*:?\s*(\d{1,2})\s+(jan|feb|mar|apr|mei|jun|jul|agu|sep|okt|nov|des)[a-z]*\s+(\d{2,4})/i,
+  ]
+  for (let pi = 0; pi < labelPatterns.length; pi++) {
+    const pattern = labelPatterns[pi]
+    const match = fullText.match(pattern)
+    if (!match) continue
+    const m1 = match[1] ?? ''
+    const m2 = match[2] ?? ''
+    const m3 = match[3] ?? ''
+    let day: string, month: string, year: string
+    const isMonthNamePattern = pi === 2
+    if (isMonthNamePattern) {
+      const m2Lower = m2.toLowerCase()
+      let monthIndex = MONTH_NAMES_ID.findIndex((m) => m.startsWith(m2Lower))
+      if (monthIndex < 0) monthIndex = MONTH_NAMES_EN.findIndex((m) => m.startsWith(m2Lower))
+      if (monthIndex < 0) continue
+      day = m1.padStart(2, '0')
+      month = String(monthIndex + 1).padStart(2, '0')
+      year = m3.length === 2 ? '20' + m3 : m3
+    } else if (m1.length === 4) {
+      year = m1
+      month = m2.padStart(2, '0')
+      day = m3.padStart(2, '0')
+    } else {
+      day = m1.padStart(2, '0')
+      month = m2.padStart(2, '0')
+      year = m3.length === 2 ? '20' + m3 : m3
+    }
+    const dateStr = `${year}-${month}-${day}`
+    const dateObj = new Date(dateStr)
+    if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
+      if (isDateInFuture(dateStr)) return getTodayDateString()
+      return dateStr
+    }
+  }
+
   const datePatterns = [
-    // DD/MM/YYYY or DD-MM-YYYY
     /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,
-    // YYYY/MM/DD or YYYY-MM-DD
     /(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/,
   ]
-
   for (const pattern of datePatterns) {
-    const match = text.match(pattern)
+    const match = fullText.match(pattern)
     if (match) {
       let day: string, month: string, year: string
-
       const m1 = match[1] ?? ''
       const m2 = match[2] ?? ''
       const m3 = match[3] ?? ''
-
       if (m1.length === 4) {
-        // YYYY-MM-DD format
         year = m1
         month = m2.padStart(2, '0')
         day = m3.padStart(2, '0')
       } else {
-        // DD/MM/YYYY or MM/DD/YYYY format (assume DD/MM for Indonesian receipts)
         day = m1.padStart(2, '0')
         month = m2.padStart(2, '0')
-        year = m3
-        if (year.length === 2) {
-          year = '20' + year
-        }
+        year = m3.length === 2 ? '20' + m3 : m3
       }
-
       const dateStr = `${year}-${month}-${day}`
       const dateObj = new Date(dateStr)
       if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
-        // If date is in the future, return today instead
-        if (isDateInFuture(dateStr)) {
-          return getTodayDateString()
-        }
+        if (isDateInFuture(dateStr)) return getTodayDateString()
         return dateStr
       }
     }
   }
-
-  // Default to today if no valid date found
   return getTodayDateString()
 }
 
 /**
- * Extract merchant/store name
+ * Extract merchant/store name from receipt or invoice
+ * Handles: platform names, "From:", "Bill From", "Issued by", all-caps vendor lines
  */
 function extractMerchant(text: string): string | undefined {
-  const lines = text.split('\n').slice(0, 10) // Check first 10 lines
+  const lines = text.split('\n')
+  const firstLines = lines.slice(0, 15)
 
-  for (const line of lines) {
+  for (const line of firstLines) {
     const trimmed = line.trim()
 
-    // Platform detection (Highest priority)
+    // Invoice-style: "From:", "Bill From", "Issued by", "Vendor:"
+    const fromMatch = trimmed.match(/(?:from|bill\s*from|issued\s*by|vendor|dari|penerbit)\s*:?\s*(.+)/i)
+    if (fromMatch && fromMatch[1]) {
+      const name = fromMatch[1].trim()
+      if (name.length >= 2 && name.length <= 50 && !/^\d+$/.test(name)) {
+        return name
+      }
+    }
+
+    // Platform detection (highest priority when matched)
     const platforms = [
       { name: 'Shopee', pattern: /shopee/i },
       { name: 'Tokopedia', pattern: /tokopedia|toped/i },
@@ -472,11 +524,12 @@ function extractMerchant(text: string): string | undefined {
       { name: 'BRI', pattern: /bri/i },
       { name: 'Indomaret', pattern: /indomaret|indomarco/i },
       { name: 'Alfamart', pattern: /alfamart|sumber\s*alfaria/i },
+      { name: 'Lazada', pattern: /lazada/i },
+      { name: 'TikTok Shop', pattern: /tiktok\s*shop|tiktok shop/i },
     ]
 
     for (const platform of platforms) {
       if (platform.pattern.test(trimmed)) {
-        // Special case for Shopee: distinguish between Shopee and ShopeePay
         if (platform.name === 'Shopee') {
           if (/shopeepay/i.test(trimmed)) return 'ShopeePay'
           return 'Shopee'
@@ -485,17 +538,17 @@ function extractMerchant(text: string): string | undefined {
       }
     }
 
-    // Look for lines that are likely merchant names (all caps, reasonable length)
+    // Likely merchant name: all caps or title case, reasonable length, not a keyword line
     if (
       trimmed.length >= 3 &&
       trimmed.length <= 50 &&
-      /^[A-Z\s&]+$/.test(trimmed) &&
-      !/TOTAL|RECEIPT|INVOICE|DATE|TIME|NOMINAL|TRANSFER|BAYAR/i.test(trimmed)
+      /^[A-Za-z0-9\s&.\-]+$/.test(trimmed) &&
+      !/^TOTAL|RECEIPT|INVOICE|DATE|TIME|NOMINAL|TRANSFER|BAYAR|TANGGAL|TGL\b|NO\.|NUMBER/i.test(trimmed)
     ) {
-      return trimmed
+      if (/^[A-Z\s&]+$/.test(trimmed)) return trimmed
+      if (trimmed.length >= 4 && !/^\d/.test(trimmed)) return trimmed
     }
   }
-
   return undefined
 }
 

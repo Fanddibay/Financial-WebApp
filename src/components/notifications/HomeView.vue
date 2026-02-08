@@ -236,28 +236,22 @@ onMounted(() => {
       </div>
       <div
         class="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-600"
-        style="scrollbar-width: thin;"
-      >
+        style="scrollbar-width: thin;">
         <template v-if="goalsWithBalances.length">
-          <button
-            v-for="g in goalsWithBalances"
-            :key="g.id"
-            type="button"
+          <button v-for="g in goalsWithBalances" :key="g.id" type="button"
             class="flex w-[80%] min-w-[80%] shrink-0 flex-col rounded-xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-brand/40 hover:shadow dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40"
-            @click="goToGoal(g.id)"
-          >
+            @click="goToGoal(g.id)">
             <div class="flex items-center gap-2">
               <span class="text-lg" aria-hidden="true">{{ g.icon }}</span>
               <span class="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{{ g.name }}</span>
             </div>
             <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              {{ profileStore.profile.showBalance ? formatIDR(g.currentBalance) : '••••••' }} / {{ profileStore.profile.showBalance ? formatIDR(g.targetAmount) : '••••••' }}
+              {{ profileStore.profile.showBalance ? formatIDR(g.currentBalance) : '••••••' }} / {{
+                profileStore.profile.showBalance ? formatIDR(g.targetAmount) : '••••••' }}
             </p>
             <div class="relative mt-2 h-5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                class="h-full rounded-full bg-brand transition-all"
-                :style="{ width: `${Math.min(100, g.targetAmount > 0 ? (g.currentBalance / g.targetAmount) * 100 : 0)}%` }"
-              />
+              <div class="h-full rounded-full bg-brand transition-all"
+                :style="{ width: `${Math.min(100, g.targetAmount > 0 ? (g.currentBalance / g.targetAmount) * 100 : 0)}%` }" />
               <span
                 class="absolute left-1/2 top-1/2 flex h-full w-full -translate-x-1/2 -translate-y-1/2 items-center justify-center text-[10px] font-bold tabular-nums text-white drop-shadow-[0_0_1px_rgba(0,0,0,0.8)]"
                 aria-hidden="true"
@@ -267,10 +261,8 @@ onMounted(() => {
             </div>
           </button>
         </template>
-        <div
-          v-else
-          class="flex w-[80%] min-w-[80%] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-6 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30"
-        >
+        <div v-else
+          class="flex w-[80%] min-w-[80%] shrink-0 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/50 py-6 px-4 text-center dark:border-slate-700 dark:bg-slate-800/30">
           <span class="text-2xl text-slate-400 dark:text-slate-500" aria-hidden="true">🎯</span>
           <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ t('goal.noGoalsYet') }}</p>
         </div>

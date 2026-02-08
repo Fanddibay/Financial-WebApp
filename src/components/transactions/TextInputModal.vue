@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import AlertModal from '@/components/ui/AlertModal.vue'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -16,14 +17,18 @@ import idMessages from '@/i18n/id'
 
 const { t, locale } = useI18n()
 
-// Get Indonesian placeholder text regardless of current locale
+// Get placeholder: goals = income-only; pocket = general
 const indonesianPlaceholder = computed(() => {
+  if (props.lockedGoalId) {
+    return idMessages.textInput.enterTransactionPlaceholderGoal
+  }
   return idMessages.textInput.enterTransactionPlaceholder
 })
 
 interface Props {
   isOpen: boolean
   lockedPocketId?: string
+  lockedGoalId?: string
   /** When provided, parent handles success toast + redirect to origin; this modal does not navigate. */
   originRoute?: string
 }
@@ -44,15 +49,27 @@ const parseResult = ref<TextParseResult | null>(null)
 const isProcessing = ref(false)
 const showPreview = ref(false)
 const isSubmitting = ref(false)
-const showWarnings = ref(true)
+const showInsufficientBalanceModal = ref(false)
+const insufficientBalanceMessage = ref('')
 const limitError = ref<string | null>(null)
 const showUsageGuide = ref(false) // Show/hide "Cara Menggunakan"
 const showExamples = ref(false) // Show/hide "Contoh"
 const showLimitInfo = ref(false)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
-// Always use Indonesian examples regardless of language setting
+// Goals: income-only examples. Pocket: general (income + expense)
 const exampleTexts = computed(() => {
+  if (props.lockedGoalId) {
+    return [
+      'Gaji masuk 5 juta',
+      'Bonus bulan ini 2 juta',
+      'Tabungan alokasi 500 ribu',
+      'Transfer masuk dari bank 2 juta',
+      'Hadiah 1 juta',
+      'Freelance project 3 juta',
+      'Return investasi 200 ribu',
+    ]
+  }
   return [
     'Beli bakso hari ini 20 ribu',
     'Gaji masuk 5 juta',
@@ -88,11 +105,10 @@ function handleParse() {
 
   limitError.value = null
   isProcessing.value = true
-  showWarnings.value = true // Reset to show warnings by default
 
   // Simulate slight delay for better UX
   setTimeout(() => {
-    const result = parseTextInput(inputText.value.trim())
+    const result = parseTextInput(inputText.value.trim(), props.lockedGoalId ? 'income' : undefined)
     parseResult.value = result
     showPreview.value = true
     isProcessing.value = false
@@ -131,6 +147,7 @@ function handleEdit() {
   if (data.category) queryParams.category = data.category
   if (data.date) queryParams.date = data.date
   if (props.lockedPocketId) queryParams.pocketId = props.lockedPocketId
+  if (props.lockedGoalId) queryParams.goalId = props.lockedGoalId
 
   console.log('handleEdit: Navigating with query params:', queryParams)
 
@@ -252,6 +269,13 @@ async function handleSubmit() {
     // Prepare transaction data with all validations passed
     // All fields are validated and guaranteed to be non-undefined
     const pocketId = props.lockedPocketId ?? MAIN_POCKET_ID
+    const goalId = props.lockedGoalId
+    // Goals can only receive income transactions
+    if (goalId && validatedType !== 'income') {
+      console.warn('Submit blocked: Goals can only receive income transactions')
+      isSubmitting.value = false
+      return
+    }
     const transactionData: TransactionFormData = {
       type: validatedType,
       amount: validatedAmount,
@@ -259,6 +283,7 @@ async function handleSubmit() {
       category: validatedCategory,
       date: finalDate as string,
       pocketId,
+      goalId,
     }
 
     await createTransaction(transactionData)
@@ -280,10 +305,18 @@ async function handleSubmit() {
     } else {
       setTimeout(() => router.push(dest), 150)
     }
-  } catch (error) {
-    console.error('Error creating transaction:', error)
+  } catch (error: unknown) {
+    const err = error as Error & { currentBalance?: number; amount?: number }
+    if (err.message === 'INSUFFICIENT_POCKET_BALANCE' && err.currentBalance != null && err.amount != null) {
+      insufficientBalanceMessage.value = t('pocket.insufficientBalanceMessage', {
+        balance: formatIDR(err.currentBalance),
+        amount: formatIDR(err.amount),
+      })
+      showInsufficientBalanceModal.value = true
+    } else {
+      console.error('Error creating transaction:', error)
+    }
     isSubmitting.value = false
-    // Reset submitting state on error so user can retry
   }
 }
 
@@ -291,7 +324,6 @@ function handleCancel() {
   inputText.value = ''
   parseResult.value = null
   showPreview.value = false
-  showWarnings.value = true
   isSubmitting.value = false
 }
 
@@ -307,7 +339,6 @@ function resetState() {
   showPreview.value = false
   isProcessing.value = false
   isSubmitting.value = false
-  showWarnings.value = true
   showUsageGuide.value = false
   showExamples.value = false
   limitError.value = null
@@ -339,10 +370,6 @@ const hasErrors = computed(() => {
   return parseResult.value?.errors && parseResult.value.errors.length > 0
 })
 
-const hasWarnings = computed(() => {
-  return parseResult.value?.warnings && parseResult.value.warnings.length > 0
-})
-
 const canSubmit = computed(() => {
   if (!parseResult.value?.success) return false
   const data = parseResult.value.data
@@ -356,39 +383,6 @@ const canSubmit = computed(() => {
   )
 })
 
-const hasLowConfidenceFields = computed(() => {
-  if (!parseResult.value) return false
-  const conf = parseResult.value.confidence
-  return (
-    conf.amount === 'low' ||
-    conf.amount === 'none' ||
-    conf.type === 'low' ||
-    conf.type === 'none' ||
-    conf.category === 'low' ||
-    conf.category === 'none' ||
-    conf.date === 'low' ||
-    conf.date === 'none'
-  )
-})
-
-const confidenceLabels = {
-  high: t('textInput.confidenceHigh'),
-  medium: t('textInput.confidenceMedium'),
-  low: t('textInput.confidenceLow'),
-  none: t('textInput.confidenceNone'),
-}
-
-const confidenceColors = {
-  high: 'text-green-600 dark:text-green-400',
-  medium: 'text-yellow-600 dark:text-yellow-400',
-  low: 'text-orange-600 dark:text-orange-400',
-  none: 'text-red-600 dark:text-red-400',
-}
-
-function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
-  if (!parseResult.value) return 'none'
-  return parseResult.value.confidence[field]
-}
 </script>
 
 <template>
@@ -433,7 +427,7 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
             leave-from-class="opacity-100 max-h-32" leave-to-class="opacity-0 max-h-0">
             <div v-show="showUsageGuide" class="px-4 pb-4 pt-0 overflow-hidden">
               <p class="text-xs text-blue-700 dark:text-blue-300">
-                {{ t('textInput.howToUseDesc') }}
+                {{ props.lockedGoalId ? t('textInput.howToUseDescGoal') : t('textInput.howToUseDesc') }}
               </p>
             </div>
           </Transition>
@@ -529,62 +523,6 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
                     {{ t('textInput.parseSuccessDesc') }}
                   </p>
                 </div>
-
-                <!-- Warnings & Low Confidence Section (if any) -->
-                <div v-if="hasWarnings || hasLowConfidenceFields"
-                  class="mt-3 pt-3 border-t border-green-200 dark:border-green-700">
-                  <!-- Toggle Button -->
-                  <button type="button" @click="showWarnings = !showWarnings"
-                    class="w-full flex items-center justify-between text-left text-xs font-medium text-green-800 dark:text-green-200 hover:text-green-900 dark:hover:text-green-100 transition-colors mb-2">
-                    <span class="flex items-center gap-1.5">
-                      <font-awesome-icon :icon="['fas', showWarnings ? 'chevron-down' : 'chevron-right']"
-                        class="h-3 w-3 transition-transform" />
-                      <span v-if="hasWarnings && hasLowConfidenceFields">
-                        {{ t('textInput.warningsAndInfo') }} ({{ parseResult?.warnings?.length || 0 }})
-                      </span>
-                      <span v-else-if="hasWarnings">
-                        {{ t('textInput.warningsCount', { count: parseResult?.warnings?.length || 0 }) }}
-                      </span>
-                      <span v-else>
-                        {{ t('textInput.lowConfidenceInfo') }}
-                      </span>
-                    </span>
-                  </button>
-
-                  <!-- Collapsible Content -->
-                  <Transition enter-active-class="transition-all duration-200 ease-out"
-                    enter-from-class="opacity-0 max-h-0" enter-to-class="opacity-100 max-h-96"
-                    leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 max-h-96"
-                    leave-to-class="opacity-0 max-h-0">
-                    <div v-show="showWarnings" class="space-y-2 overflow-hidden">
-                      <!-- Warnings List -->
-                      <div v-if="hasWarnings">
-                        <p
-                          class="text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1.5 flex items-center gap-1.5">
-                          <font-awesome-icon :icon="['fas', 'exclamation-triangle']" class="h-3.5 w-3.5" />
-                          {{ t('textInput.warnings') }}:
-                        </p>
-                        <ul class="space-y-1 ml-5">
-                          <li v-for="(warning, index) in parseResult?.warnings" :key="index"
-                            class="text-xs text-yellow-700 dark:text-yellow-300">
-                            • {{ warning }}
-                          </li>
-                        </ul>
-                      </div>
-
-                      <!-- Low Confidence Info -->
-                      <div v-if="hasLowConfidenceFields" class="text-xs">
-                        <p class="font-medium text-orange-800 dark:text-orange-200 mb-1 flex items-center gap-1.5">
-                          <font-awesome-icon :icon="['fas', 'info-circle']" class="h-3.5 w-3.5" />
-                          {{ t('textInput.lowConfidenceFields') }}
-                        </p>
-                        <p class="text-orange-700 dark:text-orange-300 ml-5">
-                          {{ t('textInput.lowConfidenceDesc') }}
-                        </p>
-                      </div>
-                    </div>
-                  </Transition>
-                </div>
               </div>
             </div>
           </div>
@@ -600,47 +538,25 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
                   {{ t('textInput.type') }}
-                  <span v-if="getFieldStatus('type') === 'low' || getFieldStatus('type') === 'none'"
-                    class="ml-1 text-orange-600 dark:text-orange-400">
-                    ⚠️
-                  </span>
                 </p>
-                <div class="flex items-center gap-2">
-                  <span :class="[
-                    'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                    parseResult.data.type === 'income'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                      : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-                    (getFieldStatus('type') === 'low' || getFieldStatus('type') === 'none') && 'ring-2 ring-orange-300 dark:ring-orange-700',
-                  ]">
-                    {{ parseResult.data.type === 'income' ? t('textInput.income') : t('textInput.expense') }}
-                  </span>
-                  <span :class="['text-xs', confidenceColors[getFieldStatus('type')]]">
-                    ({{ confidenceLabels[getFieldStatus('type')] }})
-                  </span>
-                </div>
+                <span :class="[
+                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
+                  parseResult.data.type === 'income'
+                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                    : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+                ]">
+                  {{ parseResult.data.type === 'income' ? t('textInput.income') : t('textInput.expense') }}
+                </span>
               </div>
 
               <!-- Amount -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
                   {{ t('textInput.amount') }}
-                  <span v-if="getFieldStatus('amount') === 'low' || getFieldStatus('amount') === 'none'"
-                    class="ml-1 text-orange-600 dark:text-orange-400">
-                    ⚠️
-                  </span>
                 </p>
-                <div class="flex items-center gap-2">
-                  <p :class="[
-                    'text-lg font-bold text-slate-900 dark:text-slate-100',
-                    (getFieldStatus('amount') === 'low' || getFieldStatus('amount') === 'none') && 'ring-2 ring-orange-300 dark:ring-orange-700 rounded px-2 py-1',
-                  ]">
-                    {{ formatIDR(parseResult.data.amount || 0) }}
-                  </p>
-                  <span :class="['text-xs', confidenceColors[getFieldStatus('amount')]]">
-                    ({{ confidenceLabels[getFieldStatus('amount')] }})
-                  </span>
-                </div>
+                <p class="text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {{ formatIDR(parseResult.data.amount || 0) }}
+                </p>
               </div>
 
               <!-- Description -->
@@ -657,52 +573,28 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
                   {{ t('textInput.category') }}
-                  <span v-if="getFieldStatus('category') === 'low' || getFieldStatus('category') === 'none'"
-                    class="ml-1 text-orange-600 dark:text-orange-400">
-                    ⚠️
-                  </span>
                 </p>
-                <div class="flex items-center gap-2">
-                  <p :class="[
-                    'text-sm text-slate-900 dark:text-slate-100',
-                    (getFieldStatus('category') === 'low' || getFieldStatus('category') === 'none') && 'ring-2 ring-orange-300 dark:ring-orange-700 rounded px-2 py-1',
-                  ]">
-                    {{ parseResult.data.category || '-' }}
-                  </p>
-                  <span :class="['text-xs', confidenceColors[getFieldStatus('category')]]">
-                    ({{ confidenceLabels[getFieldStatus('category')] }})
-                  </span>
-                </div>
+                <p class="text-sm text-slate-900 dark:text-slate-100">
+                  {{ parseResult.data.category || '-' }}
+                </p>
               </div>
 
               <!-- Date -->
               <div>
                 <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
                   {{ t('textInput.date') }}
-                  <span v-if="getFieldStatus('date') === 'low' || getFieldStatus('date') === 'none'"
-                    class="ml-1 text-orange-600 dark:text-orange-400">
-                    ⚠️
-                  </span>
                 </p>
-                <div class="flex items-center gap-2">
-                  <p :class="[
-                    'text-sm text-slate-900 dark:text-slate-100',
-                    (getFieldStatus('date') === 'low' || getFieldStatus('date') === 'none') && 'ring-2 ring-orange-300 dark:ring-orange-700 rounded px-2 py-1',
-                  ]">
-                    {{
-                      parseResult.data.date
-                        ? new Date(parseResult.data.date).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })
-                        : '-'
-                    }}
-                  </p>
-                  <span :class="['text-xs', confidenceColors[getFieldStatus('date')]]">
-                    ({{ confidenceLabels[getFieldStatus('date')] }})
-                  </span>
-                </div>
+                <p class="text-sm text-slate-900 dark:text-slate-100">
+                  {{
+                    parseResult.data.date
+                      ? new Date(parseResult.data.date).toLocaleDateString(locale === 'id' ? 'id-ID' : 'en-US', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })
+                      : '-'
+                  }}
+                </p>
               </div>
             </div>
           </BaseCard>
@@ -803,4 +695,12 @@ function getFieldStatus(field: 'amount' | 'type' | 'category' | 'date') {
       </div>
     </div>
   </BottomSheet>
+
+  <AlertModal
+    :is-open="showInsufficientBalanceModal"
+    :title="t('pocket.insufficientBalanceTitle')"
+    :message="insufficientBalanceMessage"
+    variant="warning"
+    @close="showInsufficientBalanceModal = false"
+  />
 </template>

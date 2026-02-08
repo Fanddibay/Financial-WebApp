@@ -7,9 +7,11 @@ import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseDatePicker from '@/components/ui/BaseDatePicker.vue'
 import CurrencyInput from '@/components/ui/CurrencyInput.vue'
 import { getCategoryWithIcon } from '@/utils/categoryIcons'
+import { useGoalStore } from '@/stores/goal'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
+const goalStore = useGoalStore()
 
 interface Props {
   modelValue: TransactionFormData
@@ -35,15 +37,27 @@ const emit = defineEmits<{
 
 const formData = computed({
   get: () => props.modelValue,
-  set: (value) => emit('update:modelValue', value),
+  set: (value) => {
+    // Prevent changing type to expense if goalId is present
+    if (value.goalId && value.type === 'expense') {
+      value.type = 'income'
+    }
+    emit('update:modelValue', value)
+  },
 })
 
 const errors = ref<Partial<Record<keyof TransactionFormData, string>>>({})
 
-const typeOptions = computed(() => [
-  { value: 'income', label: t('transaction.incomeLabel') },
-  { value: 'expense', label: t('transaction.expenseLabel') },
-])
+const typeOptions = computed(() => {
+  // For goals, only show income (no expense)
+  if (props.modelValue.goalId) {
+    return [{ value: 'income', label: t('transaction.incomeLabel') }]
+  }
+  return [
+    { value: 'income', label: t('transaction.incomeLabel') },
+    { value: 'expense', label: t('transaction.expenseLabel') },
+  ]
+})
 
 const formType = computed(() => (props.modelValue.type === 'income' ? 'income' : 'expense'))
 
@@ -161,9 +175,28 @@ function handleSubmit() {
 
 <template>
   <form class="space-y-4" @submit.prevent="handleSubmit">
-    <BaseSelect v-model="formData.type" :label="t('transaction.type')" :options="typeOptions" :error="errors.type" />
+    <BaseSelect
+      v-if="!formData.goalId"
+      v-model="formData.type"
+      :label="t('transaction.type')"
+      :options="typeOptions"
+      :error="errors.type"
+    />
 
-    <div v-if="pocketOptions.length > 0" class="space-y-1.5">
+    <!-- Goal destination: show goal name, no pocket selector -->
+    <div v-if="formData.goalId" class="space-y-1.5">
+      <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {{ t('goal.allocationTo') }}
+      </label>
+      <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 dark:border-slate-700 dark:bg-slate-800">
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('goal.allocationTo') }}</p>
+        <p class="font-medium text-slate-900 dark:text-slate-100">
+          {{ goalStore.getGoalById(formData.goalId)?.icon }} {{ goalStore.getGoalById(formData.goalId)?.name ?? formData.goalId }}
+        </p>
+      </div>
+    </div>
+    <!-- Pocket selector: only when not a goal transaction -->
+    <div v-else-if="pocketOptions.length > 0" class="space-y-1.5">
       <label v-if="lockedPocketId" class="block text-sm font-medium text-slate-700 dark:text-slate-300">
         {{ t('pocket.selectPocket') }}
       </label>
@@ -182,8 +215,15 @@ function handleSubmit() {
       </div>
     </div>
 
-    <BaseInput v-model="formData.description" :label="t('transaction.description')" :error="errors.description"
-      :placeholder="t('transaction.descriptionPlaceholder')" />
+    <BaseInput
+      v-model="formData.description"
+      :label="t('transaction.description')"
+      :error="errors.description"
+      :placeholder="formData.goalId ? t('goal.descriptionPlaceholder') : t('transaction.descriptionPlaceholder')"
+    />
+    <p v-if="formData.goalId" class="text-sm text-slate-600 dark:text-slate-400">
+      {{ t('goal.addTransactionToGoalInfo') }}
+    </p>
 
     <CurrencyInput v-model="formData.amount" :label="t('transaction.amount')" :error="errors.amount" />
 

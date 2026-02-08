@@ -72,8 +72,8 @@ class OpenAIChatService implements IChatService {
 
   private buildSystemPrompt(context?: ChatContext): string {
     const lang = context?.locale === 'en' ? 'English' : 'Indonesian'
-    let prompt = `You are a helpful financial assistant for a personal finance tracking app.
-You help users understand their finances, provide budgeting advice, and answer questions about their transactions.
+    let prompt = `You are a helpful financial assistant (Minfan) for a personal finance tracking app.
+You help users understand their finances, provide budgeting advice, answer questions about their transactions, and about their savings goals (goals).
 
 IMPORTANT: You MUST respond in ${lang} only. Match the user's language setting.
 Be concise, friendly, and practical in your responses. Use Indonesian Rupiah (IDR) format when mentioning amounts.`
@@ -91,6 +91,17 @@ Be concise, friendly, and practical in your responses. Use Indonesian Rupiah (ID
 Use Indonesian Rupiah (IDR) format when mentioning amounts.`
     }
 
+    if (context?.goals && context.goals.length > 0) {
+      prompt += `\n\nUser's savings goals (for goal-related questions):
+`
+      context.goals.forEach((g) => {
+        prompt += `- "${g.name}": current Rp ${g.currentBalance.toLocaleString('id-ID')}, target Rp ${g.targetAmount.toLocaleString('id-ID')}, progress ${g.progressPercent}%\n`
+      })
+      prompt += `\nWhen asked about goals, list or summarize these goals with balance and progress. Give tips to reach targets if relevant.`
+    } else {
+      prompt += `\n\nThe user has no savings goals defined yet. If they ask about goals, suggest creating goals in the app (e.g. for down payment, vacation, emergency fund).`
+    }
+
     return prompt
   }
 }
@@ -104,32 +115,45 @@ Use Indonesian Rupiah (IDR) format when mentioning amounts.`
 class LocalAIChatService implements IChatService {
   async sendMessage(message: string, context?: ChatContext): Promise<string> {
     const locale = context?.locale === 'en' ? 'en' : 'id'
-    // If we have transaction data in context, use it for analysis
-    if (context?.transactions) {
-      // Convert context to FinancialAnalysis format
-      const analysis: FinancialAnalysis = {
-        totalIncome: context.transactions.totalIncome,
-        totalExpenses: context.transactions.totalExpenses,
-        balance: context.transactions.balance,
-        incomeCount: context.transactions.incomeCount || 0,
-        expenseCount: context.transactions.expenseCount || 0,
-        categoryBreakdown: context.transactions.categoryBreakdown || [],
-        monthlyTrends: context.transactions.monthlyTrends || [],
-        weeklyTrends: context.transactions.weeklyTrends || [],
-        topSpendingCategories: context.transactions.topSpendingCategories || [],
-        averageDailyExpense: context.transactions.averageDailyExpense || 0,
-        savingsRate: context.transactions.savingsRate || 0,
-        overspendingCategories: context.transactions.overspendingCategories || [],
-      }
+    const tx = context?.transactions
+    const analysis: FinancialAnalysis = tx
+      ? {
+          totalIncome: tx.totalIncome,
+          totalExpenses: tx.totalExpenses,
+          balance: tx.balance,
+          incomeCount: tx.incomeCount || 0,
+          expenseCount: tx.expenseCount || 0,
+          categoryBreakdown: tx.categoryBreakdown || [],
+          monthlyTrends: tx.monthlyTrends || [],
+          weeklyTrends: tx.weeklyTrends || [],
+          topSpendingCategories: tx.topSpendingCategories || [],
+          averageDailyExpense: tx.averageDailyExpense || 0,
+          savingsRate: tx.savingsRate || 0,
+          overspendingCategories: tx.overspendingCategories || [],
+          goals: context.goals,
+          totalAssets: context.totalAssets,
+          pockets: context.pockets,
+        }
+      : {
+          totalIncome: 0,
+          totalExpenses: 0,
+          balance: 0,
+          incomeCount: 0,
+          expenseCount: 0,
+          categoryBreakdown: [],
+          monthlyTrends: [],
+          weeklyTrends: [],
+          topSpendingCategories: [],
+          averageDailyExpense: 0,
+          savingsRate: 0,
+          overspendingCategories: [],
+          goals: context?.goals,
+          totalAssets: context?.totalAssets,
+          pockets: context?.pockets,
+        }
 
-      const ai = new LocalFinancialAI(analysis)
-      return await ai.processMessage(message, locale)
-    }
-
-    // Fallback if no context
-    return locale === 'en'
-      ? 'I need transaction data to provide analysis. Please add some income and expense transactions first! 📊'
-      : 'Saya membutuhkan data transaksi untuk memberikan analisis. Pastikan Anda sudah menambahkan beberapa transaksi pendapatan dan pengeluaran terlebih dahulu! 📊'
+    const ai = new LocalFinancialAI(analysis)
+    return await ai.processMessage(message, locale)
   }
 }
 

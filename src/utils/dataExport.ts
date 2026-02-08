@@ -13,6 +13,7 @@ const STORAGE_KEYS = {
   PROFILE: 'financial_tracker_profile',
   THEME: 'financial_tracker_theme',
   POCKETS: 'financial_tracker_pockets',
+  GOALS: 'financial_tracker_goals',
 } as const
 
 export interface ExportData {
@@ -20,6 +21,7 @@ export interface ExportData {
   exportedAt: string
   transactions: unknown[]
   pockets: unknown[]
+  goals?: unknown[]
   profile: unknown
   theme: string | null
 }
@@ -34,6 +36,9 @@ export function collectAppData(): ExportData {
   )
   const pockets = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.POCKETS) || '[]',
+  )
+  const goals = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.GOALS) || '[]',
   )
   const rawProfile = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.PROFILE) || 'null',
@@ -52,6 +57,7 @@ export function collectAppData(): ExportData {
     exportedAt: new Date().toISOString(),
     transactions,
     pockets: Array.isArray(pockets) ? pockets : [],
+    goals: Array.isArray(goals) ? goals : [],
     profile,
     theme,
   }
@@ -102,6 +108,15 @@ export interface PocketExportPayload {
   transactions: unknown[]
 }
 
+export interface GoalExportPayload {
+  version: string
+  exportedAt: string
+  exportType: 'goal'
+  exportedBy?: string
+  goals: unknown[]
+  transactions: unknown[]
+}
+
 /**
  * Exports a single pocket and its transactions as encrypted JSON.
  * Uses same encryption as global export. Safe for sharing.
@@ -143,6 +158,45 @@ export async function exportPocketData(
 }
 
 /**
+ * Exports a single goal and its related transactions as encrypted JSON.
+ */
+export async function exportGoalData(
+  goal: { name: string; [k: string]: unknown },
+  transactions: unknown[],
+  passphrase: string,
+  exportedBy?: string,
+): Promise<void> {
+  if (!passphrase || passphrase.length < 4) {
+    throw new Error('Passphrase harus minimal 4 karakter')
+  }
+
+  const data: GoalExportPayload = {
+    version: APP_VERSION,
+    exportedAt: new Date().toISOString(),
+    exportType: 'goal',
+    ...(exportedBy && { exportedBy }),
+    goals: [goal],
+    transactions,
+  }
+  const jsonString = JSON.stringify(data, null, 2)
+  const encrypted = await encryptData(jsonString, passphrase)
+  const wrapper = { encrypted: true, version: APP_VERSION, data: encrypted }
+
+  const safeName = goal.name.replace(/\s+/g, '-').replace(/[^\w-]/g, '')
+  const filename = `fanplanner-goal-${safeName || 'goal'}.json`
+
+  const blob = new Blob([JSON.stringify(wrapper, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
  * Validates legacy (global) import data structure.
  * Pockets array is optional for backward compatibility with old backups.
  */
@@ -162,6 +216,10 @@ function validateImportData(data: unknown): data is ExportData {
   }
 
   if (d.pockets !== undefined && d.pockets !== null && !Array.isArray(d.pockets)) {
+    return false
+  }
+
+  if (d.goals !== undefined && d.goals !== null && !Array.isArray(d.goals)) {
     return false
   }
 
@@ -230,6 +288,7 @@ function validateAndFixDate(dateString: string): string {
 export interface ImportResult {
   transactionCount: number
   pocketCount?: number
+  goalCount?: number
   profileName: string
 }
 
@@ -407,12 +466,17 @@ export async function importData(
   const existingPockets: unknown[] = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.POCKETS) || '[]',
   )
+  const existingGoals: unknown[] = JSON.parse(
+    localStorage.getItem(STORAGE_KEYS.GOALS) || '[]',
+  )
   const existingTx: unknown[] = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.TRANSACTIONS) || '[]',
   )
 
   const pocketIdMap = new Map<string, string>()
+  const goalIdMap = new Map<string, string>()
   let newPocketsCount = 0
+  let newGoalsCount = 0
 
   // Helper: ensure unique pocket name
   function ensureUniquePocketName(baseName: string): string {
@@ -470,19 +534,47 @@ export async function importData(
     }
   }
 
+  // Restore goals if present
+  if (Array.isArray(legacyData.goals) && legacyData.goals.length > 0) {
+    for (const g of legacyData.goals) {
+      const old = g as Record<string, unknown>
+      const oldId = old.id as string
+      const newId_ = newId('goal')
+      goalIdMap.set(oldId, newId_)
+      newGoalsCount++
+      existingGoals.push({
+        ...old,
+        id: newId_,
+      })
+    }
+    try {
+      localStorage.setItem(STORAGE_KEYS.GOALS, JSON.stringify(existingGoals))
+    } catch (e) {
+      throw new Error(
+        `Gagal menyimpan goal yang diimpor: ${e instanceof Error ? e.message : 'Error penyimpanan'}`,
+      )
+    }
+  }
+
   const legacyTx = legacyData.transactions as Array<Record<string, unknown>>
   const now = new Date().toISOString()
   const appended = legacyTx.map((t) => {
     const date = typeof t.date === 'string' ? validateAndFixDate(t.date) : (t.date as string) || now.slice(0, 10)
     const pid = (t.pocketId as string) || MAIN_POCKET_ID
     const tid = t.transferToPocketId as string | undefined
+    const gid = t.goalId as string | undefined
+    const transferToGid = t.transferToGoalId as string | undefined
     const newPid = pocketIdMap.get(pid) ?? MAIN_POCKET_ID
     const newTid = tid ? (pocketIdMap.get(tid) ?? MAIN_POCKET_ID) : undefined
+    const newGid = gid ? (goalIdMap.get(gid) ?? gid) : undefined
+    const newTransferToGid = transferToGid ? (goalIdMap.get(transferToGid) ?? transferToGid) : undefined
     return {
       ...t,
       id: newId('tx'),
       pocketId: newPid,
       transferToPocketId: newTid,
+      ...(newGid !== undefined && { goalId: newGid }),
+      ...(newTransferToGid !== undefined && { transferToGoalId: newTransferToGid }),
       date,
       createdAt: t.createdAt ?? now,
       updatedAt: t.updatedAt ?? now,
@@ -503,6 +595,7 @@ export async function importData(
   return {
     transactionCount: appended.length,
     pocketCount: newPocketsCount > 0 ? newPocketsCount : undefined,
+    goalCount: newGoalsCount > 0 ? newGoalsCount : undefined,
     profileName: profile?.name || 'User',
   }
 }

@@ -2,11 +2,13 @@ import { nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useToastStore } from '@/stores/toast'
 import { usePocketStore } from '@/stores/pocket'
+import { useGoalStore } from '@/stores/goal'
 import { useI18n } from 'vue-i18n'
 import { formatIDR } from '@/utils/currency'
 
 export type AddTransactionPayload =
   | { pocketId: string; amount: number; type: 'income' | 'expense' }
+  | { goalId: string; amount: number; type: 'income' | 'expense' }
   | { multi: true; count: number }
 
 /**
@@ -17,11 +19,22 @@ export function useAddTransactionFlow() {
   const router = useRouter()
   const toast = useToastStore()
   const pocketStore = usePocketStore()
+  const goalStore = useGoalStore()
   const { t } = useI18n()
 
   async function successThenRedirect(origin: string, payload?: AddTransactionPayload) {
     if (payload && 'multi' in payload) {
       toast.success(t('transaction.addedMulti', { count: payload.count }))
+    } else if (payload && 'goalId' in payload) {
+      const goal = goalStore.getGoalById(payload.goalId)
+      const goalName = goal?.name ?? t('goal.title')
+      const amount = formatIDR(payload.amount)
+      const message = t('transaction.addedToGoal', { goal: goalName, amount })
+      const action = {
+        label: t('transaction.viewTransaction'),
+        path: `/goals/${payload.goalId}`,
+      }
+      toast.transactionAdded(message, payload.type, 5000, action)
     } else if (payload && 'pocketId' in payload) {
       const pocket = pocketStore.getPocketById(payload.pocketId)
       const pocketName = pocket?.name ?? t('pocket.title')

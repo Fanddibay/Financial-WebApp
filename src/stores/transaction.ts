@@ -47,6 +47,20 @@ export const useTransactionStore = defineStore('transaction', () => {
   }
 
   async function createTransaction(data: TransactionFormData) {
+    // Prevent expense from making pocket balance negative
+    if (data.type === 'expense' && data.pocketId) {
+      const balance = pocketBalances.value[data.pocketId] ?? 0
+      if (data.amount > balance) {
+        const err = new Error('INSUFFICIENT_POCKET_BALANCE') as Error & {
+          currentBalance: number
+          amount: number
+        }
+        err.currentBalance = balance
+        err.amount = data.amount
+        throw err
+      }
+    }
+
     loading.value = true
     error.value = null
     try {
@@ -82,6 +96,48 @@ export const useTransactionStore = defineStore('transaction', () => {
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal memindahkan uang'
       console.error('Error creating transfer:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createTransferToGoal(fromPocketId: string, toGoalId: string, amount: number) {
+    loading.value = true
+    error.value = null
+    try {
+      const tx = await transactionService.createTransferToGoal(fromPocketId, toGoalId, amount)
+      transactions.value.push(tx)
+      try {
+        window.dispatchEvent(new CustomEvent('check-transaction-notification'))
+      } catch {
+        // ignore
+      }
+      return tx
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Gagal mengalokasikan uang ke goal'
+      console.error('Error creating transfer to goal:', err)
+      throw err
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function createWithdrawalFromGoal(fromGoalId: string, toPocketId: string, amount: number) {
+    loading.value = true
+    error.value = null
+    try {
+      const tx = await transactionService.createWithdrawalFromGoal(fromGoalId, toPocketId, amount)
+      transactions.value.push(tx)
+      try {
+        window.dispatchEvent(new CustomEvent('check-transaction-notification'))
+      } catch {
+        // ignore
+      }
+      return tx
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Gagal menarik uang dari goal'
+      console.error('Error creating withdrawal from goal:', err)
       throw err
     } finally {
       loading.value = false
@@ -172,6 +228,8 @@ export const useTransactionStore = defineStore('transaction', () => {
     fetchTransactions,
     createTransaction,
     createTransfer,
+    createTransferToGoal,
+    createWithdrawalFromGoal,
     updateTransaction,
     deleteTransaction,
     deleteByPocketId,

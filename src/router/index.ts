@@ -47,6 +47,12 @@ const router = createRouter({
       component: () => import('../views/PocketDetailView.vue'),
       props: true,
     },
+    {
+      path: '/goals/:id',
+      name: 'goal-detail',
+      component: () => import('../views/GoalDetailView.vue'),
+      props: true,
+    },
     // Admin routes
     {
       path: '/admin/login',

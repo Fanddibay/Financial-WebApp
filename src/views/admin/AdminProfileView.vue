@@ -172,7 +172,7 @@ function togglePasswordChangeForm() {
       <!-- Account Info Card -->
       <div
         class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 class="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Account Information</h2>
+        <h2 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">Account Information</h2>
 
         <div class="space-y-3">
           <div>
@@ -201,7 +201,7 @@ function togglePasswordChangeForm() {
       <div
         class="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
         <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Security</h2>
+          <h2 class="text-xl font-semibold text-slate-900 dark:text-slate-100">Security</h2>
           <BaseButton variant="ghost" size="sm" @click="togglePasswordChangeForm">
             <FontAwesomeIcon :icon="['fas', showPasswordChangeForm ? 'chevron-up' : 'chevron-down']" class="text-sm" />
             <span>{{ showPasswordChangeForm ? 'Cancel' : 'Change Password' }}</span>

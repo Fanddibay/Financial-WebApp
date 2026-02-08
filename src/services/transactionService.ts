@@ -11,6 +11,8 @@ export interface ITransactionService {
   getById(id: string): Promise<Transaction | null>
   create(data: TransactionFormData): Promise<Transaction>
   createTransfer(fromPocketId: string, toPocketId: string, amount: number): Promise<Transaction>
+  createTransferToGoal(fromPocketId: string, toGoalId: string, amount: number): Promise<Transaction>
+  createWithdrawalFromGoal(fromGoalId: string, toPocketId: string, amount: number): Promise<Transaction>
   update(id: string, data: Partial<TransactionFormData>): Promise<Transaction>
   delete(id: string): Promise<void>
   deleteByPocketId(pocketId: string): Promise<void>
@@ -90,6 +92,10 @@ class LocalStorageTransactionService implements ITransactionService {
     if (validatedDate !== data.date) {
       console.warn(`Future date detected and corrected: ${data.date} -> ${validatedDate}`)
     }
+    // Goals can only receive income transactions
+    if (data.goalId && data.type !== 'income') {
+      throw new Error('Goals can only receive income transactions')
+    }
     const transactions = this.getTransactions()
     const now = new Date().toISOString()
     const transaction: Transaction = {
@@ -100,6 +106,7 @@ class LocalStorageTransactionService implements ITransactionService {
       category: data.category,
       date: validatedDate,
       pocketId: data.pocketId,
+      goalId: data.goalId,
       createdAt: now,
       updatedAt: now,
     }
@@ -122,6 +129,67 @@ class LocalStorageTransactionService implements ITransactionService {
       category: '',
       date: today,
       pocketId: fromPocketId,
+      transferToPocketId: toPocketId,
+      createdAt: now,
+      updatedAt: now,
+    }
+    transactions.push(tx)
+    this.saveTransactions(transactions)
+    return tx
+  }
+
+  async createTransferToGoal(fromPocketId: string, toGoalId: string, amount: number): Promise<Transaction> {
+    if (amount <= 0) throw new Error('Transfer amount must be greater than 0')
+    const transactions = this.getTransactions()
+    const now = new Date().toISOString()
+    const today = new Date().toISOString().split('T')[0]
+    const tx: Transaction = {
+      id: generateId(),
+      type: 'transfer',
+      amount,
+      description: `Allocation to goal`,
+      category: '',
+      date: today,
+      pocketId: fromPocketId,
+      transferToGoalId: toGoalId,
+      createdAt: now,
+      updatedAt: now,
+    }
+    transactions.push(tx)
+    this.saveTransactions(transactions)
+    return tx
+  }
+
+  async createWithdrawalFromGoal(fromGoalId: string, toPocketId: string, amount: number): Promise<Transaction> {
+    if (amount <= 0) throw new Error('Withdrawal amount must be greater than 0')
+    const transactions = this.getTransactions()
+    // Check current goal balance
+    let goalBalance = 0
+    for (const tx of transactions) {
+      if (tx.type === 'income' && tx.goalId === fromGoalId) {
+        goalBalance += tx.amount
+      }
+      if (tx.type === 'transfer' && tx.transferToGoalId === fromGoalId) {
+        goalBalance += tx.amount
+      }
+      if (tx.type === 'transfer' && tx.goalId === fromGoalId && tx.transferToPocketId) {
+        goalBalance -= tx.amount
+      }
+    }
+    if (amount > goalBalance) {
+      throw new Error('Withdrawal amount exceeds goal balance')
+    }
+    const now = new Date().toISOString()
+    const today = new Date().toISOString().split('T')[0]
+    const tx: Transaction = {
+      id: generateId(),
+      type: 'transfer',
+      amount,
+      description: `Withdrawal from goal`,
+      category: '',
+      date: today,
+      pocketId: toPocketId,
+      goalId: fromGoalId,
       transferToPocketId: toPocketId,
       createdAt: now,
       updatedAt: now,
@@ -155,6 +223,8 @@ class LocalStorageTransactionService implements ITransactionService {
       date: validatedDate,
       pocketId: data.pocketId ?? existing.pocketId,
       transferToPocketId: existing.transferToPocketId,
+      goalId: data.goalId ?? existing.goalId,
+      transferToGoalId: existing.transferToGoalId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     }
@@ -206,18 +276,25 @@ class LocalStorageTransactionService implements ITransactionService {
 
 /**
  * Compute balance per pocket from transactions (income - expense, transfer out/in).
- * Transfers do not affect global total; they move money between pockets.
+ * Income allocated to a goal (goalId) does not affect pocket balance.
+ * Transfer to goal subtracts from source pocket; withdrawal from goal adds to pocket.
  */
 export function computePocketBalances(transactions: Transaction[]): Record<string, number> {
   const bal: Record<string, number> = {}
   for (const t of transactions) {
     if (t.type === 'income') {
-      bal[t.pocketId] = (bal[t.pocketId] ?? 0) + t.amount
+      if (!t.goalId) bal[t.pocketId] = (bal[t.pocketId] ?? 0) + t.amount
     } else if (t.type === 'expense') {
       bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
-    } else if (t.type === 'transfer' && t.transferToPocketId) {
-      bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
-      bal[t.transferToPocketId] = (bal[t.transferToPocketId] ?? 0) + t.amount
+    } else if (t.type === 'transfer') {
+      if (t.goalId && t.transferToPocketId) {
+        bal[t.transferToPocketId] = (bal[t.transferToPocketId] ?? 0) + t.amount
+      } else if (t.transferToGoalId) {
+        bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
+      } else if (t.transferToPocketId) {
+        bal[t.pocketId] = (bal[t.pocketId] ?? 0) - t.amount
+        bal[t.transferToPocketId] = (bal[t.transferToPocketId] ?? 0) + t.amount
+      }
     }
   }
   return bal

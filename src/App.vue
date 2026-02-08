@@ -13,13 +13,14 @@ const route = useRoute()
 
 // Hide header and nav for admin routes (but show admin nav on main admin pages)
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
-// Hide app header on routes that use their own page header (Dashboard, History, Profile, TransactionForm, Pocket Detail)
-const usePageHeaderRoutes = ['dashboard', 'transactions', 'profile', 'transaction-new', 'transaction-edit', 'pocket-detail', 'pockets']
+// Hide app header on routes that use their own page header (Dashboard, History, Profile, TransactionForm, Pocket Detail, Goal Detail)
+const usePageHeaderRoutes = ['dashboard', 'transactions', 'profile', 'transaction-new', 'transaction-edit', 'pocket-detail', 'goal-detail', 'pockets']
 const hideAppHeader = computed(() => {
   if (isAdminRoute.value) return true
   const name = route.name as string
   if (name && usePageHeaderRoutes.includes(name)) return true
   if (/^\/pockets\/[^/]+$/.test(route.path)) return true
+  if (/^\/goals\/[^/]+$/.test(route.path)) return true
   return false
 })
 const showAppHeader = computed(() => !hideAppHeader.value)
