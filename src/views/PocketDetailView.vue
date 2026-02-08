@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { usePocketStore } from '@/stores/pocket'
@@ -60,6 +60,14 @@ const balance = computed(() => {
 const showBalance = ref(true)
 const activeTab = ref<'transactions' | 'overview'>('transactions')
 const showAddModal = ref(false)
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showAddModal.value = false
+  showMoveModal.value = false
+  showActionMenu.value = false
+  showEditPocketModal.value = false
+  showDeletePocketModal.value = false
+  showExportJsonModal.value = false
+})
 const showMoveModal = ref(false)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)

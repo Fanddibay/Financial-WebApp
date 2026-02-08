@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -117,6 +117,38 @@ const defaultFormData: TransactionFormData = {
 const formData = ref<TransactionFormData>({ ...defaultFormData })
 const multipleFormData = ref<TransactionFormData[]>([])
 const dateError = ref<string | null>(null)
+
+// Ensure category is never empty: default to first option when not set or not in list
+const firstCategory = computed(() => props.categories?.[0] ?? '')
+watch(
+  [() => formData.value.category, () => props.categories, showPreview],
+  () => {
+    if (!showPreview.value || !firstCategory.value) return
+    if (!formData.value.category?.trim()) {
+      formData.value = { ...formData.value, category: firstCategory.value }
+    } else if (props.categories?.length && !props.categories.includes(formData.value.category)) {
+      formData.value = { ...formData.value, category: firstCategory.value }
+    }
+  },
+  { immediate: true }
+)
+watch(
+  [multipleFormData, () => props.categories, showPreview, hasMultipleTransactions],
+  () => {
+    if (!showPreview.value || !firstCategory.value || !hasMultipleTransactions.value) return
+    const current = multipleFormData.value
+    if (!current.length) return
+    const fixed = current.map((item) =>
+      (!item.category?.trim() || (props.categories?.length && !props.categories.includes(item.category)))
+        ? { ...item, category: firstCategory.value }
+        : item
+    )
+    if (fixed.some((item, i) => item.category !== current[i]?.category)) {
+      multipleFormData.value = fixed
+    }
+  },
+  { immediate: true, deep: true }
+)
 
 // Helper function to get today's date string
 function getTodayDateString(): string {
@@ -394,7 +426,10 @@ async function processImage(file: File) {
     const detailed = parseReceiptTextDetailed(text)
     detailedResult.value = detailed
 
-    // Only auto-fill if we have a valid detected amount
+    // Default category = first option so it's never empty
+      const defaultCategory: string = props.categories?.[0] ?? ''
+
+      // Only auto-fill if we have a valid detected amount
     if (detailed.detectedAmount > 0) {
       // Parse for form data
       const parsed = parseReceiptText(text)
@@ -403,30 +438,33 @@ async function processImage(file: File) {
       // Check if multiple transactions were found
       if (Array.isArray(parsed)) {
         hasMultipleTransactions.value = true
-        // Validate and fix dates for all transactions
+        // Validate and fix dates for all transactions; ensure category never empty
         multipleFormData.value = parsed.map((item) => {
           const dateValidation = validateAndFixDate(item.date || '')
           if (dateValidation.error && !dateError.value) {
             dateError.value = dateValidation.error
           }
+          const cat = (item.category?.trim() && props.categories?.includes(item.category)) ? item.category : defaultCategory
           return {
             ...defaultFormData,
             ...item,
             date: dateValidation.date,
+            category: cat ?? defaultCategory,
           }
         })
       } else {
         hasMultipleTransactions.value = false
-        // Validate and fix date for single transaction
+        // Validate and fix date for single transaction (receipt date or today)
         const dateValidation = validateAndFixDate(parsed.date || '')
         if (dateValidation.error) {
           dateError.value = dateValidation.error
         }
-        // Merge parsed data with default form data
+        const cat = (parsed.category?.trim() && props.categories?.includes(parsed.category)) ? parsed.category : defaultCategory
         formData.value = {
           ...defaultFormData,
           ...parsed,
           date: dateValidation.date,
+          category: cat ?? defaultCategory,
         }
       }
 
@@ -441,19 +479,23 @@ async function processImage(file: File) {
         hasMultipleTransactions.value = true
         multipleFormData.value = parsed.map((item) => {
           const dateValidation = validateAndFixDate(item.date || '')
+          const cat = (item.category?.trim() && props.categories?.includes(item.category)) ? item.category : defaultCategory
           return {
             ...defaultFormData,
             ...item,
             date: dateValidation.date,
+            category: cat ?? defaultCategory,
           }
         })
       } else {
         hasMultipleTransactions.value = false
         const dateValidation = validateAndFixDate(parsed.date || '')
+        const cat = (parsed.category?.trim() && props.categories?.includes(parsed.category)) ? parsed.category : defaultCategory
         formData.value = {
           ...defaultFormData,
           ...parsed,
           date: dateValidation.date,
+          category: cat ?? defaultCategory,
         }
       }
 
@@ -691,15 +733,14 @@ const errorIcon = computed(() => {
   <!-- Main Scanner Modal -->
   <BottomSheet :is-open="isOpen" :title="t('scanner.title')" @close="handleClose">
     <template #header-actions>
-      <button
-        v-if="!tokenStore.isLicenseActive"
-        type="button"
-        @click="showLimitInfo = true"
-        class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
-        :aria-label="t('scanner.usageLabelTap')"
-        :title="t('scanner.usageLabelTap')">
-        <span class="tabular-nums">{{ t('scanner.usageLabel', { remaining: receiptUsageRemaining, max: receiptUsageMax }) }}</span>
+      <button v-if="!tokenStore.isLicenseActive" type="button" @click="showLimitInfo = true"
+        class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
+        :aria-label="t('scanner.usageLabelTap')" :title="t('scanner.usageLabelTap')">
         <font-awesome-icon :icon="['fas', 'circle-info']" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+        <span class="tabular-nums">{{ t('scanner.usageLabel', {
+          remaining: receiptUsageRemaining, max: receiptUsageMax
+        }) }}</span>
+
       </button>
     </template>
     <div v-if="!showPreview" class="space-y-4">
@@ -805,14 +846,18 @@ const errorIcon = computed(() => {
               <p class="font-medium mb-1" :class="validationFailed
                 ? 'text-red-800 dark:text-red-200'
                 : 'text-yellow-800 dark:text-yellow-200'">
-                {{ validationFailed ? t('scanner.scanFailed') : t('scanner.warning')
-                }}
+                {{ errorType === 'limit-reached' ? t('scanner.limitReachedTitle') : (validationFailed ? t('scanner.scanFailed') : t('scanner.warning')) }}
               </p>
               <p class="text-sm whitespace-pre-line" :class="validationFailed
                 ? 'text-red-700 dark:text-red-300'
                 : 'text-yellow-700 dark:text-yellow-300'">
                 {{ error }}
               </p>
+              <BaseButton v-if="errorType === 'limit-reached'" variant="teritary" class="mt-3 w-full justify-center text-amber-900 hover:text-amber-950" size="sm"
+                @click="paymentModalStore.openPaymentModal()">
+                <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
+                {{ t('scanner.activateLicense') }}
+              </BaseButton>
             </div>
           </div>
         </div>
@@ -883,7 +928,8 @@ const errorIcon = computed(() => {
         </div>
         <div class="p-4 space-y-3">
           <div class="flex items-baseline justify-between gap-2">
-            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('scanner.detectedAmountLabel') }}</span>
+            <span class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ t('scanner.detectedAmountLabel')
+            }}</span>
             <span :class="[
               'text-lg font-bold tabular-nums',
               detailedResult.detectedAmount > 0 ? 'text-slate-900 dark:text-slate-100' : 'text-amber-600 dark:text-amber-400',
@@ -893,11 +939,13 @@ const errorIcon = computed(() => {
           </div>
           <div class="flex items-center justify-between gap-2 text-sm">
             <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.detectedDateLabel') }}</span>
-            <span class="font-medium text-slate-800 dark:text-slate-200">{{ formatDisplayDate(detailedResult.date) }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-200">{{ formatDisplayDate(detailedResult.date)
+            }}</span>
           </div>
           <div v-if="detailedResult.merchant" class="flex items-center justify-between gap-2 text-sm">
             <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.detectedMerchantLabel') }}</span>
-            <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[60%]">{{ detailedResult.merchant }}</span>
+            <span class="font-medium text-slate-800 dark:text-slate-200 truncate max-w-[60%]">{{ detailedResult.merchant
+            }}</span>
           </div>
           <div v-if="confidenceLabel" class="flex items-center justify-between gap-2 text-sm">
             <span class="text-slate-500 dark:text-slate-400">{{ t('scanner.confidence') }}</span>
@@ -908,8 +956,10 @@ const errorIcon = computed(() => {
           'px-4 py-2.5 flex items-center justify-between border-t border-slate-100 dark:border-slate-700',
           detailedResult.detectedAmount > 0 ? 'bg-green-50/50 dark:bg-green-900/10' : 'bg-amber-50/50 dark:bg-amber-900/10',
         ]">
-          <p class="text-xs font-medium flex items-center gap-2" :class="detailedResult.detectedAmount > 0 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'">
-            <font-awesome-icon v-if="detailedResult.detectedAmount > 0" :icon="['fas', 'check-circle']" class="h-4 w-4" />
+          <p class="text-xs font-medium flex items-center gap-2"
+            :class="detailedResult.detectedAmount > 0 ? 'text-green-800 dark:text-green-200' : 'text-amber-800 dark:text-amber-200'">
+            <font-awesome-icon v-if="detailedResult.detectedAmount > 0" :icon="['fas', 'check-circle']"
+              class="h-4 w-4" />
             <font-awesome-icon v-else :icon="['fas', 'exclamation-circle']" class="h-4 w-4" />
             {{ detailedResult.detectedAmount > 0 ? t('scanner.receiptScannedSuccess') : t('scanner.totalNotDetected') }}
           </p>
@@ -920,20 +970,28 @@ const errorIcon = computed(() => {
         </div>
       </div>
 
-      <!-- Collapsible: teks yang terbaca (OCR) untuk verifikasi -->
-      <div v-if="detailedResult" class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden flex-shrink-0">
+      <!-- Collapsible: teks yang terbaca (OCR) untuk verifikasi - tidak dipakai saat ini
+      <div v-if="detailedResult"
+        class="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 overflow-hidden flex-shrink-0">
         <button type="button" @click="showOcrPreview = !showOcrPreview"
           class="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors">
-          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ showOcrPreview ? t('scanner.hideOcrText') : t('scanner.viewOcrText') }}</span>
-          <font-awesome-icon :icon="['fas', showOcrPreview ? 'chevron-up' : 'chevron-down']" class="h-4 w-4 text-slate-500" />
+          <span class="text-sm font-medium text-slate-700 dark:text-slate-300">{{ showOcrPreview ?
+            t('scanner.hideOcrText')
+            : t('scanner.viewOcrText') }}</span>
+          <font-awesome-icon :icon="['fas', showOcrPreview ? 'chevron-up' : 'chevron-down']"
+            class="h-4 w-4 text-slate-500" />
         </button>
-        <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0" enter-to-class="opacity-100 max-h-64"
-          leave-active-class="transition-all duration-200 ease-in" leave-from-class="opacity-100 max-h-64" leave-to-class="opacity-0 max-h-0">
+        <Transition enter-active-class="transition-all duration-200 ease-out" enter-from-class="opacity-0 max-h-0"
+          enter-to-class="opacity-100 max-h-64" leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 max-h-64" leave-to-class="opacity-0 max-h-0">
           <div v-if="showOcrPreview" class="px-4 pb-4">
-            <pre class="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-words font-sans max-h-48 overflow-y-auto rounded-lg bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-600">{{ detailedResult.normalizedText || detailedResult.rawOcrText }}</pre>
+            <pre
+              class="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap break-words font-sans max-h-48 overflow-y-auto rounded-lg bg-white dark:bg-slate-800 p-3 border border-slate-200 dark:border-slate-600">
+          {{ detailedResult.normalizedText || detailedResult.rawOcrText }}</pre>
           </div>
         </Transition>
       </div>
+      -->
 
       <!-- Full Width Retake Button (Below Card) -->
       <button v-if="previewImage && !processing && !validationFailed" @click="handleRescan"
@@ -966,7 +1024,7 @@ const errorIcon = computed(() => {
                 errorType === 'offline-no-cache' ? 'text-blue-800 dark:text-blue-200' :
                   errorType === 'limit-reached' ? 'text-yellow-800 dark:text-yellow-200' : 'text-red-800 dark:text-red-200'
               ]">
-                {{ errorType === 'offline-no-cache' ? t('scanner.offlineMode') : t('scanner.scanFailed') }}
+                {{ errorType === 'limit-reached' ? t('scanner.limitReachedTitle') : (errorType === 'offline-no-cache' ? t('scanner.offlineMode') : t('scanner.scanFailed')) }}
               </p>
               <p :class="[
                 'text-sm whitespace-pre-line',

@@ -7,6 +7,7 @@ import { useToastStore } from '@/stores/toast'
 import { usePocketStore } from '@/stores/pocket'
 import { useGoalStore } from '@/stores/goal'
 import { useTokenStore } from '@/stores/token'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import ReceiptScanner from '@/components/transactions/ReceiptScanner.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -36,6 +37,7 @@ const {
 const pocketStore = usePocketStore()
 const goalStore = useGoalStore()
 const tokenStore = useTokenStore()
+const paymentModalStore = usePaymentModalStore()
 const { getActivePockets } = usePocketLimits()
 
 const searchQuery = ref('')
@@ -43,6 +45,9 @@ const filterType = ref<TransactionType | 'all'>('all')
 const filterCategory = ref('')
 const filterPocketId = ref('')
 const showScanner = ref(false)
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showScanner.value = false
+})
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)
 const showScrollToTop = ref(false)

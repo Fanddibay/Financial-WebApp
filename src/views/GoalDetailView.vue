@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoalStore } from '@/stores/goal'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { useTransactionStore } from '@/stores/transaction'
 import { useToastStore } from '@/stores/toast'
 import { useProfileStore } from '@/stores/profile'
@@ -37,6 +38,7 @@ const goalStore = useGoalStore()
 const txStore = useTransactionStore()
 const toastStore = useToastStore()
 const profileStore = useProfileStore()
+const paymentModalStore = usePaymentModalStore()
 
 const goalId = computed(() => {
   const id = route.params.id
@@ -71,6 +73,14 @@ const investmentActivityList = computed(() => {
   return investmentGoalService.getActivityEntries(goalId.value)
 })
 const showAddModal = ref(false)
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showAddModal.value = false
+  showWithdrawModal.value = false
+  showActionMenu.value = false
+  showEditGoalModal.value = false
+  showDeleteGoalModal.value = false
+  showExportJsonModal.value = false
+})
 const showWithdrawModal = ref(false)
 const showDeleteConfirm = ref(false)
 const transactionToDelete = ref<string | null>(null)

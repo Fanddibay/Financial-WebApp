@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 import { faHouse, faReceipt, faWallet, faUser, faPlus } from '@fortawesome/free-solid-svg-icons'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
 import { useI18n } from 'vue-i18n'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 
 const { t } = useI18n()
-
 const route = useRoute()
 const router = useRouter()
+const paymentModalStore = usePaymentModalStore()
 
 const showAddModal = ref(false)
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showAddModal.value = false
+})
 
 const activeTab = computed(() => {
   const currentPath = route.path

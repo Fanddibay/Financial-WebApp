@@ -8,8 +8,8 @@ interface Props {
   title?: string
   /** Optional subtitle shown below title */
   subtitle?: string
-  /** Max height: '60' for 60vh, '70' for 70vh, '85' for 85vh (default) */
-  maxHeight?: '60' | '70' | '85'
+  /** Max height: '60' for 60vh, '70' for 70vh, '85' for 85vh, '90' for 90vh (default 85) */
+  maxHeight?: '60' | '70' | '85' | '90'
   /** Overlay z-index (default 50). Use higher value (e.g. 200) for modals that must appear above others. */
   overlayZIndex?: number
 }
@@ -68,7 +68,7 @@ onUnmounted(() => {
           leave-from-class="translate-y-0" leave-to-class="translate-y-full">
           <div v-show="isOpen" :class="[
             'flex flex-col rounded-t-2xl bg-white shadow-xl dark:bg-slate-800',
-            maxHeight === '60' ? 'max-h-[60vh]' : maxHeight === '70' ? 'max-h-[70vh]' : 'max-h-[85vh]',
+            maxHeight === '60' ? 'max-h-[60vh]' : maxHeight === '70' ? 'max-h-[70vh]' : maxHeight === '90' ? 'max-h-[90vh]' : 'max-h-[85vh]',
           ]" @click.stop>
             <!-- Handle bar (swipe-down to dismiss) -->
             <div class="flex shrink-0 cursor-grab touch-pan-y justify-center pt-3 pb-1 active:cursor-grabbing"

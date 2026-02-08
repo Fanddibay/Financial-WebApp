@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, provide, ref } from 'vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { useTransactions } from '@/composables/useTransactions'
 import { useProfileStore } from '@/stores/profile'
 import { useGoalStore } from '@/stores/goal'
@@ -35,6 +36,11 @@ const {
 const showDeleteConfirm = ref(false)
 const showDailyActivitySheet = ref(false)
 const showAddModal = ref(false)
+const paymentModalStore = usePaymentModalStore()
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showAddModal.value = false
+  showDailyActivitySheet.value = false
+})
 
 const displayName = computed(() => profileStore.profile.name || t('home.guest'))
 const transactionToDelete = ref<string | null>(null)

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chat'
 import { useTransactionStore } from '@/stores/transaction'
@@ -7,7 +8,6 @@ import { useGoalStore } from '@/stores/goal'
 import { usePocketStore } from '@/stores/pocket'
 
 import { useTokenStore } from '@/stores/token'
-import { usePaymentModalStore } from '@/stores/paymentModal'
 import { analyzeFinancialData } from '@/services/financialAI'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
@@ -16,13 +16,13 @@ import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 const { t, locale } = useI18n()
 const showClearChatConfirm = ref(false)
+const router = useRouter()
 const chatStore = useChatStore()
 const transactionStore = useTransactionStore()
 const goalStore = useGoalStore()
 const pocketStore = usePocketStore()
 
 const tokenStore = useTokenStore()
-const paymentModalStore = usePaymentModalStore()
 
 const inputMessage = ref('')
 const messagesEnd = ref<HTMLElement | null>(null)
@@ -59,14 +59,6 @@ onMounted(() => {
 // Auto-scroll when new messages arrive
 watch(() => chatStore.messages.length, () => {
   scrollToBottom()
-})
-
-// Saat "Aktifkan" diklik di payment modal (dari fitur mana pun), tutup semua modal dan jendela chat
-watch(() => paymentModalStore.closeAllModalsTrigger, () => {
-  showLimitInfo.value = false
-  showSuggestionsModal.value = false
-  showClearChatConfirm.value = false
-  chatStore.closeChat()
 })
 
 async function handleSend() {
@@ -159,9 +151,10 @@ function handleReset() {
   showClearChatConfirm.value = true
 }
 // Navigate to profile and close everything
-function onActivateLicense() {
+function navigateToProfile() {
   showLimitInfo.value = false
-  paymentModalStore.openPaymentModal()
+  chatStore.closeChat()
+  router.push('/profile')
 }
 
 function handleSuggestionClick(question: string) {
@@ -186,7 +179,13 @@ function handleSuggestionClick(question: string) {
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <!-- Delete Icon -->
+        <!-- Usage Limit Info Icon (Header) -->
+        <button v-if="!tokenStore.isLicenseActive" @click="showLimitInfo = true"
+          class="flex h-8 w-8 items-center justify-center rounded-full text-white/80 hover:bg-white/20 hover:text-white transition-colors">
+          <font-awesome-icon :icon="['fas', 'circle-info']" />
+        </button>
+
+        <!-- Restored Delete Icon -->
         <BaseButton variant="ghost" size="sm" @click="handleReset" class="text-white hover:bg-white/20"
           title="Clear Chat">
           <font-awesome-icon :icon="['fas', 'trash']" />
@@ -283,10 +282,10 @@ function handleSuggestionClick(question: string) {
 
       <div class="flex items-end gap-2">
         <div class="relative flex-1">
-          <textarea v-model="inputMessage" rows="1" :placeholder="t('chat.inputPlaceholder')" class="block w-full resize-none rounded-xl border border-slate-300 dark:border-slate-600 bg-white
-            dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-3 text-sm leading-normal focus:border-brand
-            focus:outline-none placeholder:text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500
-            focus:ring-2 focus:ring-brand/20 max-h-32 overflow-y-auto" :disabled="chatStore.loading"
+          <textarea v-model="inputMessage" rows="1" :placeholder="t('chat.inputPlaceholder')" class=" text-xl font-semibold text-slate-900 dark:text-slate-100dark:border-slate-600 bg-white
+            dark:bg-slate-800 text-slate-900 dark:text-slate-100 px-4 py-2.5 text-sm focus:border-brand
+            focus:outline-none placeholder:text-xs placeholder:pt-1 focus:ring-2 focus:ring-brand/20 placeholder:text-slate-400
+            dark:placeholder:text-slate-500 max-h-32 overflow-y-auto" :disabled="chatStore.loading"
             @keydown.enter.prevent="handleKeyPress" @input="(e) => {
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
@@ -312,23 +311,10 @@ function handleSuggestionClick(question: string) {
         {{ limitError }}
       </p>
       <!-- AI Disclaimer -->
-      <!-- <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 text-start">
+      <p class="mt-2 text-xs text-slate-500 dark:text-slate-400 text-start">
         <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-1" />
         Saran ini bersifat umum dan bukan nasihat keuangan profesional
-      </p> -->
-      <!-- Upgrade total limit (below text field, Basic only) -->
-      <div class="flex items-center gap-1">
-        <font-awesome-icon :icon="['fas', 'info-circle']" class="mr-0" />
-        <p v-if="!tokenStore.isLicenseActive"
-          class="mt-0 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
-          <span>{{ t('chat.usageLabel', {
-            remaining: tokenStore.getRemainingUsage('chat'), max: tokenStore.MAX_BASIC_USAGE
-          }) }}</span>
-          <button type="button" @click="showLimitInfo = true" class="text-brand font-medium hover:underline">
-            {{ t('chat.usageUpgrade') }}
-          </button>
-        </p>
-      </div>
+      </p>
     </div>
   </div>
 
@@ -338,26 +324,39 @@ function handleSuggestionClick(question: string) {
     :cancel-text="t('common.cancel')" variant="danger" :icon="['fas', 'trash']" @confirm="handleResetConfirm"
     @close="showClearChatConfirm = false" />
 
-  <!-- Limit Info Modal (same pattern as ReceiptScanner / TextInputModal) -->
-  <BottomSheet :is-open="showLimitInfo" :title="t('chat.basicAccountLimit')" @close="showLimitInfo = false"
-    maxHeight="60">
+  <!-- Limit Info Modal -->
+  <BottomSheet :is-open="showLimitInfo" title="Basic Account Limit" @close="showLimitInfo = false" maxHeight="60">
     <div class="space-y-4">
-      <div class="flex flex-col items-center justify-center text-center">
+      <div class="flex flex-col items-center justify-center  text-center">
+        <!-- Grayscale Crown Icon -->
         <div class="mb-4 rounded-full bg-slate-100 p-3 dark:bg-slate-800">
           <font-awesome-icon :icon="['fas', 'crown']" class="h-6 w-6 text-slate-400" />
         </div>
         <h3 class="mb-2 text-lg font-bold text-slate-900 dark:text-slate-100">
-          {{ t('chat.basicAccountLimit') }}
+          Basic Account Limit
         </h3>
         <p class="text-sm text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
-          {{ t('chat.basicAccountLimitDesc', {
-            remaining: tokenStore.getRemainingUsage('chat'),
-            max: tokenStore.MAX_BASIC_USAGE
-          }) }}
+          Anda memiliki {{ tokenStore.getRemainingUsage('chat') }} dari {{ tokenStore.MAX_BASIC_USAGE }} pesan
+          tersisa hari ini.
         </p>
       </div>
+
+      <!-- <div class="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/20">
+        <div class="flex gap-3">
+          <font-awesome-icon :icon="['fas', 'check-circle']"
+            class="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <div class="cursor-pointer" @click="navigateToProfile">
+            <h4 class="font-medium text-amber-900 dark:text-amber-200 underline">Activate License for
+              Unlimited</h4>
+            <p class="mt-1 text-sm text-amber-800 dark:text-amber-300">
+              Dapatkan akses chat tanpa batas dan analisis lebih mendalam dengan akun premium.
+            </p>
+          </div>
+        </div>
+      </div> -->
+
       <div class="pt-2">
-        <BaseButton class="w-full justify-center" size="lg" @click="onActivateLicense">
+        <BaseButton class="w-full justify-center" size="lg" @click="navigateToProfile">
           <font-awesome-icon :icon="['fas', 'crown']" class="mr-2" />
           {{ t('chat.activateLicense') }}
         </BaseButton>

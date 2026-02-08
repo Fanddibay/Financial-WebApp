@@ -6,6 +6,7 @@ import { useGoalStore, GOAL_LIMIT_REACHED } from '@/stores/goal'
 import { useToastStore } from '@/stores/toast'
 import { useTokenStore } from '@/stores/token'
 import { useProfileStore } from '@/stores/profile'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import { usePocketLimits } from '@/composables/usePocketLimits'
 import { useTransactions } from '@/composables/useTransactions'
 import PageHeader from '@/components/layout/PageHeader.vue'
@@ -30,6 +31,7 @@ const goalStore = useGoalStore()
 const toastStore = useToastStore()
 const tokenStore = useTokenStore()
 const profileStore = useProfileStore()
+const paymentModalStore = usePaymentModalStore()
 const { pocketBalances, fetchTransactions } = useTransactions()
 const { getSortedPockets, isAtPocketLimit, isAtGoalLimit, isPocketDisabled } = usePocketLimits()
 
@@ -41,6 +43,15 @@ const showCreateGoalModal = ref(false)
 const showPocketLimitUpgrade = ref(false)
 const showGoalLimitUpgrade = ref(false)
 const showPocketDisabledSheet = ref(false)
+
+watch(() => paymentModalStore.closeAllModalsTrigger, () => {
+  showCreateChoiceModal.value = false
+  showCreateModal.value = false
+  showCreateGoalModal.value = false
+  showPocketLimitUpgrade.value = false
+  showGoalLimitUpgrade.value = false
+  showPocketDisabledSheet.value = false
+})
 
 const totalBalanceAllPockets = computed(() => {
   const bal = pocketBalances.value

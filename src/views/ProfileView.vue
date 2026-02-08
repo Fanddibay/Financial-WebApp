@@ -370,20 +370,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       <BaseCard>
         <h3 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('license.title') }}</h3>
         <div class="space-y-4">
-          <!-- Activate License Card -->
+          <!-- Token & License Card -->
           <div class="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-4">
-            <div class="flex items-start gap-3 mb-4">
-              <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10 flex-shrink-0">
-                <font-awesome-icon :icon="['fas', 'key']" class="text-brand" />
-              </div>
-              <div class="flex-1">
-                <h4 class="mb-1 font-medium text-slate-900 dark:text-slate-100">{{ t('license.activateLicense') }}</h4>
-                <p class="text-sm text-slate-600 dark:text-slate-400">
-                  {{ t('license.activateLicenseDesc') }}
-                </p>
-              </div>
-            </div>
-
             <!-- License Status Display -->
             <div v-if="tokenStore.licenseStatus === 'active' && tokenStore.isLicenseActive"
               class="rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 mb-4">
@@ -879,8 +867,8 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
       </template>
     </BottomSheet>
 
-    <PaymentMethodModal :is-open="showPaymentMethods" @close="showPaymentMethods = false"
-      @select="handlePaymentMethodSelect" />
+    <PaymentMethodModal :is-open="showPaymentMethods" :show-activate-token-cta="false"
+      @close="showPaymentMethods = false" @select="handlePaymentMethodSelect" />
 
     <ManualPaymentModal :is-open="showManualPayment" :method-id="selectedManualMethodId"
       @close="showManualPayment = false" @back="showManualPayment = false; showPaymentMethods = true" />

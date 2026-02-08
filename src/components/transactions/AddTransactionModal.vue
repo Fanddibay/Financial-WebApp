@@ -162,6 +162,10 @@ watch(
       }
       searchPocketQuery.value = ''
       searchGoalQuery.value = ''
+    } else {
+      // Saat modal ditutup dari luar (mis. closeAllModalsTrigger / navigasi ke Profile), tutup juga child modals
+      showScanner.value = false
+      showTextInput.value = false
     }
   },
 )

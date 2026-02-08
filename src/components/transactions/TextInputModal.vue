@@ -392,15 +392,13 @@ const canSubmit = computed(() => {
   <BottomSheet :is-open="isOpen" :title="showPreview ? t('textInput.previewTitle') : t('textInput.title')"
     maxHeight="85" @close="handleClose">
     <template #header-actions>
-      <button
-        v-if="!tokenStore.isLicenseActive"
-        type="button"
-        @click="showLimitInfo = true"
-        class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
-        :aria-label="t('textInput.usageLabelTap')"
-        :title="t('textInput.usageLabelTap')">
-        <span class="tabular-nums">{{ t('textInput.usageLabel', { remaining: textUsageRemaining, max: textUsageMax }) }}</span>
+      <button v-if="!tokenStore.isLicenseActive" type="button" @click="showLimitInfo = true"
+        class="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0 text-xs font-medium text-amber-800 shadow-sm transition-colors hover:bg-amber-100 hover:border-amber-300 dark:border-amber-700 dark:bg-amber-900/25 dark:text-amber-200 dark:hover:bg-amber-900/40"
+        :aria-label="t('textInput.usageLabelTap')" :title="t('textInput.usageLabelTap')">
         <font-awesome-icon :icon="['fas', 'circle-info']" class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+        <span class="tabular-nums">{{ t('textInput.usageLabel', { remaining: textUsageRemaining, max: textUsageMax })
+        }}</span>
+
       </button>
     </template>
     <div class="space-y-4 py-2">
@@ -704,11 +702,6 @@ const canSubmit = computed(() => {
     </div>
   </BottomSheet>
 
-  <AlertModal
-    :is-open="showInsufficientBalanceModal"
-    :title="t('pocket.insufficientBalanceTitle')"
-    :message="insufficientBalanceMessage"
-    variant="warning"
-    @close="showInsufficientBalanceModal = false"
-  />
+  <AlertModal :is-open="showInsufficientBalanceModal" :title="t('pocket.insufficientBalanceTitle')"
+    :message="insufficientBalanceMessage" variant="warning" @close="showInsufficientBalanceModal = false" />
 </template>

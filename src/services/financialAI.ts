@@ -404,40 +404,30 @@ export class LocalFinancialAI {
   }
 
   private getGreeting(locale: 'id' | 'en' = 'id'): string {
-    const { balance, savingsRate } = this.analysis
-    const [start, good, bad, neutral, help, help1, help2, help3, help4, help5, question] = locale === 'en'
+    const { balance } = this.analysis
+    const [start, good, bad, neutral, help, question] = locale === 'en'
       ? [
-          'Hello! 👋 I\'m your financial assistant. ',
-          `I see your finances are in good shape with a positive balance of ${formatIDR(balance)}. `,
-          'I notice your expenses exceed your income. Let\'s analyze further. ',
-          'Let\'s start tracking your finances better. ',
-          'I can help you with:\n',
-          '• Spending analysis and financial health\n',
-          '• Monthly/weekly summaries\n',
-          '• Overspending detection\n',
-          '• Savings tips and financial advice\n',
-          '• Income vs expense comparison\n\n',
-          'What would you like to know today?',
+          'Hey! 👋 I\'m Minfan, your finance buddy. ',
+          `Looks like you\'re in good shape—positive balance ${formatIDR(balance)}. `,
+          'Your expenses are a bit over your income right now—we can look at that. ',
+          'Ready to get a clearer picture of your money. ',
+          'I can help with spending, goals, summaries, and tips. ',
+          'What do you want to look at first?',
         ]
       : [
-          'Halo! 👋 Saya asisten keuangan Anda. ',
-          `Saya lihat keuangan Anda dalam kondisi baik dengan saldo positif ${formatIDR(balance)}. `,
-          'Saya perhatikan pengeluaran Anda melebihi pendapatan. Mari kita analisis lebih lanjut. ',
-          'Mari kita mulai melacak keuangan Anda dengan lebih baik. ',
-          'Saya bisa membantu Anda dengan:\n',
-          '• Analisis pengeluaran dan kesehatan finansial\n',
-          '• Ringkasan bulanan/mingguan\n',
-          '• Deteksi pengeluaran berlebihan\n',
-          '• Saran penghematan dan tips keuangan\n',
-          '• Perbandingan pendapatan vs pengeluaran\n\n',
-          'Apa yang ingin Anda ketahui hari ini?',
+          'Halo! 👋 Aku MinFan, teman keuangan kamu. ',
+          `Keuangan kamu oke—saldo positif ${formatIDR(balance)}. `,
+          'Pengeluaran kamu lagi di atas pendapatan nih—bisa kita cek bareng. ',
+          'Siap bantu kamu lacak keuangan dengan lebih jelas. ',
+          'Aku bisa bantu soal pengeluaran, goal, ringkasan, sama tips. ',
+          'Mau nanya apa dulu?',
         ]
 
     let greeting = start
     if (balance > 0) greeting += good
     else if (balance < 0) greeting += bad
     else greeting += neutral
-    greeting += help + help1 + help2 + help3 + help4 + help5 + question
+    greeting += help + question
     return greeting
   }
 
@@ -446,13 +436,13 @@ export class LocalFinancialAI {
 
     if (totalIncome === 0) {
       return this.msg(
-        'Saya belum melihat data pendapatan Anda. Mulai tambahkan transaksi pendapatan untuk mendapatkan analisis yang lebih akurat! 💰',
-        'I don\'t see any income data yet. Add income transactions for a more accurate analysis! 💰',
+        'Belum ada data pendapatan nih. Tambahin transaksi pendapatan dulu biar analisisnya lebih akurat ya! 💰',
+        'No income data yet. Add some income transactions so I can give you a better picture! 💰',
         locale,
       )
     }
 
-    const titles = locale === 'en' ? '📊 **Your Financial Health Analysis:**\n\n' : '📊 **Analisis Kesehatan Keuangan Anda:**\n\n'
+    const titles = locale === 'en' ? '📊 **Your financial health:**\n\n' : '📊 **Kesehatan keuangan kamu:**\n\n'
     let response = titles
 
     // Balance analysis
@@ -460,21 +450,21 @@ export class LocalFinancialAI {
       const percentage = (balance / totalIncome) * 100
       if (percentage >= 20) {
         response += locale === 'en'
-          ? `✅ **Excellent!** You have a positive balance of ${formatIDR(balance)} (${percentage.toFixed(1)}% of income). This shows good financial management.\n\n`
-          : `✅ **Sangat Baik!** Anda memiliki saldo positif ${formatIDR(balance)} (${percentage.toFixed(1)}% dari pendapatan). Ini menunjukkan pengelolaan keuangan yang baik.\n\n`
+          ? `✅ **Looking good!** You\'ve got a positive balance of ${formatIDR(balance)} (${percentage.toFixed(1)}% of income). That\'s solid. 👍\n\n`
+          : `✅ **Oke banget!** Kamu punya saldo positif ${formatIDR(balance)} (${percentage.toFixed(1)}% dari pendapatan). Pengelolaan keuangan kamu bagus. 👍\n\n`
       } else if (percentage >= 10) {
         response += locale === 'en'
-          ? `✅ **Good** - Positive balance ${formatIDR(balance)} (${percentage.toFixed(1)}% of income). Keep it up! 💪\n\n`
-          : `✅ **Baik** - Saldo positif ${formatIDR(balance)} (${percentage.toFixed(1)}% dari pendapatan). Tetap pertahankan! 💪\n\n`
+          ? `✅ **Good** — Positive balance ${formatIDR(balance)} (${percentage.toFixed(1)}% of income). Keep it up! 💪\n\n`
+          : `✅ **Bagus** — Saldo positif ${formatIDR(balance)} (${percentage.toFixed(1)}% dari pendapatan). Pertahankan ya! 💪\n\n`
       } else {
         response += locale === 'en'
-          ? `⚠️ **Caution** - Positive balance ${formatIDR(balance)}, but only ${percentage.toFixed(1)}% of income. Consider increasing savings.\n\n`
-          : `⚠️ **Hati-hati** - Saldo positif ${formatIDR(balance)}, tapi hanya ${percentage.toFixed(1)}% dari pendapatan. Pertimbangkan untuk meningkatkan tabungan.\n\n`
+          ? `⚠️ **Heads up** — Balance is positive (${formatIDR(balance)}) but only ${percentage.toFixed(1)}% of income. Try to bump savings a bit.\n\n`
+          : `⚠️ **Perhatian** — Saldo positif ${formatIDR(balance)}, tapi cuma ${percentage.toFixed(1)}% dari pendapatan. Coba tingkatkan tabungan sedikit.\n\n`
       }
     } else if (balance < 0) {
       response += locale === 'en'
-        ? `❌ **Attention!** Your expenses exceed income by ${formatIDR(Math.abs(balance))}. This could be harmful in the long run.\n\n`
-        : `❌ **Perhatian!** Pengeluaran Anda melebihi pendapatan sebesar ${formatIDR(Math.abs(balance))}. Ini bisa berbahaya untuk jangka panjang.\n\n`
+        ? `❌ **Heads up** — Expenses are over income by ${formatIDR(Math.abs(balance))}. Worth looking at so it doesn\'t pile up.\n\n`
+        : `❌ **Perhatian** — Pengeluaran kamu lewat pendapatan ${formatIDR(Math.abs(balance))}. Perlu dicek biar nggak numpuk.\n\n`
     } else {
       response += this.msg(
         '⚖️ **Seimbang** - Pendapatan dan pengeluaran Anda seimbang. Pertimbangkan untuk mulai menabung.\n\n',
@@ -972,23 +962,23 @@ export class LocalFinancialAI {
     const hasPockets = (this.analysis.pockets?.length ?? 0) > 0
     if (locale === 'en') {
       let r = '**What I can help with:**\n\n'
-      r += '📊 **Your finances:** Balance, income vs expense, spending health, top categories, overspending, monthly/weekly summaries.\n\n'
+      r += '📊 **Your money:** Balance, income vs expense, spending health, top categories, overspending, monthly/weekly summaries.\n\n'
       r += '💼 **Pockets & goals:** '
       if (hasPockets) r += 'Pocket balances and total assets. '
       if (hasGoals) r += 'Savings/investment goal progress and tips. '
-      r += '\n\n📈 **Investment goals:** If you have investment-type goals, I can tell you about their estimated return and growth.\n\n'
-      r += '💡 **General:** Emergency fund, 50/30/20 rule, how to save, financial advice.\n\n'
-      r += 'Try asking: "How is my financial health?", "Total assets?", "Goal progress?", or "Where can I save?"'
+      r += '\n\n📈 **Investment goals:** If you have investment goals, I can explain estimated return and growth.\n\n'
+      r += '💡 **General:** Emergency fund, 50/30/20 rule, how to save, tips.\n\n'
+      r += 'Try: "How\'s my financial health?", "Total assets?", "Goal progress?", or "Where can I save?"'
       return r
     }
-    let r = '**Yang bisa saya bantu:**\n\n'
-    r += '📊 **Keuangan Anda:** Saldo, pendapatan vs pengeluaran, kesehatan finansial, kategori terbanyak, pengeluaran berlebihan, ringkasan bulanan/mingguan.\n\n'
+    let r = '**Yang bisa aku bantu:**\n\n'
+    r += '📊 **Keuangan kamu:** Saldo, pendapatan vs pengeluaran, kesehatan finansial, kategori terbanyak, pengeluaran berlebihan, ringkasan bulanan/mingguan.\n\n'
     r += '💼 **Kantong & goal:** '
     if (hasPockets) r += 'Saldo kantong dan total aset. '
     if (hasGoals) r += 'Progress goal tabungan/investasi dan tips. '
-    r += '\n\n📈 **Goal investasi:** Jika Anda punya goal tipe investasi, saya bisa jelaskan estimasi return dan pertumbuhannya.\n\n'
+    r += '\n\n📈 **Goal investasi:** Kalau kamu punya goal investasi, aku bisa jelasin estimasi return dan pertumbuhannya.\n\n'
     r += '💡 **Umum:** Dana darurat, aturan 50/30/20, cara menabung, saran keuangan.\n\n'
-    r += 'Coba tanya: "Kesehatan keuangan saya?", "Total aset?", "Progress goal?", atau "Dimana saya bisa hemat?"'
+    r += 'Coba: "Kesehatan keuangan aku?", "Total aset?", "Progress goal?", atau "Di mana bisa hemat?"'
     return r
   }
 
@@ -997,8 +987,8 @@ export class LocalFinancialAI {
 
     if (goals.length === 0) {
       return locale === 'en'
-        ? `🎯 **Savings goals**\n\nYou don't have any goals set yet. Creating goals helps you stay focused and track progress (e.g. down payment, vacation, emergency fund).\n\nGo to the app → Goals → Create a goal and start allocating money from your pockets. I can then help you with progress and tips! 😊`
-        : `🎯 **Goal tabungan**\n\nAnda belum punya goal. Membuat goal membantu fokus dan melacak progress (misal: DP rumah, liburan, dana darurat).\n\nBuka aplikasi → Goal → Buat goal dan alokasikan dari dompet. Nanti saya bisa bantu cek progress dan tips! 😊`
+        ? `🎯 **Savings goals**\n\nYou don't have any goals yet. Setting goals helps you stay focused (e.g. down payment, vacation, emergency fund).\n\nIn the app: Goals → Create a goal and start allocating from your pockets. I can then help with progress and tips! 😊`
+        : `🎯 **Goal tabungan**\n\nKamu belum punya goal. Bikin goal bantu kamu fokus (misal: DP rumah, liburan, dana darurat).\n\nDi aplikasi: Goal → Buat goal dan alokasikan dari kantong. Nanti aku bisa bantu cek progress dan kasih tips! 😊`
     }
 
     const title =
@@ -1102,33 +1092,33 @@ export class LocalFinancialAI {
    */
   private getFallbackWithSuggestions(locale: 'id' | 'en' = 'id'): string {
     const introEn =
-      "I'm sorry, I didn't quite understand your question. I can help with your finances and with features in this app. You can try asking things like:\n\n"
+      "Hmm, I didn't quite get that 😅 I can help with your money and app features. Try asking something like:\n\n"
     const introId =
-      'Mohon maaf, saya belum mengerti pertanyaan Anda. Saya bisa membantu seputar keuangan dan fitur aplikasi ini. Anda bisa menanyakan hal-hal seperti:\n\n'
+      'Waduh, aku belum nangkep maksudnya 😅 Aku bisa bantu soal keuangan sama fitur aplikasi. Coba tanya kayak gini:\n\n'
 
     const suggestionsEn = [
-      '• "How is my financial health?" — Spending & balance analysis',
-      '• "What\'s my balance?" or "Total assets?" — Your money overview',
-      '• "How are my goals?" / "Goal progress?" — Savings & investment goals',
-      '• "Where can I save more?" — Savings suggestions',
+      '• "How\'s my financial health?" — Spending & balance',
+      '• "What\'s my balance?" / "Total assets?" — Money overview',
+      '• "How are my goals?" — Savings & investment progress',
+      '• "Where can I save more?" — Savings ideas',
       '• "Summary of this month\'s spending" — Monthly overview',
       '• "Top spending categories?" — Where your money goes',
-      '• "General financial advice" — Tips and recommendations',
-      '• "Pocket balances?" — Saldo per kantong',
-      '• "Investment goals / return?" — Info goal investasi & return',
-      '• "Overspending detection?" — Deteksi pengeluaran berlebihan',
+      '• "Financial tips" — General advice',
+      '• "Pocket balances?" — Balance per pocket',
+      '• "Investment goals / return?" — Goal investasi & return',
+      '• "Overspending?" — Deteksi pengeluaran berlebihan',
     ]
     const suggestionsId = [
-      '• "Bagaimana kesehatan keuangan saya?" — Analisis pengeluaran & saldo',
-      '• "Berapa saldo saya?" / "Total aset?" — Ringkasan uang Anda',
-      '• "Progress goal saya?" / "Bagaimana goal saya?" — Goal tabungan & investasi',
-      '• "Dimana saya bisa hemat?" — Saran penghematan',
+      '• "Kesehatan keuangan aku gimana?" — Pengeluaran & saldo',
+      '• "Saldo aku berapa?" / "Total aset?" — Ringkasan uang kamu',
+      '• "Progress goal aku?" — Goal tabungan & investasi',
+      '• "Di mana aku bisa hemat?" — Saran penghematan',
       '• "Ringkasan pengeluaran bulan ini" — Ringkasan bulanan',
-      '• "Kategori pengeluaran terbanyak?" — Kemana uang Anda mengalir',
-      '• "Saran keuangan umum" — Tips dan rekomendasi',
+      '• "Kategori pengeluaran terbanyak?" — Kemana uang kamu mengalir',
+      '• "Kasih saran keuangan" — Tips umum',
       '• "Saldo kantong?" — Saldo per kantong',
-      '• "Goal investasi / return?" — Info goal investasi & return',
-      '• "Deteksi pengeluaran berlebihan?" — Identifikasi pengeluaran boros',
+      '• "Goal investasi / return?" — Info investasi & return',
+      '• "Pengeluaran berlebihan?" — Cek pengeluaran boros',
     ]
 
     const list = locale === 'en' ? suggestionsEn : suggestionsId

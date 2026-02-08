@@ -44,14 +44,65 @@ function normalizeOcrText(text: string): string {
 }
 
 /**
- * Normalize number string to pure digits
+ * Parse amount string for Indonesian Rupiah (IDR) and common receipt formats.
+ * - IDR format: dot = thousands separator, comma = decimal (e.g. 238.921,00 → 238921)
+ * - Dot-only: 44.100, 1.000.000 → 44100, 1000000
+ * - Comma-only (thousands): 75,400 → 75400
+ * - US style: 295,392.00 (comma thousands, dot decimal) → 295392
+ */
+function parseIDRAmount(numStr: string): number {
+  const raw = numStr.trim().replace(/\s/g, '')
+  if (!raw || !/\d/.test(raw)) return NaN
+
+  // Indonesian: digits with . as thousands and ,XX (1-2 decimal digits) at end → e.g. 238.921,00
+  const idrDecimalMatch = raw.match(/^(\d{1,3}(?:\.\d{3})*),(\d{1,2})$/)
+  if (idrDecimalMatch) {
+    const intPart = idrDecimalMatch[1].replace(/\./g, '')
+    const decPart = idrDecimalMatch[2].padEnd(2, '0').slice(0, 2)
+    return parseInt(intPart, 10) + parseInt(decPart, 10) / 100
+  }
+
+  // Indonesian: only dots as thousands (no comma), e.g. 44.100, Rp38.000, 1.002.500
+  if (/^\d{1,3}(?:\.\d{3})*(?:\.\d{1,2})?$/.test(raw)) {
+    const normalized = raw.replace(/\.(?=\d{3})/g, '').replace(/\.(\d{1,2})$/, ',$1')
+    const parts = normalized.split(',')
+    if (parts.length === 2) {
+      return parseInt(parts[0].replace(/\D/g, ''), 10) + parseInt(parts[1].padEnd(2, '0').slice(0, 2), 10) / 100
+    }
+    return parseInt(raw.replace(/\./g, ''), 10)
+  }
+
+  // US/international: comma = thousands, dot = decimal, e.g. 295,392.00
+  if (/^\d{1,3}(?:,\d{3})*(?:\.\d+)?$/.test(raw)) {
+    return parseFloat(raw.replace(/,/g, ''))
+  }
+
+  // Comma-only thousands (no decimal), e.g. 75,400 or 77,400
+  if (/^\d{1,3}(?:,\d{3})+$/.test(raw)) {
+    return parseInt(raw.replace(/,/g, ''), 10)
+  }
+
+  // Fallback: remove spaces and commas, then treat remaining dot as decimal only if followed by 1-2 digits at end
+  const noSpace = raw.replace(/\s/g, '')
+  const fallbackDecimal = noSpace.match(/^([\d.]+),(\d{1,2})$/)
+  if (fallbackDecimal) {
+    const intPart = fallbackDecimal[1].replace(/\./g, '')
+    const decPart = fallbackDecimal[2].padEnd(2, '0').slice(0, 2)
+    return parseInt(intPart, 10) + parseInt(decPart, 10) / 100
+  }
+  const digitsOnly = noSpace.replace(/[^\d]/g, '')
+  return digitsOnly ? parseInt(digitsOnly, 10) : NaN
+}
+
+/**
+ * Normalize number string to pure digits (legacy helper; prefer parseIDRAmount for amounts)
  * Handles: 58,000, 58.000, 58 000 → 58000
  */
 function normalizeNumber(numStr: string): string {
   return numStr
-    .replace(/[,\s]/g, '') // Remove commas and spaces
-    .replace(/\.(?=\d{3})/g, '') // Remove dots used as thousand separators (but keep decimal dots)
-    .replace(/[^\d]/g, '') // Remove all non-digits
+    .replace(/[,\s]/g, '')
+    .replace(/\.(?=\d{3})/g, '')
+    .replace(/[^\d]/g, '')
 }
 
 /**
@@ -65,66 +116,78 @@ interface NumberMatch {
   position: number
 }
 
+/** Check if line looks like a date/time line (so we don't treat year as amount) */
+function isDateLikeLine(line: string): boolean {
+  const lower = line.toLowerCase()
+  const dateLike = [
+    /\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4}/, // 18.7.2024, 21.01.22, 05/01/2026
+    /\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}/,      // 2023-08-02
+    /\d{1,2}\s+(jan|feb|mar|apr|mei|jun|jul|agu|sep|okt|nov|des)/i,
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\s+\d{1,2},?\s+\d{4}/i,
+    /\d{4}\s+(jan|feb|mar|apr|mei|jun|jul|agu|sep|okt|nov|des)/i,
+    /\b(wib|wita|wit)\b/,
+    /\b(due\s*on|tanggal|tgl|date|time|jam)\b/,
+    /\d{1,2}:\d{2}(:\d{2})?/,              // 08:49, 13:54:33
+  ]
+  return dateLike.some((p) => p.test(lower))
+}
+
+/** Skip 4-digit number that is likely a year (e.g. 2024, 2026) in date context */
+function isLikelyYear(value: number, line: string): boolean {
+  if (value < 2010 || value > 2035) return false
+  if (!Number.isInteger(value)) return false
+  const str = String(value)
+  if (str.length !== 4) return false
+  return isDateLikeLine(line)
+}
+
 function extractNumbers(text: string): NumberMatch[] {
   const lines = text.split('\n')
   const numbers: NumberMatch[] = []
 
   lines.forEach((line, lineIndex) => {
-    // Enhanced patterns to catch more number formats:
-    // - Rp 10000, Rp.10000, Rp10000
-    // - 10.000, 10,000, 10 000
-    // - 10000.00 (with decimals)
-    // - Numbers at end of line (common for prices)
     const numberPatterns = [
-      /(?:Rp\.?\s*|IDR\s*|Rupiah\s*)?(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Rp / IDR / Rupiah
-      /(?:total|amount|nominal|jumlah|bayar|tagihan)\s*:?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi, // Label: number (invoice)
-      /(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)\s*(?:\.|,|$)/g, // Number at end of line/sentence
-      /(\d{3,}(?:[.,]\d{2})?)/g, // Large numbers (3+ digits) that might be prices
-      /(\d+[.,]\d{3,})/g, // Numbers with thousand separators
+      /(?:Rp\.?\s*|IDR\.?\s*|Rupiah\s*)?(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi,
+      /(?:total|amount|nominal|jumlah|bayar|tagihan|payment\s*amount)\s*:?\s*(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)/gi,
+      /(\d{1,3}(?:[.,\s]\d{3})*(?:[.,]\d{2})?)\s*(?:\.|,|$)/g,
+      /(\d{3,}(?:[.,]\d{2})?)/g,
+      /(\d+[.,]\d{3,})/g,
     ]
 
     numberPatterns.forEach((pattern) => {
       const matches = Array.from(line.matchAll(pattern))
       matches.forEach((match) => {
-        if (match.index !== undefined) {
-          // Skip if this number is part of a date/time pattern
-          const beforeMatch = line.substring(Math.max(0, match.index - 5), match.index)
-          const afterMatch = line.substring(match.index + match[0].length, match.index + match[0].length + 5)
-          const context = (beforeMatch + match[0] + afterMatch).toLowerCase()
+        if (match.index === undefined) return
+        const beforeMatch = line.substring(Math.max(0, match.index - 8), match.index)
+        const afterMatch = line.substring(match.index + match[0].length, match.index + match[0].length + 8)
+        const context = (beforeMatch + match[0] + afterMatch).toLowerCase()
 
-          // Skip if it looks like a date/time
-          if (/\d{1,2}[\/\-:]\d{1,2}/.test(context)) {
-            return
-          }
+        if (/\d{1,2}[\/\-:]\d{1,2}/.test(context)) return
 
-          const normalized = normalizeNumber(match[1] || '')
-          const value = parseFloat(normalized)
+        const rawNum = match[1] || ''
+        const value = parseIDRAmount(rawNum)
 
-          // Only include reasonable amounts (>= 100 IDR, <= 1 billion)
-          if (!isNaN(value) && value >= 100 && value <= 1000000000) {
-            // Check if this number was already added (avoid duplicates)
-            const isDuplicate = numbers.some(
-              (n) => n.lineIndex === lineIndex &&
-                     Math.abs(n.position - match.index) < 10 &&
-                     Math.abs(n.value - value) < 100
-            )
+        if (!Number.isFinite(value) || value < 100 || value > 1000000000) return
+        if (isLikelyYear(value, line)) return
 
-            if (!isDuplicate) {
-              numbers.push({
-                value,
-                original: match[0],
-                line: line.trim(),
-                lineIndex,
-                position: match.index,
-              })
-            }
-          }
+        const isDuplicate = numbers.some(
+          (n) => n.lineIndex === lineIndex &&
+                 Math.abs(n.position - match.index) < 10 &&
+                 Math.abs(n.value - value) < 100
+        )
+        if (!isDuplicate) {
+          numbers.push({
+            value: Math.round(value),
+            original: match[0],
+            line: line.trim(),
+            lineIndex,
+            position: match.index,
+          })
         }
       })
     })
   })
 
-  // Sort by line index and position for better processing
   return numbers.sort((a, b) => {
     if (a.lineIndex !== b.lineIndex) return a.lineIndex - b.lineIndex
     return a.position - b.position
@@ -175,13 +238,13 @@ function classifyNumber(
     }
   }
 
-  // ✅ Target amount (TOTAL) — receipt & invoice
+  // ✅ Target amount (total akhir) — receipt & invoice; prioritize explicit total labels
   const targetPatterns = [
-    /\b(total|total\s*bayar|grand\s*total|jumlah|bayar|pembayaran|nominal|tagihan)\b/i,
-    /\b(nilai\s*transfer|diterima|total\s*tagihan|total\s*pembelian|total\s*transaksi|total\s*pesanan|payment\s*amount)\b/i,
-    /\b(amount\s*due|balance\s*due|total\s*amount|invoice\s*total|faktur|invoice)\b/i,
-    /\b(yang\s*harus\s*dibayar|nominal\s*pembayaran|total\s*pembayaran|jumlah\s*yang\s*dibayar)\b/i,
-    /\b(terbilang|nominal\s*transfer|nilai\s*pembayaran)\b/i,
+    /\b(payment\s*amount|total\s*transaksi|nominal\s*transfer|total\s*pesanan|total\s*pembayaran)\b/i,
+    /\b(total\s*bayar|total\s*tagihan|jumlah\s*bayar|yang\s*harus\s*dibayar|balance\s*due|amount\s*due)\b/i,
+    /\b(grand\s*total|total\s*amount|invoice\s*total|total\s*pembelian|diterima)\b/i,
+    /\b(total|jumlah|bayar|pembayaran|nominal|tagihan|faktur|invoice)\b/i,
+    /\b(terbilang|nominal\s*pembayaran|nilai\s*pembayaran)\b/i,
   ]
 
   for (const pattern of targetPatterns) {
@@ -207,9 +270,19 @@ function classifyNumber(
   return 'unknown'
 }
 
+/** Total-keyword patterns for Tier 1 (order = priority for same-line) */
+const TOTAL_KEYWORDS = [
+  { pattern: /\b(payment\s*amount|total\s*transaksi|nominal\s*transfer)\b/i, weight: 1.0 },
+  { pattern: /\b(total\s*pesanan|total\s*pembayaran|amount\s*due|total\s*bayar)\b/i, weight: 1.0 },
+  { pattern: /\b(grand\s*total|total\s*tagihan|total\s*amount|balance\s*due)\b/i, weight: 0.98 },
+  { pattern: /\b(jumlah|jumlah\s*bayar|total\s*:?\s*$)\b/i, weight: 0.97 },
+  { pattern: /\b(total)\b/i, weight: 0.9 },
+  { pattern: /\b(bayar|nominal|tagihan|pembayaran|diterima)\b/i, weight: 0.85 },
+]
+
 /**
- * Tier 1: Detect keywords (TOTAL, TOTAL BAYAR, GRAND TOTAL, JUMLAH)
- * Extract nearest valid number
+ * Tier 1: Prefer nominal that is ON THE SAME LINE as a total keyword (OCR often has "Total Rp 38.000" on one line).
+ * Pick number that appears after the keyword (right side) when possible.
  */
 function detectTotalTier1(text: string, numbers: NumberMatch[]): {
   amount: number
@@ -217,121 +290,133 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
   keyword?: string
 } | null {
   const lines = text.split('\n')
-  const targetKeywords = [
-    { pattern: /\b(total\s*transaksi|nominal\s*transfer|nominal\s*pembayaran)\b/i, weight: 1.0 },
-    { pattern: /\b(total\s*pesanan|total\s*pembayaran|payment\s*amount|amount\s*due)\b/i, weight: 1.0 },
-    { pattern: /\b(total\s*bayar|bayar|bayar\s*total|yang\s*harus\s*dibayar)\b/i, weight: 1.0 },
-    { pattern: /\b(grand\s*total|total\s*grand|balance\s*due)\b/i, weight: 0.95 },
-    { pattern: /\b(total\s*tagihan|total\s*amount|invoice\s*total)\b/i, weight: 0.95 },
-    { pattern: /\b(total\s*:?\s*$)/i, weight: 0.9 },
-    { pattern: /\b(total)\b/i, weight: 0.9 },
-    { pattern: /\b(jumlah|jumlah\s*bayar|jumlah\s*yang\s*dibayar)\b/i, weight: 1.0 },
-    { pattern: /\b(pembayaran|harus\s*bayar)\b/i, weight: 0.8 },
-    { pattern: /\b(tagihan|faktur|invoice)\b/i, weight: 0.85 },
-    { pattern: /\b(diterima)\b/i, weight: 0.7 },
-    { pattern: /\b(nilai\s*pembayaran|terbilang)\b/i, weight: 0.75 },
-  ]
+  const minAmount = 100
 
-  let bestMatch: {
+  // --- Pass 1: Same-line only (strongest signal: keyword and amount on same line) ---
+  let bestSameLine: {
     amount: number
     confidence: 'high' | 'medium' | 'low'
     keyword: string
+    weight: number
     distance: number
   } | null = null
 
   lines.forEach((line, lineIndex) => {
     const lowerLine = line.toLowerCase()
+    const lineNumbers = numbers.filter((n) => n.lineIndex === lineIndex && n.value >= minAmount)
+    if (lineNumbers.length === 0) return
 
-    for (const { pattern, weight } of targetKeywords) {
+    for (const { pattern, weight } of TOTAL_KEYWORDS) {
       const keywordMatch = lowerLine.match(pattern)
-      if (keywordMatch && keywordMatch.index !== undefined) {
-        // Find numbers in this line or nearby lines (within 2 lines)
-        // Lower threshold to 500 IDR to catch smaller totals
-        const nearbyNumbers = numbers.filter(
-          (n) => Math.abs(n.lineIndex - lineIndex) <= 2 && n.value >= 500
-        )
+      if (!keywordMatch || keywordMatch.index === undefined) continue
 
-        for (const num of nearbyNumbers) {
-          // Calculate distance: prioritize same line, then proximity
-          const lineDistance = Math.abs(num.lineIndex - lineIndex)
-          const charDistance = Math.abs(num.position - keywordMatch.index)
-          const distance = lineDistance * 100 + charDistance
+      const kwStart = keywordMatch.index
+      const kwEnd = kwStart + keywordMatch[0].length
 
-          let confidence: 'high' | 'medium' | 'low' = 'low'
-          if (weight >= 0.95) confidence = 'high'
-          else if (weight >= 0.85) confidence = 'medium'
+      // Prefer number that appears AFTER the keyword (right side of receipt = total)
+      const afterKeyword = lineNumbers.filter((n) => n.position >= kwEnd)
+      const candidates = afterKeyword.length > 0 ? afterKeyword : lineNumbers
+      const chosen = candidates.reduce((best, n) => {
+        const dist = Math.abs(n.position - kwEnd)
+        if (!best) return { num: n, dist }
+        return dist < best.dist ? { num: n, dist } : best
+      }, null as { num: NumberMatch, dist: number } | null)
 
-          // Boost confidence if number is on same line or immediately after keyword
-          if (lineDistance === 0 && charDistance < 30) {
-            if (confidence === 'medium') confidence = 'high'
-            if (confidence === 'low') confidence = 'medium'
-          }
+      if (!chosen) continue
 
-          if (!bestMatch || distance < bestMatch.distance ||
-              (distance === bestMatch.distance && weight > (targetKeywords.find((k) => k.pattern.test(bestMatch!.keyword))?.weight || 0))) {
-            bestMatch = {
-              amount: num.value,
-              confidence,
-              keyword: keywordMatch[0],
-              distance,
-            }
-          }
+      const confidence: 'high' | 'medium' | 'low' = weight >= 0.97 ? 'high' : weight >= 0.9 ? 'medium' : 'low'
+      const distance = chosen.dist + (chosen.num.position >= kwEnd ? 0 : 1000)
+
+      if (!bestSameLine || weight > bestSameLine.weight || (weight === bestSameLine.weight && distance < bestSameLine.distance)) {
+        bestSameLine = {
+          amount: chosen.num.value,
+          confidence,
+          keyword: keywordMatch[0],
+          weight,
+          distance,
         }
       }
     }
   })
 
-  if (bestMatch) {
-    const finalMatch = bestMatch as { amount: number, confidence: 'high' | 'medium' | 'low', keyword: string }
+  if (bestSameLine) {
     return {
-      amount: finalMatch.amount,
-      confidence: finalMatch.confidence,
-      keyword: finalMatch.keyword,
+      amount: bestSameLine.amount,
+      confidence: bestSameLine.confidence,
+      keyword: bestSameLine.keyword,
     }
+  }
+
+  // --- Pass 2: Nearby lines (within 1 line), prefer number closest to keyword ---
+  let bestNearby: { amount: number; confidence: 'high' | 'medium' | 'low'; keyword: string; distance: number } | null = null
+
+  lines.forEach((line, lineIndex) => {
+    const lowerLine = line.toLowerCase()
+    for (const { pattern, weight } of TOTAL_KEYWORDS) {
+      const keywordMatch = lowerLine.match(pattern)
+      if (!keywordMatch || keywordMatch.index === undefined) continue
+
+      const nearbyNumbers = numbers.filter(
+        (n) => n.lineIndex >= lineIndex - 1 && n.lineIndex <= lineIndex + 1 && n.value >= minAmount
+      )
+      for (const num of nearbyNumbers) {
+        const lineDist = Math.abs(num.lineIndex - lineIndex)
+        const charDist = Math.abs(num.position - keywordMatch.index)
+        const distance = lineDist * 200 + charDist
+        const confidence: 'high' | 'medium' | 'low' = weight >= 0.97 ? 'high' : weight >= 0.9 ? 'medium' : 'low'
+        if (!bestNearby || distance < bestNearby.distance) {
+          bestNearby = { amount: num.value, confidence, keyword: keywordMatch[0], distance }
+        }
+      }
+    }
+  })
+
+  if (bestNearby) {
+    return { amount: bestNearby.amount, confidence: bestNearby.confidence, keyword: bestNearby.keyword }
   }
 
   return null
 }
 
 /**
- * Tier 2: Select the largest valid number (> threshold, e.g. IDR 500)
- * Prioritize numbers that appear later in the receipt (totals are usually at bottom)
+ * Check if line contains any total-like keyword (for Tier 2 fallback)
+ */
+function lineHasTotalKeyword(line: string): boolean {
+  return TOTAL_KEYWORDS.some(({ pattern }) => pattern.test(line.toLowerCase()))
+}
+
+/**
+ * Tier 2: Fallback when no keyword match. Prefer numbers on lines that contain total keywords.
+ * Only then fall back to "largest in bottom half" so we don't pick subtotal/item price.
  */
 function detectTotalTier2(numbers: NumberMatch[], threshold: number = 500): {
   amount: number
   confidence: 'low'
 } | null {
-  // Filter out non-price numbers
-  const validNumbers = numbers
-    .filter((n) => {
-      const category = classifyNumber(n, n.line, numbers)
-      return category !== 'non-price' && n.value >= threshold && n.value <= 1000000000
-    })
+  const validNumbers = numbers.filter((n) => {
+    const category = classifyNumber(n, n.line, numbers)
+    return category !== 'non-price' && n.value >= threshold && n.value <= 1000000000
+  })
+  if (validNumbers.length === 0) return null
 
-  if (validNumbers.length > 0) {
-    // Sort by value (descending) but prioritize numbers that appear later
-    const sorted = validNumbers.sort((a, b) => {
-      // First, prioritize by line index (later = better)
-      if (a.lineIndex !== b.lineIndex) {
-        return b.lineIndex - a.lineIndex
-      }
-      // Then by value (larger = better)
-      return b.value - a.value
-    })
-
-    // Take the largest number from the bottom half of the receipt
-    const bottomHalf = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)))
-    const largest = bottomHalf.reduce((prev, current) =>
-      current.value > prev.value ? current : prev
-    )
-
-    return {
-      amount: largest.value,
-      confidence: 'low',
-    }
+  // Prefer numbers whose line contains a total keyword (OCR printed "Total" / "Payment amount" etc.)
+  const onTotalLine = validNumbers.filter((n) => lineHasTotalKeyword(n.line))
+  if (onTotalLine.length > 0) {
+    const byLineDesc = onTotalLine.sort((a, b) => b.lineIndex - a.lineIndex)
+    const lastLineIndex = byLineDesc[0].lineIndex
+    const onLastTotalLine = byLineDesc.filter((n) => n.lineIndex === lastLineIndex)
+    const pick = onLastTotalLine.reduce((a, b) => (a.value >= b.value ? a : b))
+    return { amount: pick.value, confidence: 'low' }
   }
 
-  return null
+  // No total-keyword line: take largest from bottom half of receipt (totals usually at bottom)
+  const sorted = [...validNumbers].sort((a, b) => {
+    if (a.lineIndex !== b.lineIndex) return b.lineIndex - a.lineIndex
+    return b.value - a.value
+  })
+  const bottomHalf = sorted.slice(0, Math.max(1, Math.floor(sorted.length / 2)))
+  const largest = bottomHalf.reduce((prev, cur) => (cur.value > prev.value ? cur : prev))
+  return { amount: largest.value, confidence: 'low' }
 }
 
 /**
@@ -451,6 +536,41 @@ function extractDate(text: string): string {
     } else {
       day = m1.padStart(2, '0')
       month = m2.padStart(2, '0')
+      year = m3.length === 2 ? '20' + m3 : m3
+    }
+    const dateStr = `${year}-${month}-${day}`
+    const dateObj = new Date(dateStr)
+    if (!isNaN(dateObj.getTime()) && dateObj.getFullYear() >= 2020 && dateObj.getFullYear() <= 2100) {
+      if (isDateInFuture(dateStr)) return getTodayDateString()
+      return dateStr
+    }
+  }
+
+  // Standalone date with month name (no label): "5 Feb 2026", "Feb 8, 2026", "05 Jan 2026"
+  const monthNamePatterns = [
+    /(\d{1,2})\s+(jan|feb|mar|apr|mei|jun|jul|agu|sep|okt|nov|des)[a-z]*\s+(\d{2,4})/i,
+    /(jan|feb|mar|apr|mei|jun|jul|agu|sep|okt|nov|des)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i,
+    /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{2,4})/i,
+    /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})/i,
+  ]
+  for (let pi = 0; pi < monthNamePatterns.length; pi++) {
+    const match = fullText.match(monthNamePatterns[pi])
+    if (!match) continue
+    const m1 = match[1] ?? ''
+    const m2 = match[2] ?? ''
+    const m3 = match[3] ?? ''
+    const m2Lower = m2.toLowerCase()
+    let monthIndex = MONTH_NAMES_ID.findIndex((m) => m.startsWith(m2Lower))
+    if (monthIndex < 0) monthIndex = MONTH_NAMES_EN.findIndex((m) => m.startsWith(m2Lower))
+    if (monthIndex < 0) continue
+    let day: string, month: string, year: string
+    if (pi === 1 || pi === 3) {
+      day = m2.padStart(2, '0')
+      month = String(monthIndex + 1).padStart(2, '0')
+      year = m3
+    } else {
+      day = m1.padStart(2, '0')
+      month = String(monthIndex + 1).padStart(2, '0')
       year = m3.length === 2 ? '20' + m3 : m3
     }
     const dateStr = `${year}-${month}-${day}`

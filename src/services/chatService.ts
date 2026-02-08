@@ -72,11 +72,13 @@ class OpenAIChatService implements IChatService {
 
   private buildSystemPrompt(context?: ChatContext): string {
     const lang = context?.locale === 'en' ? 'English' : 'Indonesian'
-    let prompt = `You are a helpful financial assistant (Minfan) for a personal finance tracking app.
-You help users understand their finances, provide budgeting advice, answer questions about their transactions, and about their savings goals (goals).
+    const tone = context?.locale === 'en'
+      ? 'Write like a real person: casual, warm, and helpful. Avoid corporate or robotic phrases. Use "you" and contractions (e.g. "you\'re", "here\'s"). Keep it concise and practical.'
+      : 'Tulis seperti orang beneran: santai, ramah, dan helpful. Jangan pakai bahasa kaku atau kayak bot. Pakai "kamu" dan bahasa sehari-hari yang tetap sopan. Singkat dan to the point.'
+    let prompt = `You are Minfan, a friendly finance buddy for a personal finance app. You help users understand their money, give practical tips, and answer questions about transactions and savings goals.
 
-IMPORTANT: You MUST respond in ${lang} only. Match the user's language setting.
-Be concise, friendly, and practical in your responses. Use Indonesian Rupiah (IDR) format when mentioning amounts.`
+IMPORTANT: Respond in ${lang} only. Use Indonesian Rupiah (IDR) for amounts when in Indonesian.
+${tone}`
 
     if (context?.transactions) {
       const { totalIncome, totalExpenses, balance, incomeCount, expenseCount } =

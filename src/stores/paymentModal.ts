@@ -7,6 +7,8 @@ export const usePaymentModalStore = defineStore('paymentModal', () => {
   const showPaymentMethodModal = ref(false)
   const showManualPaymentModal = ref(false)
   const selectedManualMethodId = ref('')
+  /** Increment to signal all modals (Add Transaction, Scan Receipt, etc.) to close. Used when navigating to profile via "Aktifkan". */
+  const closeAllModalsTrigger = ref(0)
 
   function openPaymentModal() {
     showPaymentMethodModal.value = true
@@ -18,6 +20,12 @@ export const usePaymentModalStore = defineStore('paymentModal', () => {
     showPaymentMethodModal.value = false
     showManualPaymentModal.value = false
     selectedManualMethodId.value = ''
+  }
+
+  /** Close payment modals and signal other modals to close. Navigation to profile must be done by the component (useRouter in store is undefined). */
+  function closeAllModals() {
+    closePaymentModal()
+    closeAllModalsTrigger.value += 1
   }
 
   function onPaymentMethodSelect(method: string) {
@@ -45,8 +53,10 @@ export const usePaymentModalStore = defineStore('paymentModal', () => {
     showPaymentMethodModal,
     showManualPaymentModal,
     selectedManualMethodId,
+    closeAllModalsTrigger,
     openPaymentModal,
     closePaymentModal,
+    closeAllModals,
     onPaymentMethodSelect,
     closeManualPayment,
     backFromManualToMethod,

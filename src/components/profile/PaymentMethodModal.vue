@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { usePaymentModalStore } from '@/stores/paymentModal'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 
@@ -12,13 +14,17 @@ import shopeepayLogo from '@/assets/shoopepay.svg'
 
 interface Props {
   isOpen: boolean
+  /** Show "Sudah punya token? Aktifkan" CTA below the button. Set false when opened from Settings/Profile. */
+  showActivateTokenCta?: boolean
 }
 
-defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { showActivateTokenCta: true })
 const emit = defineEmits<{
   close: []
   select: [method: string]
 }>()
+const paymentModalStore = usePaymentModalStore()
+const router = useRouter()
 
 const { t } = useI18n()
 const selectedMethod = ref('')
@@ -63,11 +69,20 @@ function handleContinue() {
     emit('select', selectedMethod.value)
   }
 }
+
+function goToSettingsToActivate() {
+  // Tutup dulu semua modal di store, baru navigasi agar modal tidak tertinggal
+  paymentModalStore.closeAllModals()
+  emit('close')
+  nextTick(() => {
+    router.push({ path: '/profile', hash: '#license' })
+  })
+}
 </script>
 
 <template>
   <BottomSheet :is-open="isOpen" :title="t('payment.selectMethodTitle')" :subtitle="t('payment.selectMethodSubtitle')"
-    :overlay-z-index="200" @close="emit('close')">
+    max-height="90" :overlay-z-index="200" @close="emit('close')">
     <div class="space-y-3">
       <button v-for="method in paymentMethods" :key="method.id" type="button"
         class="flex w-full items-center gap-4 rounded-xl border-2 p-4 text-left transition-all active:scale-[0.98]"
@@ -102,9 +117,17 @@ function handleContinue() {
     </div>
 
     <template #footer>
-      <BaseButton class="w-full" size="lg" :disabled="!selectedMethod" @click="handleContinue">
-        {{ t('payment.continue') }}
-      </BaseButton>
+      <div class="space-y-3">
+        <BaseButton class="w-full" size="lg" :disabled="!selectedMethod" @click="handleContinue">
+          {{ t('payment.continue') }}
+        </BaseButton>
+        <p v-if="showActivateTokenCta" class="text-center text-sm text-slate-600 dark:text-slate-400">
+          {{ t('payment.alreadyHaveToken') }}
+          <button type="button" class="font-semibold text-brand hover:underline" @click="goToSettingsToActivate">
+            {{ t('payment.activateToken') }}
+          </button>
+        </p>
+      </div>
     </template>
   </BottomSheet>
 </template>
