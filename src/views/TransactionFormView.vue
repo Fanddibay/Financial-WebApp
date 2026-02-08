@@ -335,13 +335,17 @@ function handleSaveAndAddMore() {
     })
   }
 
-  // Reset form
+  // Reset form tapi tetap pertahankan kantong & goal yang sudah dipilih
+  const keepPocketId = formData.value.pocketId
+  const keepGoalId = formData.value.goalId
   formData.value = {
     type: defaultFormData.type,
     amount: defaultFormData.amount,
     description: defaultFormData.description,
     category: defaultFormData.category,
     date: getTodayDate(),
+    pocketId: keepPocketId,
+    goalId: keepGoalId,
   }
 }
 
@@ -372,12 +376,16 @@ function confirmDelete() {
     pendingTransactions.value.splice(index, 1)
     if (editingIndex.value === index) {
       editingIndex.value = null
+      const keepPocketId = formData.value.pocketId
+      const keepGoalId = formData.value.goalId
       formData.value = {
         type: defaultFormData.type,
         amount: defaultFormData.amount,
         description: defaultFormData.description,
         category: defaultFormData.category,
         date: getTodayDate(),
+        pocketId: keepPocketId,
+        goalId: keepGoalId,
       }
     } else if (editingIndex.value !== null && editingIndex.value > index) {
       editingIndex.value--
@@ -494,7 +502,7 @@ function formatDate(dateString: string): string {
 </script>
 
 <template>
-  <div class="mx-auto max-w-[430px] min-h-0 space-y-6 overflow-y-auto px-4 pb-28 pt-24">
+  <div class="mx-auto max-w-[430px] min-h-0 space-y-6 overflow-y-auto px-4 pb-32 pt-24">
     <PageHeader :title="isEdit ? t('transaction.editTransactionTitle') : t('transaction.addTransactionTitle')"
       :subtitle="isEdit
         ? t('transaction.updateTransaction')

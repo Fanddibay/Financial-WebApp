@@ -64,7 +64,7 @@ function toastIcon(type: ToastType): 'check-circle' | 'exclamation-triangle' | '
 <template>
   <Teleport to="body">
     <div
-      class="toast-container fixed left-1/2 z-[100] -translate-x-1/2 w-[calc(100vw-2rem)] max-w-[min(400px,90vw)] pointer-events-none flex flex-col items-stretch gap-2"
+      class="toast-container fixed left-1/2 z-[9999] -translate-x-1/2 w-[calc(100vw-2rem)] max-w-[min(400px,90vw)] pointer-events-none flex flex-col items-stretch gap-2"
 style="bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));">
       <TransitionGroup name="toast" tag="div" class="flex flex-col items-stretch gap-2">
         <div
