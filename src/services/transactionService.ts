@@ -1,5 +1,10 @@
 import type { Transaction, TransactionFormData, TransactionFilters } from '@/types/transaction'
-import { MAIN_POCKET_ID } from '@/services/pocketService'
+import { getPocketById, MAIN_POCKET_ID } from '@/services/pocketService'
+
+/** Prefix in description for income created from transfer when source pocket was deleted. UI shows i18n with pocket name. */
+export const DESC_PREFIX_TRANSFER_FROM_DELETED = '__transfer_from_deleted__:'
+/** Prefix in description for expense created when transfer target pocket was deleted. UI shows i18n with pocket name. */
+export const DESC_PREFIX_TRANSFER_REVERTED_DELETED = '__transfer_reverted_deleted__:'
 
 /**
  * Transaction Service Interface
@@ -239,12 +244,53 @@ class LocalStorageTransactionService implements ITransactionService {
     this.saveTransactions(filtered)
   }
 
+  /**
+   * When deleting a pocket, preserve balances that were transferred out:
+   * - Transfer FROM deleted pocket TO another: convert to income in target pocket so balance stays.
+   * - Transfer TO deleted pocket FROM another: convert to expense in source pocket (revert), then remove.
+   * - Other transactions in this pocket: remove.
+   */
   async deleteByPocketId(pocketId: string): Promise<void> {
     const transactions = this.getTransactions()
-    const filtered = transactions.filter(
-      (t) => t.pocketId !== pocketId && t.transferToPocketId !== pocketId,
-    )
-    this.saveTransactions(filtered)
+    const idsToRemove = new Set<string>()
+    const toAdd: Transaction[] = []
+    const now = new Date().toISOString()
+    const deletedPocketName = getPocketById(pocketId)?.name ?? 'Pocket'
+
+    for (const t of transactions) {
+      if (t.pocketId === pocketId) {
+        if (t.type === 'transfer' && t.transferToPocketId && t.transferToPocketId !== pocketId) {
+          toAdd.push({
+            id: generateId(),
+            type: 'income',
+            amount: t.amount,
+            description: `${DESC_PREFIX_TRANSFER_FROM_DELETED}${deletedPocketName}`,
+            category: '',
+            date: t.date,
+            pocketId: t.transferToPocketId,
+            createdAt: now,
+            updatedAt: now,
+          })
+        }
+        idsToRemove.add(t.id)
+      } else if (t.transferToPocketId === pocketId) {
+        toAdd.push({
+          id: generateId(),
+          type: 'expense',
+          amount: t.amount,
+          description: `${DESC_PREFIX_TRANSFER_REVERTED_DELETED}${deletedPocketName}`,
+          category: '',
+          date: t.date,
+          pocketId: t.pocketId,
+          createdAt: now,
+          updatedAt: now,
+        })
+        idsToRemove.add(t.id)
+      }
+    }
+
+    const filtered = transactions.filter((t) => !idsToRemove.has(t.id))
+    this.saveTransactions([...filtered, ...toAdd])
   }
 
   async getByFilters(filters: TransactionFilters): Promise<Transaction[]> {

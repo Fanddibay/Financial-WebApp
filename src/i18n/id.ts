@@ -534,6 +534,9 @@ export default {
     manualFormActivateLicense: 'Upgrade ke Premium',
     manualFormPremiumBenefits: 'untuk input form manual tanpa batas.',
     updateSuccess: 'Transaksi berhasil diupdate!',
+    fromPocketDeleted: 'Dari {name}',
+    revertedDeletedPocket: 'Transfer dibatalkan — {name}',
+    deletedPocketLabel: 'kantong di hapus',
     incomeLabel: 'Income',
     expenseLabel: 'Expense',
     // Default Categories - Income

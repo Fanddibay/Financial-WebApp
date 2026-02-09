@@ -8,11 +8,17 @@ import { getCategoryIcon } from '@/utils/categoryIcons'
 import { usePocketStore } from '@/stores/pocket'
 import { useGoalStore } from '@/stores/goal'
 import { useI18n } from 'vue-i18n'
+import {
+  DESC_PREFIX_TRANSFER_FROM_DELETED,
+  DESC_PREFIX_TRANSFER_REVERTED_DELETED,
+} from '@/services/transactionService'
 
 interface Props {
   transaction: Transaction
   /** When listing per-pocket, pass current pocket id to show transfer direction (from/to). */
   contextPocketId?: string
+  /** When true (e.g. on pocket/goal detail), clicking a transfer card does not navigate to the other pocket/goal. */
+  disableTransferNavigation?: boolean
   hideActions?: boolean
   /** List style: no card border/background, full-width row with bottom border only */
   flat?: boolean
@@ -91,7 +97,11 @@ const categoryIcon = computed(() => {
 })
 
 const displayTitle = computed(() => {
-  if (!isTransfer.value) return props.transaction.description
+  const desc = props.transaction.description
+  if (desc.startsWith(DESC_PREFIX_TRANSFER_FROM_DELETED) || desc.startsWith(DESC_PREFIX_TRANSFER_REVERTED_DELETED)) {
+    return ''
+  }
+  if (!isTransfer.value) return desc
   const pid = props.contextPocketId
   const fromId = props.transaction.pocketId
   const toId = props.transaction.transferToPocketId
@@ -99,6 +109,33 @@ const displayTitle = computed(() => {
   const toName = toId ? pocketStore.getPocketById(toId)?.name ?? toId : ''
   if (pid === toId) return `From ${fromName}`
   return `To ${toName}`
+})
+
+const isFromDeletedPocket = computed(() =>
+  props.transaction.description.startsWith(DESC_PREFIX_TRANSFER_FROM_DELETED),
+)
+const isRevertedDeletedPocket = computed(() =>
+  props.transaction.description.startsWith(DESC_PREFIX_TRANSFER_REVERTED_DELETED),
+)
+
+const displayTitleMain = computed(() => {
+  const desc = props.transaction.description
+  if (desc.startsWith(DESC_PREFIX_TRANSFER_FROM_DELETED)) {
+    const name = desc.slice(DESC_PREFIX_TRANSFER_FROM_DELETED.length) || 'Pocket'
+    return t('transaction.fromPocketDeleted', { name })
+  }
+  if (desc.startsWith(DESC_PREFIX_TRANSFER_REVERTED_DELETED)) {
+    const name = desc.slice(DESC_PREFIX_TRANSFER_REVERTED_DELETED.length) || 'Pocket'
+    return t('transaction.revertedDeletedPocket', { name })
+  }
+  return ''
+})
+
+const displayTitleLabel = computed(() => {
+  if (isFromDeletedPocket.value || isRevertedDeletedPocket.value) {
+    return t('transaction.deletedPocketLabel')
+  }
+  return ''
 })
 
 const pocketLabel = computed(() => {
@@ -165,9 +202,10 @@ function handleDelete() {
 function handleCardClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   if (target.closest('button') || target.closest('[role="menu"]') || isMenuOpen.value) return
-  
+
   const tx = props.transaction
-  
+  if (props.disableTransferNavigation && tx.type === 'transfer') return
+
   if (tx.goalId && tx.type === 'income') {
     router.push(`/goals/${tx.goalId}`)
   } else if (tx.transferToGoalId) {
@@ -199,9 +237,14 @@ function handleCardClick(e: MouseEvent) {
         </div>
         <div class="min-w-0 flex-1 space-y-1">
           <h3 class="truncate text-base font-semibold leading-tight text-slate-900 dark:text-slate-100">
-            {{ displayTitle }}
+            <template v-if="displayTitleLabel">{{ displayTitleMain }}</template>
+            <template v-else>{{ displayTitle }}</template>
           </h3>
-          <span v-if="!isTransfer"
+          <span v-if="displayTitleLabel"
+            class="text-xs font-normal text-slate-500 dark:text-slate-400">
+            {{ displayTitleLabel }}
+          </span>
+          <span v-else-if="!isTransfer"
             class="inline-flex items-center gap-1 rounded-lg text-xs font-medium text-slate-600  dark:text-slate-300">
             {{ categoryIcon }} {{ transaction.category }}
           </span>

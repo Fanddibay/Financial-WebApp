@@ -180,15 +180,14 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   }
 
-  // Delete all transactions for a pocket (used when deleting a pocket)
+  // Delete all transactions for a pocket (used when deleting a pocket).
+  // Service converts transfers out to income in target pocket so balances are preserved.
   async function deleteByPocketId(pocketId: string) {
     loading.value = true
     error.value = null
     try {
       await transactionService.deleteByPocketId(pocketId)
-      transactions.value = transactions.value.filter(
-        (t) => t.pocketId !== pocketId && t.transferToPocketId !== pocketId,
-      )
+      transactions.value = await transactionService.getAll()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal menghapus transaksi kantong'
       console.error('Error deleting transactions by pocket:', err)

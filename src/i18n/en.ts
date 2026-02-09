@@ -534,6 +534,9 @@ export default {
     manualFormActivateLicense: 'Upgrade to Premium',
     manualFormPremiumBenefits: 'for unlimited manual form entries.',
     updateSuccess: 'Transaction updated successfully!',
+    fromPocketDeleted: 'From {name}',
+    revertedDeletedPocket: 'Transfer reverted — {name}',
+    deletedPocketLabel: 'pocket deleted',
     incomeLabel: 'Income',
     expenseLabel: 'Expense',
     // Default Categories - Income

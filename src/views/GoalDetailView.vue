@@ -414,8 +414,9 @@ onMounted(() => {
           <!-- Transactions tab -->
           <div v-if="activeTab === 'transactions'" class="space-y-4 py-4">
             <div v-if="latestSeven.length > 0" class="space-y-2">
-              <TransactionCard v-for="tx in latestSeven" :key="tx.id" :transaction="tx" @edit="handleEdit(tx.id)"
-                @delete="handleDelete(tx.id)" />
+              <TransactionCard v-for="tx in latestSeven" :key="tx.id" :transaction="tx"
+                :disable-transfer-navigation="true"
+                @edit="handleEdit(tx.id)" @delete="handleDelete(tx.id)" />
               <button v-if="goalTransactions.length > 7" type="button"
                 class="w-full rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-3 text-sm font-medium text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400"
                 @click="handleSeeAllTransactions">

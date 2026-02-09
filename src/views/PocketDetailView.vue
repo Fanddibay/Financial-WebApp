@@ -457,6 +457,7 @@ onMounted(() => {
             </div>
             <div v-else class="space-y-3">
               <TransactionCard v-for="tx in latestSeven" :key="tx.id" :transaction="tx" :context-pocket-id="pocketId"
+                :disable-transfer-navigation="true"
                 @edit="handleEdit" @delete="handleDelete" />
             </div>
             <button v-if="pocketTransactions.length > 0" type="button"
