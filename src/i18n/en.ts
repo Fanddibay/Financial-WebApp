@@ -44,6 +44,7 @@ export default {
     createTitle: 'Create Pocket',
     createDesc: 'Add a new pocket to organize your money.',
     createSuccess: 'Pocket "{name}" created successfully.',
+    viewPockets: 'View pockets',
     pocketName: 'Pocket name',
     pocketNamePlaceholder: 'e.g. E-wallet, Savings',
     pocketNameRequired: 'Pocket name is required',
@@ -812,6 +813,7 @@ export default {
     createTitle: 'Create Goal',
     createDesc: 'Add a new goal for saving or investment.',
     createSuccess: 'Goal "{name}" created successfully.',
+    viewGoals: 'View goals',
     limitUpgrade: {
       title: 'Unlock more goals',
       description: 'The Basic license allows only 1 goal. Upgrade to the Pro license for unlimited goals.',

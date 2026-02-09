@@ -116,16 +116,22 @@ function handleCreateClick() {
 }
 
 function handleCreatePocket(data: { name: string; icon: string; type: 'spending' | 'saving'; color?: string }) {
-  pocketStore.createPocket(data)
+  const created = pocketStore.createPocket(data)
   showCreateModal.value = false
-  toastStore.success(t('pocket.createSuccess', { name: data.name }))
+  toastStore.showToast(t('pocket.createSuccess', { name: data.name }), 'success', 4000, {
+    label: t('pocket.viewPockets'),
+    path: `/pockets/${created.id}`,
+  })
 }
 
 function handleCreateGoal(data: { name: string; icon: string; targetAmount: number; durationMonths: number; color?: string }) {
   try {
-    goalStore.createGoal(data)
+    const created = goalStore.createGoal(data)
     showCreateGoalModal.value = false
-    toastStore.success(t('goal.createSuccess', { name: data.name }))
+    toastStore.showToast(t('goal.createSuccess', { name: data.name }), 'success', 4000, {
+      label: t('goal.viewGoals'),
+      path: `/goals/${created.id}`,
+    })
   } catch (e) {
     const err = e as Error & { code?: string }
     if (err.code === GOAL_LIMIT_REACHED) {

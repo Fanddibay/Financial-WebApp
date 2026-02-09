@@ -98,7 +98,7 @@ function toastIcon(type: ToastType): 'check-circle' | 'exclamation-triangle' | '
               type="button"
               @click.stop="handleAction(toast)"
               :class="[
-                'w-full rounded-lg py-2 px-3 text-sm font-semibold transition',
+                'w-full rounded-lg py-1.5 px-3 text-sm font-medium transition',
                 (toast.type === 'transaction-income' || toast.type === 'success')
                   ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500'
                   : (toast.type === 'transaction-expense' || toast.type === 'error' || toast.type === 'delete')

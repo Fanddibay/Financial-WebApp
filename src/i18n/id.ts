@@ -44,6 +44,7 @@ export default {
     createTitle: 'Buat Kantong',
     createDesc: 'Tambah kantong baru untuk mengatur uang kamu.',
     createSuccess: 'Kantong "{name}" berhasil dibuat.',
+    viewPockets: 'Lihat kantong',
     pocketName: 'Nama kantong',
     pocketNamePlaceholder: 'mis. E-wallet, Tabungan',
     pocketNameRequired: 'Nama kantong wajib diisi',
@@ -850,6 +851,7 @@ export default {
     createTitle: 'Buat Goal',
     createDesc: 'Tambah goal baru untuk menabung atau investasi',
     createSuccess: 'Goal "{name}" berhasil dibuat.',
+    viewGoals: 'Lihat goals',
     limitUpgrade: {
       title: 'Buka lebih banyak goal',
       description: 'Lisensi Basic hanya memungkinkan 1 goal. Upgrade ke lisensi Pro untuk goal tanpa batas.',
