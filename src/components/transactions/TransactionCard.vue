@@ -187,7 +187,12 @@ const amountClass = computed(() => {
   return props.transaction.type === 'income' ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'
 })
 
-const allowEdit = computed(() => !isTransfer.value)
+const allowEdit = computed(
+  () =>
+    !isTransfer.value &&
+    !isFromDeletedPocket.value &&
+    !isRevertedDeletedPocket.value,
+)
 
 function handleEdit() {
   setOpenMenuId(null)
