@@ -185,6 +185,8 @@ export function startPwaSyncToCache(): void {
     if (document.visibilityState === 'visible') scheduleSyncToCache()
   })
   window.addEventListener('beforeunload', () => syncLocalStorageToCache())
-  // Periodic backup so cache is fresh when user later installs
-  setInterval(scheduleSyncToCache, 60 * 1000)
+  // pagehide fires on mobile when switching tab or adding to home; keeps cache fresh
+  window.addEventListener('pagehide', () => syncLocalStorageToCache())
+  // Periodic backup so cache is fresh when user installs/add-to-home from any browser
+  setInterval(scheduleSyncToCache, 30 * 1000)
 }

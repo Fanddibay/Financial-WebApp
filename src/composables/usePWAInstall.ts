@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue'
+import { syncLocalStorageToCache } from '@/utils/pwaDataSync'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -37,7 +38,8 @@ export function usePWAInstall() {
   function handleBeforeInstallPrompt(e: Event) {
     // Prevent the default browser install prompt
     e.preventDefault()
-    
+    // Sync data to cache now so when user installs/add-to-home, PWA gets latest data
+    syncLocalStorageToCache()
     // Store the event for later use
     deferredPrompt.value = e as BeforeInstallPromptEvent
     isInstallable.value = true
@@ -50,6 +52,8 @@ export function usePWAInstall() {
 
     try {
       isInstalling.value = true
+      // Sync data to cache immediately before install so the installed PWA has current data
+      await syncLocalStorageToCache()
 
       // Show the install prompt
       await deferredPrompt.value.prompt()
