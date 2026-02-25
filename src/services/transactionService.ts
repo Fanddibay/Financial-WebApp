@@ -1,5 +1,5 @@
 import type { Transaction, TransactionFormData, TransactionFilters } from '@/types/transaction'
-import { getPocketById, MAIN_POCKET_ID } from '@/services/pocketService'
+import { getPocketById } from '@/services/pocketService'
 
 /** Prefix in description for income created from transfer when source pocket was deleted. UI shows i18n with pocket name. */
 export const DESC_PREFIX_TRANSFER_FROM_DELETED = '__transfer_from_deleted__:'
@@ -112,6 +112,8 @@ class LocalStorageTransactionService implements ITransactionService {
       date: validatedDate,
       pocketId: data.pocketId,
       goalId: data.goalId,
+      referenceType: data.referenceType,
+      referenceId: data.referenceId,
       createdAt: now,
       updatedAt: now,
     }
@@ -230,6 +232,8 @@ class LocalStorageTransactionService implements ITransactionService {
       transferToPocketId: existing.transferToPocketId,
       goalId: data.goalId ?? existing.goalId,
       transferToGoalId: existing.transferToGoalId,
+      referenceType: data.referenceType ?? existing.referenceType,
+      referenceId: data.referenceId ?? existing.referenceId,
       createdAt: existing.createdAt,
       updatedAt: new Date().toISOString(),
     }

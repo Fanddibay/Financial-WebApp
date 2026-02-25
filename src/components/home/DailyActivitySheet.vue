@@ -4,7 +4,6 @@ import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import { formatIDR } from '@/utils/currency'
 import { getCategoryIcon } from '@/utils/categoryIcons'
-import { usePocketStore } from '@/stores/pocket'
 import { useI18n } from 'vue-i18n'
 import type { Transaction } from '@/types/transaction'
 
@@ -19,7 +18,6 @@ const emit = defineEmits<{
 }>()
 
 const { t, locale } = useI18n()
-const pocketStore = usePocketStore()
 
 const detailTransactions = computed(() =>
   [...props.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
@@ -76,9 +74,6 @@ function formatTxDate(dateStr: string) {
   })
 }
 
-function pocketName(id: string) {
-  return pocketStore.getPocketById(id)?.name ?? '-'
-}
 </script>
 
 <template>

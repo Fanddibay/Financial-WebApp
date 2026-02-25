@@ -5,7 +5,6 @@ import type { Goal } from '@/types/goal'
 import { formatIDR } from '@/utils/currency'
 import { isDarkColor } from '@/utils/pocketColors'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
-import { useI18n } from 'vue-i18n'
 
 interface Props {
   goal: Goal
@@ -18,7 +17,6 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { hideBalance: false, disabled: false })
 const emit = defineEmits<{ 'disabled-click': [] }>()
 const router = useRouter()
-const { t } = useI18n()
 
 const darkBg = computed(() => props.goal.color && isDarkColor(props.goal.color))
 const hasCustomColor = computed(() => !!props.goal.color && !props.disabled)

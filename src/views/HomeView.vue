@@ -7,6 +7,7 @@ import { useProfileStore } from '@/stores/profile'
 import { useGoalStore } from '@/stores/goal'
 import TransactionCard from '@/components/transactions/TransactionCard.vue'
 import AddTransactionModal from '@/components/transactions/AddTransactionModal.vue'
+import SplitBillSheet from '@/components/split/SplitBillSheet.vue'
 import WeeklyTransactionsBarChart from '@/components/charts/WeeklyTransactionsBarChart.vue'
 import DailyActivitySheet from '@/components/home/DailyActivitySheet.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -36,10 +37,12 @@ const {
 const showDeleteConfirm = ref(false)
 const showDailyActivitySheet = ref(false)
 const showAddModal = ref(false)
+const showSplitBillSheet = ref(false)
 const paymentModalStore = usePaymentModalStore()
 watch(() => paymentModalStore.closeAllModalsTrigger, () => {
   showAddModal.value = false
   showDailyActivitySheet.value = false
+  showSplitBillSheet.value = false
 })
 
 const displayName = computed(() => profileStore.profile.name || t('home.guest'))
@@ -101,6 +104,10 @@ function handleViewAll() {
 
 function openDailyActivity() {
   showDailyActivitySheet.value = true
+}
+
+function openSplitBill() {
+  showSplitBillSheet.value = true
 }
 
 const goalsWithBalances = computed(() => goalStore.goalsWithBalances)
@@ -295,6 +302,50 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Quick Actions (Social Focus) -->
+    <div class="flex gap-3">
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-brand/40 hover:shadow dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40"
+        @click="openSplitBill"
+      >
+        <span
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-xl dark:bg-amber-900/30"
+          aria-hidden="true"
+        >
+          🧾
+        </span>
+        <div class="text-left">
+          <p class="font-semibold text-slate-900 dark:text-slate-100">
+            {{ t('split.quickAction') }}
+          </p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {{ t('split.quickActionDesc') }}
+          </p>
+        </div>
+      </button>
+      <button
+        type="button"
+        class="flex min-w-0 flex-1 items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-brand/40 hover:shadow dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40"
+        @click="goToGoalsTab"
+      >
+        <span
+          class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-xl dark:bg-violet-900/30"
+          aria-hidden="true"
+        >
+          🎯
+        </span>
+        <div class="text-left">
+          <p class="font-semibold text-slate-900 dark:text-slate-100">
+            {{ t('home.goalProgressTitle') }}
+          </p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">
+            {{ t('goal.addGoal') }}
+          </p>
+        </div>
+      </button>
+    </div>
+
     <!-- Recent Transactions (above chart) -->
     <BaseCard>
       <template #header>
@@ -365,5 +416,7 @@ onMounted(() => {
       @close="showDeleteConfirm = false; transactionToDelete = null" @confirm="confirmDelete" />
 
     <AddTransactionModal :is-open="showAddModal" @close="showAddModal = false" />
+    <SplitBillSheet :is-open="showSplitBillSheet" @close="showSplitBillSheet = false" />
+
   </div>
 </template>

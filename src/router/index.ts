@@ -42,6 +42,17 @@ const router = createRouter({
       component: () => import('../views/ProfileView.vue'),
     },
     {
+      path: '/split-history',
+      name: 'split-history',
+      component: () => import('../views/SplitHistoryView.vue'),
+    },
+    {
+      path: '/split-history/:id',
+      name: 'split-history-detail',
+      component: () => import('../views/SplitHistoryDetailView.vue'),
+      props: true,
+    },
+    {
       path: '/pockets/:id',
       name: 'pocket-detail',
       component: () => import('../views/PocketDetailView.vue'),
@@ -52,6 +63,16 @@ const router = createRouter({
       name: 'goal-detail',
       component: () => import('../views/GoalDetailView.vue'),
       props: true,
+    },
+    {
+      path: '/recurring',
+      name: 'recurring',
+      component: () => import('../views/RecurringTransactionsView.vue'),
+    },
+    {
+      path: '/receipt-scan',
+      name: 'receipt-scan',
+      component: () => import('../views/ReceiptScanView.vue'),
     },
     // Admin routes
     {

@@ -46,7 +46,8 @@ export const useProfileStore = defineStore('profile', () => {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored) as Record<string, unknown>
-        const { avatar: _a, ...rest } = parsed
+        const { avatar, ...rest } = parsed
+        void avatar
         return {
           name: (rest.name as string) ?? 'User',
           phone: (rest.phone as string) ?? '',
@@ -86,7 +87,8 @@ export const useProfileStore = defineStore('profile', () => {
   // Persist only name/phone/notifications; never avatar (so export stays clean).
   function saveProfile() {
     try {
-      const { avatar: _a, ...toSave } = profile.value
+      const { avatar, ...toSave } = profile.value
+      void avatar
       localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave))
     } catch {
       // Ignore storage errors

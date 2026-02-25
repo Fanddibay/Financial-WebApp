@@ -362,7 +362,7 @@ onMounted(() => {
               @click="handleAddTransaction">
               <font-awesome-icon :icon="['fas', 'plus']" class="h-5 w-5 shrink-0 text-brand" />
               <span class="text-xs font-medium text-slate-700 dark:text-slate-300">{{ t('pocket.addTransaction')
-              }}</span>
+                }}</span>
             </button>
             <button type="button" :disabled="!canWithdraw"
               class="flex items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white py-2.5 transition hover:border-brand/40 hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40 dark:disabled:hover:border-slate-700 dark:disabled:hover:bg-slate-800"
@@ -415,8 +415,7 @@ onMounted(() => {
           <div v-if="activeTab === 'transactions'" class="space-y-4 py-4">
             <div v-if="latestSeven.length > 0" class="space-y-2">
               <TransactionCard v-for="tx in latestSeven" :key="tx.id" :transaction="tx"
-                :disable-transfer-navigation="true"
-                @edit="handleEdit(tx.id)" @delete="handleDelete(tx.id)" />
+                :disable-transfer-navigation="true" @edit="handleEdit(tx.id)" @delete="handleDelete(tx.id)" />
               <button v-if="goalTransactions.length > 7" type="button"
                 class="w-full rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 py-3 text-sm font-medium text-slate-600 transition hover:border-brand/40 hover:bg-brand/5 hover:text-brand dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400"
                 @click="handleSeeAllTransactions">
@@ -433,7 +432,7 @@ onMounted(() => {
             <!-- Investment Growth (investment goals only) -->
             <div v-if="isInvestmentGoal" class="rounded-xl bg-white p-4 shadow-sm dark:bg-slate-800">
               <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">📊 {{ t('goal.investmentGrowthTitle')
-                }}</h3>
+              }}</h3>
               <div class="mt-2 space-y-2">
                 <div class="flex justify-between text-sm">
                   <span class="text-slate-600 dark:text-slate-400">{{ t('goal.currentBalance') }}</span>

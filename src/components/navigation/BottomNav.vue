@@ -23,7 +23,7 @@ const activeTab = computed(() => {
   if (currentPath === '/') return 'home'
   if (currentPath.startsWith('/pockets') || currentPath.startsWith('/goals')) return 'pockets'
   if (currentPath.startsWith('/transactions')) return 'transactions'
-  if (currentPath === '/profile') return 'profile'
+  if (currentPath === '/profile' || currentPath.startsWith('/split-history')) return 'profile'
   return 'home'
 })
 

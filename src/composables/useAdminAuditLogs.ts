@@ -120,7 +120,7 @@ export function useAdminAuditLogs() {
 
       // Success - map data correctly
       if (data) {
-        logs.value = data.map((item: any) => ({
+        logs.value = data.map((item: Record<string, unknown>) => ({
           id: item.id || null,
           action: item.action || 'system',
           license_token: item.license_token || null,

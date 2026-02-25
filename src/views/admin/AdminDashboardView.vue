@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, watch } from 'vue'
+import { onMounted, ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAdminAuth } from '@/composables/useAdminAuth'
 import { useAdminLicenses } from '@/composables/useAdminLicenses'
@@ -12,7 +12,7 @@ import { useToastStore } from '@/stores/toast'
 
 const router = useRouter()
 const toastStore = useToastStore()
-const { user, isAdmin, loading: authLoading } = useAdminAuth()
+const { isAdmin, loading: authLoading } = useAdminAuth()
 const {
   licenses,
   loading,

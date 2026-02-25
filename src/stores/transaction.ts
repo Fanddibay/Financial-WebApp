@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import type { Transaction, TransactionFormData, TransactionFilters, TransactionSummary } from '@/types/transaction'
 import { transactionService, computePocketBalances } from '@/services/transactionService'
+import { splitService } from '@/services/splitService'
 
 export const useTransactionStore = defineStore('transaction', () => {
   const transactions = ref<Transaction[]>([])
@@ -164,12 +165,17 @@ export const useTransactionStore = defineStore('transaction', () => {
     }
   }
 
-  // Delete transaction
+  // Delete transaction. If it's a split-linked expense, also delete the split.
   async function deleteTransaction(id: string) {
     loading.value = true
     error.value = null
     try {
-      await transactionService.delete(id)
+      const tx = transactions.value.find((t) => t.id === id)
+      if (tx?.referenceType === 'split' && tx.referenceId) {
+        await splitService.delete(tx.referenceId)
+      } else {
+        await transactionService.delete(id)
+      }
       transactions.value = transactions.value.filter((t) => t.id !== id)
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Gagal menghapus transaksi'

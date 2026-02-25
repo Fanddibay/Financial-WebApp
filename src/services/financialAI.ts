@@ -638,7 +638,7 @@ export class LocalFinancialAI {
   }
 
   private analyzeTopCategories(locale: 'id' | 'en' = 'id'): string {
-    const { topSpendingCategories, totalExpenses } = this.analysis
+    const { topSpendingCategories } = this.analysis
 
     if (topSpendingCategories.length === 0) {
       return this.msg(
@@ -672,7 +672,7 @@ export class LocalFinancialAI {
   }
 
   private detectOverspending(locale: 'id' | 'en' = 'id'): string {
-    const { overspendingCategories, categoryBreakdown } = this.analysis
+    const { overspendingCategories } = this.analysis
 
     if (overspendingCategories.length === 0) {
       return this.msg(
@@ -703,7 +703,7 @@ export class LocalFinancialAI {
   }
 
   private getMonthlySummary(locale: 'id' | 'en' = 'id'): string {
-    const { monthlyTrends, totalIncome, totalExpenses, balance } = this.analysis
+    const { monthlyTrends } = this.analysis
 
     if (monthlyTrends.length === 0) {
       return this.msg(
@@ -814,7 +814,7 @@ export class LocalFinancialAI {
   }
 
   private getGeneralAdvice(locale: 'id' | 'en' = 'id'): string {
-    const { balance, savingsRate, totalIncome } = this.analysis
+    const { balance, savingsRate } = this.analysis
     const goals = this.analysis.goals ?? []
     const hasGoals = goals.length > 0
 

@@ -80,6 +80,8 @@ import {
   faBuildingColumns,
   faBagShopping,
   faMobileButton,
+  faMinus,
+  faUserPlus,
 } from '@fortawesome/free-solid-svg-icons'
 import { faVuejs, faWhatsapp } from '@fortawesome/free-brands-svg-icons'
 
@@ -162,6 +164,8 @@ const icons = [
   faBuildingColumns,
   faBagShopping,
   faMobileButton,
+  faMinus,
+  faUserPlus,
   faVuejs,
   faWhatsapp,
 ]

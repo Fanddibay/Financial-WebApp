@@ -91,7 +91,7 @@ const chartData = computed(() => {
 })
 
 const chartOptions = computed(() => {
-  const baseOptions: any = {
+  const baseOptions = {
   responsive: true,
   maintainAspectRatio: false,
   plugins: {
@@ -108,10 +108,10 @@ const chartOptions = computed(() => {
     },
     tooltip: {
       callbacks: {
-          label: (context: any) => {
+          label: (context: { parsed: number | { y?: number } }) => {
             const value = props.chartType === 'doughnut' 
-              ? context.parsed 
-              : context.parsed.y
+              ? (typeof context.parsed === 'number' ? context.parsed : 0)
+              : (typeof context.parsed === 'object' && context.parsed?.y != null ? context.parsed.y : 0)
             if (value === null || value === undefined) return ''
             
             const formatted = formatIDR(value)

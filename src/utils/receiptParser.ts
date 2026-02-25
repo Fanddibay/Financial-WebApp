@@ -28,19 +28,24 @@ export interface ReceiptItem {
  * - Works for both receipts (struk) and invoices (faktur)
  */
 function normalizeOcrText(text: string): string {
-  return text
-    .replace(/\s+/g, ' ') // Multiple spaces to single space
-    // Fix common OCR errors in number contexts (receipt & invoice)
-    .replace(/(\d)\s*[Oo]\s*(\d)/g, '$10$2') // O between numbers -> 0
-    .replace(/(\d)\s*[Il|]\s*(\d)/g, '$11$2') // I or l between numbers -> 1
-    .replace(/\b[Oo]\s*(\d)/g, '0$1') // O at start of number -> 0
-    .replace(/(\d)\s*[Oo]\b/g, '$10') // O at end of number -> 0
-    .replace(/([Rp\s])([S5])(\d{2,})/gi, '$15$3') // S misread as 5 after Rp
-    .replace(/(\d)[B8](\d)/g, '$18$2') // B in number -> 8
-    .replace(/(\d)\s*[Zz]\s*(\d)/g, '$12$2') // Z in number -> 2
-    // Preserve common receipt/invoice symbols
-    .replace(/[^\w\s\d.,:/-]/g, '') // Remove special symbols except common ones
-    .trim()
+  return (
+    text
+      .replace(/\r\n|\r/g, '\n')
+      // Collapse multiple spaces/tabs on same line; preserve newlines for line-item detection
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n +/g, '\n')
+      .replace(/ +\n/g, '\n')
+      // Fix common OCR errors in number contexts
+      .replace(/(\d)\s*[Oo]\s*(\d)/g, '$10$2')
+      .replace(/(\d)\s*[Il|]\s*(\d)/g, '$11$2')
+      .replace(/\b[Oo]\s*(\d)/g, '0$1')
+      .replace(/(\d)\s*[Oo]\b/g, '$10')
+      .replace(/([Rp\s])([S5])(\d{2,})/gi, '$15$3')
+      .replace(/(\d)[B8](\d)/g, '$18$2')
+      .replace(/(\d)\s*[Zz]\s*(\d)/g, '$12$2')
+      .replace(/[^\w\s\d.,:/-]/g, '')
+      .trim()
+  )
 }
 
 /**
@@ -94,16 +99,6 @@ function parseIDRAmount(numStr: string): number {
   return digitsOnly ? parseInt(digitsOnly, 10) : NaN
 }
 
-/**
- * Normalize number string to pure digits (legacy helper; prefer parseIDRAmount for amounts)
- * Handles: 58,000, 58.000, 58 000 → 58000
- */
-function normalizeNumber(numStr: string): string {
-  return numStr
-    .replace(/[,\s]/g, '')
-    .replace(/\.(?=\d{3})/g, '')
-    .replace(/[^\d]/g, '')
-}
 
 /**
  * Extract numbers from text with their context
@@ -142,8 +137,8 @@ function isLikelyYear(value: number, line: string): boolean {
 }
 
 function extractNumbers(text: string): NumberMatch[] {
-  const lines = text.split('\n')
   const numbers: NumberMatch[] = []
+  const lines = text.split('\n')
 
   lines.forEach((line, lineIndex) => {
     const numberPatterns = [
@@ -289,8 +284,8 @@ function detectTotalTier1(text: string, numbers: NumberMatch[]): {
   confidence: 'high' | 'medium' | 'low'
   keyword?: string
 } | null {
-  const lines = text.split('\n')
   const minAmount = 100
+  const lines = text.split('\n')
 
   // --- Pass 1: Same-line only (strongest signal: keyword and amount on same line) ---
   let bestSameLine: {
@@ -419,54 +414,108 @@ function detectTotalTier2(numbers: NumberMatch[], threshold: number = 500): {
   return { amount: largest.value, confidence: 'low' }
 }
 
+/** Lines that are headers/totals and should not be treated as item lines */
+function isItemExcludedLine(line: string): boolean {
+  const lower = line.trim().toLowerCase()
+  if (lower.length < 2) return true
+  const exclude = [
+    /^\s*(total|subtotal|jumlah|bayar|tagihan|payment|balance|ppn|pajak|tax|service|servis|diskon|discount)\b/i,
+    /total\s*:|subtotal\s*:|jumlah\s*:|bayar\s*:/i,
+    /^(no\.?|qty|nama|item|harga|price|amount)\s*$/i,
+    /receipt|invoice|struk|faktur/i,
+  ]
+  return exclude.some((p) => p.test(lower))
+}
+
+/** Min/max price to consider as item (IDR) */
+const ITEM_PRICE_MIN = 100
+const ITEM_PRICE_MAX = 500_000_000
+
 /**
- * Detect item lines (item name on left, price on right)
+ * Detect item lines: item name (optional qty) + price.
+ * Multiple strategies so we catch "Nama Item Rp 25.000", "Nama 2 25000", "Nama 2x 25000", etc.
  */
 function detectItems(text: string, numbers: NumberMatch[]): ReceiptItem[] {
-  const lines = text.split('\n')
   const items: ReceiptItem[] = []
-  const processedNumbers = new Set<number>()
+  const lines = text.split('\n')
+  const processedByLine = new Set<number>() // lineIndex * 10000 + position to avoid duplicate on same line
 
   lines.forEach((line, lineIndex) => {
-    const trimmedLine = line.trim()
-    if (trimmedLine.length < 3) return
+    const trimmed = line.trim()
+    if (trimmed.length < 2) return
+    if (isItemExcludedLine(line)) return
 
-    // Look for item-price patterns
-    // Pattern: Item name ... price (price at end of line)
-    const lineNumbers = numbers.filter((n) => n.lineIndex === lineIndex && n.value >= 1000)
+    const lineNumbers = numbers.filter(
+      (n) => n.lineIndex === lineIndex && n.value >= ITEM_PRICE_MIN && n.value <= ITEM_PRICE_MAX,
+    )
+    if (lineNumbers.length === 0) return
 
-    for (const num of lineNumbers) {
-      if (processedNumbers.has(num.value)) continue
+    const lineLen = line.length
 
-      // Check if this number is at the end of the line (likely a price)
-      const pricePosition = num.position + num.original.length
-      const lineLength = trimmedLine.length
-      const isAtEnd = pricePosition >= lineLength - 5 // Within 5 chars of end
-
-      if (isAtEnd) {
-        // Extract item name (everything before the price)
-        const itemName = trimmedLine.substring(0, num.position).trim()
-
-        // Skip if item name is too short or contains total keywords
-        if (
-          itemName.length >= 2 &&
-          itemName.length <= 100 &&
-          !/total|bayar|jumlah|subtotal|tax|pajak/i.test(itemName)
-        ) {
-          // Check for quantity (e.g., "1x", "2x")
-          const qtyMatch = itemName.match(/(\d+)\s*x\s*$/i)
-          const quantity = qtyMatch ? parseInt(qtyMatch[1] || '1', 10) : 1
-
-          items.push({
-            name: itemName.replace(/\d+\s*x\s*$/i, '').trim(),
-            price: num.value,
-            quantity: quantity > 1 ? quantity : undefined,
-          })
-
-          processedNumbers.add(num.value)
-        }
-      }
+    // Strategy A: one number on line → treat as price, everything before = name
+    if (lineNumbers.length === 1) {
+      const num = lineNumbers[0]!
+      const endPos = num.position + num.original.length
+      const isInSecondHalf = endPos >= lineLen * 0.4
+      if (!isInSecondHalf) return
+      const namePart = line.substring(0, num.position).trim()
+      if (namePart.length < 1 || namePart.length > 120) return
+      const qtyMatch = namePart.match(/(\d+)\s*x\s*$/i)
+      const qty = qtyMatch ? Math.min(99, parseInt(qtyMatch[1] || '1', 10)) : 1
+      const name = namePart.replace(/\d+\s*x\s*$/i, '').trim() || 'Item'
+      const key = lineIndex * 10000 + num.position
+      if (processedByLine.has(key)) return
+      processedByLine.add(key)
+      items.push({ name, price: num.value, quantity: qty > 1 ? qty : undefined })
+      return
     }
+
+    // Strategy B: two or more numbers → last is price; if second-to-last is small (1–99), treat as qty
+    const lastNum = lineNumbers[lineNumbers.length - 1]!
+    const secondLast = lineNumbers.length >= 2 ? lineNumbers[lineNumbers.length - 2]! : null
+    const price = lastNum.value
+    let qty = 1
+    if (secondLast && secondLast.value >= 1 && secondLast.value <= 99 && secondLast.position < lastNum.position) {
+      qty = Math.round(secondLast.value)
+    }
+    const namePart = line.substring(0, secondLast ? secondLast.position : lastNum.position).trim()
+    if (namePart.length < 1 || namePart.length > 120) return
+    const qtyMatch = namePart.match(/(\d+)\s*x\s*$/i)
+    if (qtyMatch) qty = Math.min(99, parseInt(qtyMatch[1] || '1', 10))
+    const name = namePart.replace(/\d+\s*x\s*$/i, '').trim() || 'Item'
+    const key = lineIndex * 10000 + lastNum.position
+    if (processedByLine.has(key)) return
+    processedByLine.add(key)
+    items.push({ name, price, quantity: qty > 1 ? qty : undefined })
+  })
+
+  return items
+}
+
+/**
+ * Fallback: when few or no items detected, treat every line with a price-like number as one item.
+ * Excludes total/subtotal/tax lines. Uses last number on line as price.
+ */
+function detectItemsFallback(text: string, numbers: NumberMatch[]): ReceiptItem[] {
+  const items: ReceiptItem[] = []
+  const lines = text.split('\n')
+
+  lines.forEach((line, lineIndex) => {
+    const trimmed = line.trim()
+    if (trimmed.length < 3) return
+    if (isItemExcludedLine(line)) return
+
+    const lineNumbers = numbers.filter(
+      (n) => n.lineIndex === lineIndex && n.value >= ITEM_PRICE_MIN && n.value <= ITEM_PRICE_MAX,
+    )
+    if (lineNumbers.length === 0) return
+
+    const num = lineNumbers[lineNumbers.length - 1]!
+    const namePart = line.substring(0, num.position).trim()
+    const name = namePart.length >= 1 ? namePart.replace(/\d+\s*x\s*$/i, '').trim() || 'Item' : 'Item'
+    const qtyMatch = namePart.match(/(\d+)\s*x\s*$/i)
+    const qty = qtyMatch ? Math.min(99, parseInt(qtyMatch[1] || '1', 10)) : 1
+    items.push({ name, price: num.value, quantity: qty > 1 ? qty : undefined })
   })
 
   return items
@@ -503,7 +552,6 @@ const MONTH_NAMES_EN = ['january', 'february', 'march', 'april', 'may', 'june', 
  * Returns today's date if extraction fails or date is in the future
  */
 function extractDate(text: string): string {
-  const lines = text.split('\n')
   const fullText = text
 
   // Try "Tanggal: DD/MM/YYYY" or "Date: YYYY-MM-DD" etc. first
@@ -833,9 +881,12 @@ export function parseReceiptTextDetailed(text: string): ReceiptParseResult {
     }
   }
 
-  const items = detectItems(normalizedText, numbers)
+  let items = detectItems(normalizedText, numbers)
+  if (items.length < 2) {
+    const fallback = detectItemsFallback(normalizedText, numbers)
+    if (fallback.length > items.length) items = fallback
+  }
   const extractedDate = extractDate(normalizedText)
-  // Validate date is not in future (extractDate already handles this, but double-check)
   const today = getTodayDateString()
   const date = isDateInFuture(extractedDate) ? today : extractedDate
   const merchant = extractMerchant(normalizedText)

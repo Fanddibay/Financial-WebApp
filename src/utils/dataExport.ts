@@ -47,7 +47,8 @@ export function collectAppData(): ExportData {
   const profile =
     rawProfile && typeof rawProfile === 'object'
       ? (() => {
-          const { avatar: _a, ...rest } = rawProfile as Record<string, unknown>
+          const { avatar, ...rest } = rawProfile as Record<string, unknown>
+          void avatar
           return rest
         })()
       : rawProfile

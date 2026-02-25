@@ -21,6 +21,7 @@ interface UsageState {
   textInputs: number
   chatMessages: number
   manualForms: number
+  splitBillLastUsedAt: string | null
   lastResetDate: string
 }
 
@@ -58,10 +59,15 @@ export const useTokenStore = defineStore('token', () => {
             textInputs: 0,
             chatMessages: 0,
             manualForms: 0,
+            splitBillLastUsedAt: typeof usage.splitBillLastUsedAt === 'string' ? usage.splitBillLastUsedAt : null,
             lastResetDate: today,
           }
         }
-        return { ...usage, manualForms: typeof usage.manualForms === 'number' ? usage.manualForms : 0 }
+        return {
+          ...usage,
+          manualForms: typeof usage.manualForms === 'number' ? usage.manualForms : 0,
+          splitBillLastUsedAt: typeof usage.splitBillLastUsedAt === 'string' ? usage.splitBillLastUsedAt : null,
+        }
       }
     } catch {
       // Ignore parse errors
@@ -72,6 +78,7 @@ export const useTokenStore = defineStore('token', () => {
       textInputs: 0,
       chatMessages: 0,
       manualForms: 0,
+      splitBillLastUsedAt: null,
       lastResetDate: today,
     }
   }
@@ -299,7 +306,7 @@ export const useTokenStore = defineStore('token', () => {
           error: result.error || 'Failed to activate license. Please try again.',
         }
       }
-    } catch (error) {
+    } catch {
       console.error('Error activating license:', error)
       licenseStatus.value = 'error'
       return {
@@ -360,7 +367,7 @@ export const useTokenStore = defineStore('token', () => {
           error: result.error || 'Failed to deactivate license. Please try again.',
         }
       }
-    } catch (error) {
+    } catch {
       console.error('Error deactivating license:', error)
       licenseStatus.value = 'error'
       return {
@@ -465,7 +472,7 @@ export const useTokenStore = defineStore('token', () => {
           }
         }
       }
-    } catch (error) {
+    } catch {
       // Network error or other unexpected error - ALWAYS preserve existing status
       // This is CRITICAL to prevent license from being lost due to temporary issues
       
@@ -495,6 +502,82 @@ export const useTokenStore = defineStore('token', () => {
   // Usage tracking
   const MAX_BASIC_USAGE = 3
   const MAX_MANUAL_FORM_BASIC = 10
+  const SPLIT_BILL_LIMIT_BASIC = 1
+  const SPLIT_BILL_COOLDOWN_DAYS = 3
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  function getSplitBillUsageInfo(): {
+    canUse: boolean
+    used: number
+    limit: number
+    daysRemaining: number
+    nextAvailableAt: string | null
+  } {
+    if (isLicenseActive.value) {
+      return {
+        canUse: true,
+        used: 0,
+        limit: SPLIT_BILL_LIMIT_BASIC,
+        daysRemaining: 0,
+        nextAvailableAt: null,
+      }
+    }
+
+    const lastUsedAt = usageState.value.splitBillLastUsedAt
+    if (!lastUsedAt) {
+      return {
+        canUse: true,
+        used: 0,
+        limit: SPLIT_BILL_LIMIT_BASIC,
+        daysRemaining: 0,
+        nextAvailableAt: null,
+      }
+    }
+
+    const last = new Date(lastUsedAt).getTime()
+    if (!Number.isFinite(last)) {
+      return {
+        canUse: true,
+        used: 0,
+        limit: SPLIT_BILL_LIMIT_BASIC,
+        daysRemaining: 0,
+        nextAvailableAt: null,
+      }
+    }
+
+    const cooldownMs = SPLIT_BILL_COOLDOWN_DAYS * DAY_MS
+    const elapsed = Date.now() - last
+    if (elapsed >= cooldownMs) {
+      return {
+        canUse: true,
+        used: 0,
+        limit: SPLIT_BILL_LIMIT_BASIC,
+        daysRemaining: 0,
+        nextAvailableAt: null,
+      }
+    }
+
+    const remainingMs = cooldownMs - elapsed
+    const daysRemaining = Math.max(1, Math.ceil(remainingMs / DAY_MS))
+    return {
+      canUse: false,
+      used: 1,
+      limit: SPLIT_BILL_LIMIT_BASIC,
+      daysRemaining,
+      nextAvailableAt: new Date(last + cooldownMs).toISOString(),
+    }
+  }
+
+  function canUseSplitBill(): boolean {
+    return getSplitBillUsageInfo().canUse
+  }
+
+  function recordSplitBillUse() {
+    if (!isLicenseActive.value) {
+      usageState.value.splitBillLastUsedAt = new Date().toISOString()
+      saveUsage()
+    }
+  }
 
   function canUseReceiptScan(): boolean {
     if (isLicenseActive.value) return true
@@ -612,7 +695,7 @@ export const useTokenStore = defineStore('token', () => {
           tokenState.value.deviceId = null
           saveState()
         }
-      } catch (error) {
+      } catch {
         // If we can't verify, keep license as active (optimistic approach)
         // Don't clear license just because we can't verify
         // Ensure status remains 'active' if we have token and device ID
@@ -647,13 +730,18 @@ export const useTokenStore = defineStore('token', () => {
     canUseReceiptScan,
     canUseTextInput,
     canUseChat,
+    canUseSplitBill,
     recordReceiptScan,
     recordTextInput,
     recordChatMessage,
     recordManualForm,
+    recordSplitBillUse,
     getRemainingUsage,
+    getSplitBillUsageInfo,
     MAX_BASIC_USAGE,
     MAX_MANUAL_FORM_BASIC,
+    SPLIT_BILL_LIMIT_BASIC,
+    SPLIT_BILL_COOLDOWN_DAYS,
     canUseManualForm,
   }
 })

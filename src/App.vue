@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { RouterView } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
+import { useRecurringStore } from '@/stores/recurring'
+import { useToastStore } from '@/stores/toast'
+import { useI18n } from 'vue-i18n'
 import BottomNav from '@/components/navigation/BottomNav.vue'
 import AdminBottomNav from '@/components/admin/AdminBottomNav.vue'
 import ChatButton from '@/components/chat/ChatButton.vue'
@@ -14,11 +17,38 @@ import { usePaymentModalStore } from '@/stores/paymentModal'
 
 const route = useRoute()
 const paymentModalStore = usePaymentModalStore()
+const recurringStore = useRecurringStore()
+const toast = useToastStore()
+const { t } = useI18n()
+
+async function processRecurring() {
+  if (route.path.startsWith('/admin')) return
+  try {
+    await recurringStore.processDueItems((name) => {
+      toast.success(t('recurring.generatedToast', { name }), 4000)
+    })
+  } catch {
+    // ignore
+  }
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible') processRecurring()
+}
+
+onMounted(() => {
+  processRecurring()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 
 // Hide header and nav for admin routes (but show admin nav on main admin pages)
 const isAdminRoute = computed(() => route.path.startsWith('/admin'))
 // Hide app header on routes that use their own page header (Dashboard, History, Profile, TransactionForm, Pocket Detail, Goal Detail)
-const usePageHeaderRoutes = ['dashboard', 'transactions', 'profile', 'transaction-new', 'transaction-edit', 'pocket-detail', 'goal-detail', 'pockets']
+const usePageHeaderRoutes = ['dashboard', 'transactions', 'profile', 'split-history', 'split-history-detail', 'transaction-new', 'transaction-edit', 'pocket-detail', 'goal-detail', 'pockets', 'recurring']
 const hideAppHeader = computed(() => {
   if (isAdminRoute.value) return true
   const name = route.name as string

@@ -83,13 +83,6 @@ const isTransfer = computed(() => props.transaction.type === 'transfer')
 
 const formattedAmount = computed(() => formatIDR(props.transaction.amount))
 
-const formattedDate = computed(() =>
-  new Date(props.transaction.date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }),
-)
 
 const categoryIcon = computed(() => {
   if (isTransfer.value) return '↔️'
@@ -250,8 +243,14 @@ function handleCardClick(e: MouseEvent) {
             {{ displayTitleLabel }}
           </span>
           <span v-else-if="!isTransfer"
-            class="inline-flex items-center gap-1 rounded-lg text-xs font-medium text-slate-600  dark:text-slate-300">
-            {{ categoryIcon }} {{ transaction.category }}
+            class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span class="rounded-lg">{{ categoryIcon }} {{ transaction.category }}</span>
+            <span
+              v-if="transaction.referenceType === 'recurring'"
+              class="rounded-full bg-brand/20 px-2 py-0.5 text-[10px] font-medium text-brand dark:bg-brand/30"
+            >
+              Rutin
+            </span>
           </span>
           <span v-else
             class="inline-flex items-center rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">

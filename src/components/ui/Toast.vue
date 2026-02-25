@@ -5,6 +5,8 @@ import { useToastStore } from '@/stores/toast'
 import type { ToastType } from '@/stores/toast'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
+defineOptions({ name: 'AppToast' })
+
 const router = useRouter()
 const toastStore = useToastStore()
 

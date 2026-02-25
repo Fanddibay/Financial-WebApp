@@ -128,7 +128,7 @@ const chartOptions = computed(() => ({
     },
     tooltip: {
       callbacks: {
-        label: (context: any) => {
+        label: (context: { parsed: { y?: number }; dataset: { label?: string } }) => {
           const value = context.parsed.y
           if (value === null || value === undefined) return ''
           return `${context.dataset.label}: ${formatIDR(value)}`

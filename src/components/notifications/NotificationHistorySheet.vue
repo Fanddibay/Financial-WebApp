@@ -195,9 +195,6 @@ function handleClose() {
   goBack()
 }
 
-function pocketName(id: string) {
-  return pocketStore.getPocketById(id)?.name ?? '-'
-}
 
 function destinationLabel(tx: Transaction): string {
   if (tx.goalId) return goalStore.getGoalById(tx.goalId)?.name ?? '-'

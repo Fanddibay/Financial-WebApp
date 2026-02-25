@@ -26,7 +26,7 @@ export function usePWAInstall() {
     }
 
     // Check for iOS standalone mode
-    if ((window.navigator as any).standalone === true) {
+    if ((window.navigator as Navigator & { standalone?: boolean }).standalone === true) {
       isInstalled.value = true
       isInstallable.value = false
       return true

@@ -16,6 +16,9 @@ export interface Transaction {
   goalId?: string
   /** Set when type === 'transfer' and target is a Goal */
   transferToGoalId?: string
+  /** Reference to split when type === 'expense' and created from Split Bill */
+  referenceType?: 'split' | 'recurring'
+  referenceId?: string
 }
 
 export interface TransactionFormData {
@@ -27,6 +30,9 @@ export interface TransactionFormData {
   pocketId: string
   /** Set when transaction is for a Goal (income only) */
   goalId?: string
+  /** Reference to split when type === 'expense' and created from Split Bill */
+  referenceType?: 'split' | 'recurring'
+  referenceId?: string
 }
 
 export interface TransactionFilters {

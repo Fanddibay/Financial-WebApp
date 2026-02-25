@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import BottomSheet from '@/components/ui/BottomSheet.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseCard from '@/components/ui/BaseCard.vue'
@@ -36,15 +35,25 @@ const emit = defineEmits<{
   'navigate-away': []
 }>()
 
-const router = useRouter()
 const paymentModalStore = usePaymentModalStore()
 const tokenStore = useTokenStore()
 
 // Import Tesseract.js directly from package (works better in PWA)
 // Dynamic import to avoid bundling issues
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let Tesseract: any = null
-let tesseractLoadPromise: Promise<any> | null = null
+type OcrWorker = {
+  setParameters: (p: Record<string, unknown>) => Promise<void>
+  recognize: (f: File) => Promise<{ data: { text: string; confidence: number } }>
+  terminate: () => Promise<void>
+}
+
+type TesseractModule = {
+  createWorker: (lang: string, oem: number, options: Record<string, unknown>) => Promise<OcrWorker>
+}
+
+type OcrLoggerMessage = { status?: string; progress?: number }
+
+let Tesseract: TesseractModule | null = null
+let tesseractLoadPromise: Promise<TesseractModule> | null = null
 
 // Load Tesseract.js - use bundled version for PWA compatibility
 async function loadTesseract() {
@@ -317,10 +326,10 @@ async function processImage(file: File) {
 
     // Create worker for OCR (required for Tesseract.js v5)
     processingProgress.value = 35
-    let worker: any = null
+    let worker: OcrWorker | null = null
 
     // Helper: create worker with timeout; lang can be 'eng' or 'eng+ind' for better Indonesian receipts
-    const createWorkerWithTimeout = async (options: any, timeoutMs = 60000, lang = 'eng'): Promise<any> => {
+    const createWorkerWithTimeout = async (options: Record<string, unknown>, timeoutMs = 60000, lang = 'eng'): Promise<OcrWorker> => {
       return Promise.race([
         TesseractInstance.createWorker(lang, 1, options),
         new Promise((_, reject) =>
@@ -329,7 +338,7 @@ async function processImage(file: File) {
       ])
     }
 
-    const logger = (m: any) => {
+    const logger = (m: OcrLoggerMessage) => {
       // Update progress based on worker status
       if (m.status === 'loading tesseract core' || m.status === 'initializing tesseract') {
         processingProgress.value = 35

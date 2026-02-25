@@ -13,7 +13,7 @@ interface Props {
   icon?: string[]
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   title: 'Konfirmasi',
   confirmText: 'Konfirmasi',
   cancelText: 'Batal',

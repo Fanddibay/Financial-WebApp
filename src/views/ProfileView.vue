@@ -293,6 +293,10 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
   showNotification('success', t('settings.languageHelper'))
 }
 
+function goToSplitHistory() {
+  router.push({ name: 'split-history' })
+}
+
 </script>
 
 <template>
@@ -365,6 +369,97 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
             <font-awesome-icon :icon="['fas', 'edit']" class="mr-2" />
             {{ t('profile.editProfile') }}
           </BaseButton>
+        </div>
+      </div>
+    </BaseCard>
+
+    <!-- Settings -->
+    <BaseCard>
+      <h3 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
+      <div class="space-y-4">
+        <!-- Notifications: coming soon -->
+        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.notifications') }}</h4>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {{ t('settings.featureInDevelopmentDesc') }}
+          </p>
+          <p class="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+            {{ t('settings.comingSoon') }}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="flex w-full items-center gap-4 rounded-lg border border-slate-200 bg-white p-4 text-left transition hover:border-brand/40 hover:bg-brand/5 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand/40"
+          @click="goToSplitHistory"
+        >
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+            <font-awesome-icon :icon="['fas', 'receipt']" class="h-5 w-5" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold text-slate-900 dark:text-slate-100">{{ t('profile.splitHistoryMenuTitle') }}</p>
+            <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{{ t('profile.splitHistoryMenuDesc') }}</p>
+          </div>
+          <font-awesome-icon :icon="['fas', 'chevron-right']" class="h-4 w-4 shrink-0 text-slate-400" />
+        </button>
+
+        <!-- Language Switcher -->
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.language') }}</h4>
+            </div>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              {{ t('settings.languageDesc') }}
+            </p>
+            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
+              {{ t('settings.languageHelper') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button type="button" @click="handleLanguageChange('id')" :class="[
+            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
+            locale === 'id'
+              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
+          ]">
+            🇮🇩 {{ t('settings.indonesian') }}
+          </button>
+          <button type="button" @click="handleLanguageChange('en')" :class="[
+            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
+            locale === 'en'
+              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
+              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
+          ]">
+            🇬🇧 {{ t('settings.english') }}
+          </button>
+        </div>
+
+        <!-- Theme Toggle -->
+        <div class="flex items-center justify-between">
+          <div class="flex-1">
+            <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.theme') }}</h4>
+            <p class="text-sm text-slate-500 dark:text-slate-400">
+              {{ themeStore.theme === 'dark' ? t('settings.themeDark') : t('settings.themeLight') }}
+            </p>
+          </div>
+          <button type="button" @click="themeStore.toggleTheme()"
+            class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
+            <font-awesome-icon v-if="themeStore.theme === 'light'" :icon="['fas', 'moon']" class="h-5 w-5" />
+            <font-awesome-icon v-else :icon="['fas', 'sun']" class="h-5 w-5" />
+          </button>
+        </div>
+
+        <!-- Version -->
+        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
+          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.version') }}</h4>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            {{ t('settings.versionDesc') }}
+          </p>
+          <p class="mt-2 text-lg font-semibold tabular-nums text-brand dark:text-brand">
+            {{ APP_VERSION }}
+          </p>
         </div>
       </div>
     </BaseCard>
@@ -503,82 +598,6 @@ function handleLanguageChange(newLocale: 'id' | 'en') {
         </div>
       </BaseCard>
     </div>
-
-    <!-- Settings -->
-    <BaseCard>
-      <h3 class="mb-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{{ t('settings.title') }}</h3>
-      <div class="space-y-4">
-        <!-- Notifications: coming soon -->
-        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
-          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.notifications') }}</h4>
-          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {{ t('settings.featureInDevelopmentDesc') }}
-          </p>
-          <p class="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-            {{ t('settings.comingSoon') }}
-          </p>
-        </div>
-
-        <!-- Language Switcher -->
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <div class="flex items-center gap-2 mb-1">
-              <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.language') }}</h4>
-            </div>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              {{ t('settings.languageDesc') }}
-            </p>
-            <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              {{ t('settings.languageHelper') }}
-            </p>
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button type="button" @click="handleLanguageChange('id')" :class="[
-            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
-            locale === 'id'
-              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
-              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
-          ]">
-            🇮🇩 {{ t('settings.indonesian') }}
-          </button>
-          <button type="button" @click="handleLanguageChange('en')" :class="[
-            'flex-1 rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all',
-            locale === 'en'
-              ? 'border-brand bg-brand/10 text-brand dark:bg-brand/20 dark:border-brand'
-              : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700',
-          ]">
-            🇬🇧 {{ t('settings.english') }}
-          </button>
-        </div>
-
-        <!-- Theme Toggle -->
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.theme') }}</h4>
-            <p class="text-sm text-slate-500 dark:text-slate-400">
-              {{ themeStore.theme === 'dark' ? t('settings.themeDark') : t('settings.themeLight') }}
-            </p>
-          </div>
-          <button type="button" @click="themeStore.toggleTheme()"
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-600 transition hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600">
-            <font-awesome-icon v-if="themeStore.theme === 'light'" :icon="['fas', 'moon']" class="h-5 w-5" />
-            <font-awesome-icon v-else :icon="['fas', 'sun']" class="h-5 w-5" />
-          </button>
-        </div>
-
-        <!-- Version -->
-        <div class="rounded-lg border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30">
-          <h4 class="font-medium text-slate-900 dark:text-slate-100">{{ t('settings.version') }}</h4>
-          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {{ t('settings.versionDesc') }}
-          </p>
-          <p class="mt-2 text-lg font-semibold tabular-nums text-brand dark:text-brand">
-            {{ APP_VERSION }}
-          </p>
-        </div>
-      </div>
-    </BaseCard>
 
     <!-- Data Management -->
     <BaseCard>
